@@ -6,82 +6,63 @@ import { IZBORNIK } from "./izbornik";
 
 const pravaUloge = (naziv: string) => ZADANE_ULOGE.find((u) => u.naziv === naziv)!.prava;
 
+const SVI = ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser", "Knjigovođa"];
+
 /**
- * Očekivanja napisana RUČNO (ne izračunata istom funkcijom): što koja uloga smije.
+ * Očekivanja napisana RUČNO (ne izračunata istom funkcijom): koje uloge smiju koju akciju.
  * Nova akcija ili stranica mora se dodati ovdje, inače test pukne.
  */
-const DOPUSTENE_AKCIJE: Record<string, KljucAkcije[]> = {
-  Administrator: [
-    "racun.lozinka",
-    "korisnici.dodaj",
-    "korisnici.uredi",
-    "korisnici.lozinka",
-    "uloge.spremi",
-    "uloge.obrisi",
-    "sifrarnici.spremi",
-    "sifrarnici.aktivnost",
-    "sifrarnici.obrisi",
-    "partneri.spremi",
-    "partneri.aktivnost",
-    "partneri.dohvat",
-    "partneri.vies",
-    "poslovnice.spremi",
-    "cjenici.spremi",
-    "cjenici.stavka",
-    "partneri.obrisi",
-  ],
-  Voditelj: [
-    "racun.lozinka",
-    "sifrarnici.spremi",
-    "sifrarnici.aktivnost",
-    "partneri.spremi",
-    "partneri.aktivnost",
-    "partneri.dohvat",
-    "partneri.vies",
-    "poslovnice.spremi",
-    "cjenici.spremi",
-    "cjenici.stavka",
-    "partneri.obrisi",
-  ],
-  Prodavač: [
-    "racun.lozinka",
-    "partneri.spremi",
-    "partneri.aktivnost",
-    "partneri.dohvat",
-    "partneri.vies",
-    "poslovnice.spremi",
-    "cjenici.spremi",
-    "cjenici.stavka",
-  ],
-  Skladištar: ["racun.lozinka"],
-  Serviser: ["racun.lozinka"],
-  Knjigovođa: ["racun.lozinka"],
+const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
+  "racun.lozinka": SVI,
+  "korisnici.dodaj": ["Administrator"],
+  "korisnici.uredi": ["Administrator"],
+  "korisnici.lozinka": ["Administrator"],
+  "uloge.spremi": ["Administrator"],
+  "uloge.obrisi": ["Administrator"],
+  "sifrarnici.spremi": ["Administrator", "Voditelj"],
+  "sifrarnici.aktivnost": ["Administrator", "Voditelj"],
+  "sifrarnici.obrisi": ["Administrator"],
+  "partneri.spremi": ["Administrator", "Voditelj", "Prodavač"],
+  "partneri.aktivnost": ["Administrator", "Voditelj", "Prodavač"],
+  "partneri.obrisi": ["Administrator", "Voditelj"],
+  "partneri.dohvat": ["Administrator", "Voditelj", "Prodavač"],
+  "partneri.vies": ["Administrator", "Voditelj", "Prodavač"],
+  "poslovnice.spremi": ["Administrator", "Voditelj", "Prodavač"],
+  "cjenici.spremi": ["Administrator", "Voditelj", "Prodavač"],
+  "cjenici.stavka": ["Administrator", "Voditelj", "Prodavač"],
+  "primke.zaprimi": ["Administrator", "Voditelj", "Skladištar"],
+  "primke.provjera": ["Administrator", "Voditelj", "Skladištar"],
+  "primke.storno": ["Administrator", "Voditelj"],
 };
 
-const DOPUSTENE_STRANICE: Record<string, PutanjaStranice[]> = {
-  Administrator: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
-  Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
-  Prodavač: ["/", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
-  Skladištar: ["/", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
-  Serviser: ["/", "/moj-racun", "/partneri", "/cjenici"],
-  Knjigovođa: ["/moj-racun", "/partneri", "/cjenici"],
+const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
+  "/": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
+  "/korisnici": ["Administrator", "Voditelj"],
+  "/uloge": ["Administrator", "Voditelj"],
+  "/dnevnik": ["Administrator", "Voditelj"],
+  "/sifrarnici": ["Administrator", "Voditelj", "Prodavač", "Skladištar"],
+  "/moj-racun": SVI,
+  "/partneri": SVI,
+  "/cjenici": SVI,
+  "/primke": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
-  it("popis očekivanja pokriva sve zadane uloge", () => {
-    expect(Object.keys(DOPUSTENE_AKCIJE).sort()).toEqual(ZADANE_ULOGE.map((u) => u.naziv).sort());
-    expect(Object.keys(DOPUSTENE_STRANICE).sort()).toEqual(ZADANE_ULOGE.map((u) => u.naziv).sort());
+  it("očekivanja pokrivaju sve akcije i stranice, a uloge su sve zadane uloge", () => {
+    expect(Object.keys(TKO_SMIJE_AKCIJU).sort()).toEqual(Object.keys(AKCIJE).sort());
+    expect(Object.keys(TKO_VIDI_STRANICU).sort()).toEqual(Object.keys(STRANICE).sort());
+    expect([...SVI].sort()).toEqual(ZADANE_ULOGE.map((u) => u.naziv).sort());
   });
 
   for (const uloga of ZADANE_ULOGE) {
     for (const kljuc of Object.keys(AKCIJE) as KljucAkcije[]) {
-      const ocekivano = DOPUSTENE_AKCIJE[uloga.naziv]!.includes(kljuc);
+      const ocekivano = TKO_SMIJE_AKCIJU[kljuc].includes(uloga.naziv);
       it(`${uloga.naziv} · ${kljuc} → ${ocekivano ? "dopušteno" : "zabranjeno"}`, () => {
         expect(zadovoljava(uloga.prava, AKCIJE[kljuc])).toBe(ocekivano);
       });
     }
     for (const putanja of Object.keys(STRANICE) as PutanjaStranice[]) {
-      const ocekivano = DOPUSTENE_STRANICE[uloga.naziv]!.includes(putanja);
+      const ocekivano = TKO_VIDI_STRANICU[putanja].includes(uloga.naziv);
       it(`${uloga.naziv} · stranica ${putanja} → ${ocekivano ? "dopušteno" : "zabranjeno"}`, () => {
         const { naziv: _n, ...pravo } = STRANICE[putanja];
         expect(zadovoljava(uloga.prava, pravo)).toBe(ocekivano);
@@ -101,8 +82,18 @@ describe("posebna prava u akcijama", () => {
 describe("izbornik", () => {
   it("prikazuje samo dopušteno; prva stranica je prva dopuštena", () => {
     const putanje = (uloga: string) => izbornikZa(pravaUloge(uloga), IZBORNIK).map((s) => s.putanja);
-    expect(putanje("Prodavač")).toEqual(["/", "/partneri", "/cjenici", "/sifrarnici", "/moj-racun"]);
-    expect(putanje("Administrator")).toEqual(["/", "/partneri", "/cjenici", "/sifrarnici", "/korisnici", "/uloge", "/dnevnik", "/moj-racun"]);
+    expect(putanje("Prodavač")).toEqual(["/", "/partneri", "/cjenici", "/primke", "/sifrarnici", "/moj-racun"]);
+    expect(putanje("Administrator")).toEqual([
+      "/",
+      "/partneri",
+      "/cjenici",
+      "/primke",
+      "/sifrarnici",
+      "/korisnici",
+      "/uloge",
+      "/dnevnik",
+      "/moj-racun",
+    ]);
     expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/partneri");
   });
 

@@ -113,3 +113,87 @@ export async function promijeniStanje(
   }
   await tx.dogadajUredaja.createMany({ data: dogadaji });
 }
+
+export type NoviUredaj = {
+  serijski: string;
+  modelId: string;
+  nabavnaCijena: string | null;
+  nabavniDatum: Date | null;
+  jamstvoDo: Date | null;
+  stanjeRobeId: string | null;
+  cpu?: string | null;
+  ram?: string | null;
+  disk?: string | null;
+  ekran?: string | null;
+  os?: string | null;
+  napomena?: string | null;
+};
+
+/**
+ * Novi uređaji (zaprimanje ili najava dolaska) — isto pravilo prijelaza kao za postojeće.
+ * Serijski broj koji već postoji u firmi → GreskaKorisniku s popisom (i kod istovremenog unosa).
+ */
+export async function stvoriUredaje(
+  tx: Tx,
+  izvrsitelj: Izvrsitelj,
+  radnja: "zaprimanje" | "najava",
+  uredaji: readonly NoviUredaj[],
+  podaci: { skladisteId: string | null; primkaId?: string | null; dokument?: PodaciPrijelaza["dokument"]; opis?: string | null },
+): Promise<string[]> {
+  for (const u of uredaji) {
+    const r = prijelaz(radnja, null, null, u.serijski);
+    if (!r.ok) throw new GreskaKorisniku(r.razlog);
+  }
+  const r = prijelaz(radnja, null);
+  if (!r.ok) throw new GreskaKorisniku(r.razlog);
+  if (r.naSkladistu === true && !podaci.skladisteId) throw new GreskaKorisniku("Odaberite skladište.");
+
+  const postojeci = await tx.uredaj.findMany({
+    where: { firmaId: izvrsitelj.firmaId, serijski: { in: uredaji.map((u) => u.serijski) } },
+    select: { serijski: true, stanje: true, primka: { select: { broj: true } } },
+    take: 20,
+  });
+  if (postojeci.length) {
+    throw new GreskaKorisniku(`Već postoje u programu: ${postojeci.map((p) => `${p.serijski}${p.primka ? ` (${p.primka.broj})` : ""}`).join(", ")}.`);
+  }
+
+  const ime = izvrsitelj.korisnikId
+    ? ((await tx.korisnik.findUnique({ where: { id: izvrsitelj.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat")
+    : "Sustav";
+  let stvoreni: { id: string; serijski: string }[];
+  try {
+    stvoreni = await tx.uredaj.createManyAndReturn({
+      data: uredaji.map((u) => ({
+        ...u,
+        firmaId: izvrsitelj.firmaId,
+        stanje: r.novo,
+        skladisteId: r.naSkladistu === true ? podaci.skladisteId : null,
+        primkaId: podaci.primkaId ?? null,
+      })),
+      select: { id: true, serijski: true },
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002")
+      throw new GreskaKorisniku("Neki od serijskih brojeva upravo je zaprimljen drugom primkom. Osvježite i provjerite.");
+    throw e;
+  }
+  const vrijeme = new Date();
+  await tx.dogadajUredaja.createMany({
+    data: stvoreni.map((u) => ({
+      firmaId: izvrsitelj.firmaId,
+      uredajId: u.id,
+      vrijeme,
+      radnja,
+      staroStanje: null,
+      novoStanje: r.novo,
+      skladisteDoId: r.naSkladistu === true ? podaci.skladisteId : null,
+      dokumentVrsta: podaci.dokument?.vrsta ?? null,
+      dokumentId: podaci.dokument?.id ?? null,
+      dokumentBroj: podaci.dokument?.broj ?? null,
+      opis: podaci.opis ?? null,
+      korisnikId: izvrsitelj.korisnikId,
+      korisnik: ime,
+    })),
+  });
+  return stvoreni.map((u) => u.id);
+}

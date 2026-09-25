@@ -5,6 +5,8 @@ import type { Kontekst } from "@/lib/akcija";
 import { dnevnikZaIzvoz } from "@/queries/dnevnik";
 import { popisClanova } from "@/queries/korisnici";
 import { uvjetPartnera } from "@/queries/partneri";
+import { uvjetPrimki } from "@/queries/primke";
+import { centiIzDecimala } from "@/domain/novac";
 import type { StupacIzvoza } from "./stupci";
 
 export const NAJVISE_REDAKA = { csv: 100_000, xlsx: 100_000, pdf: 5_000 } as const;
@@ -78,6 +80,42 @@ export const IZVORI: Record<string, Izvor<unknown>> = {
         take: najvise,
       }),
   } satisfies Izvor<Awaited<ReturnType<Kontekst["db"]["partner"]["findMany"]>>[number]>),
+
+  primke: izvor({
+    naslov: "Primke",
+    pravo: { modul: "uredaji", razina: "pregled" },
+    stupci: [
+      { naslov: "Broj", vrijednost: (p) => p.broj, sirina: 12 },
+      { naslov: "Datum", vrsta: "datum", vrijednost: (p) => p.datum.toISOString().slice(0, 10) },
+      { naslov: "Dobavljač", vrijednost: (p) => p.dobavljac?.naziv ?? "" },
+      { naslov: "Dokument dobavljača", vrijednost: (p) => p.dokumentDobavljaca, sirina: 14 },
+      { naslov: "Skladište", vrijednost: (p) => p.skladiste.naziv, sirina: 14 },
+      { naslov: "Uređaja", vrsta: "broj", vrijednost: (p) => p.brojUredaja },
+      {
+        naslov: "Nabavna vrijednost",
+        vrsta: "iznos",
+        osjetljivo: true,
+        vrijednost: (p) => (p.nabavnaVrijednost ? centiIzDecimala(p.nabavnaVrijednost.toString()) : null),
+      },
+      { naslov: "Status", vrijednost: (p) => p.status, sirina: 10 },
+    ],
+    dohvati: (k, sp, najvise) =>
+      k.db.primka.findMany({
+        where: uvjetPrimki(k.firmaId, { trazi: jedan(sp["trazi"]), status: vise(sp["status"]) }),
+        orderBy: [{ datum: "desc" }, { redni: "desc" }],
+        take: najvise,
+        include: { dobavljac: { select: { naziv: true } }, skladiste: { select: { naziv: true } } },
+      }),
+  } satisfies Izvor<{
+    broj: string;
+    datum: Date;
+    dobavljac: { naziv: string } | null;
+    dokumentDobavljaca: string | null;
+    skladiste: { naziv: string };
+    brojUredaja: number;
+    nabavnaVrijednost: { toString(): string } | null;
+    status: string;
+  }>),
 
   korisnici: izvor({
     naslov: "Korisnici",

@@ -86,7 +86,10 @@ export const SIFRARNICI: DefinicijaSifrarnika[] = [
       { ime: "zadano", oznaka: "Zadano za zaprimanje", vrsta: "kvacica" },
     ],
     stupci: ["naziv", "adresa", "zadano"],
-    reference: [{ model: "uredaj", polje: "skladisteId", naziv: "uređaja" }],
+    reference: [
+      { model: "uredaj", polje: "skladisteId", naziv: "uređaja" },
+      { model: "primka", polje: "skladisteId", naziv: "primki" },
+    ],
     jedinstvenaKvacica: "zadano",
   },
   {

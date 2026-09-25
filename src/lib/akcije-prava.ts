@@ -24,6 +24,9 @@ export const AKCIJE = {
   "poslovnice.spremi": { modul: "partneri", razina: "operativno" },
   "cjenici.spremi": { modul: "partneri", razina: "operativno" },
   "cjenici.stavka": { modul: "partneri", razina: "operativno" },
+  "primke.zaprimi": { modul: "uredaji", razina: "operativno" },
+  "primke.provjera": { modul: "uredaji", razina: "operativno" },
+  "primke.storno": { modul: "uredaji", razina: "puno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -38,6 +41,7 @@ export const STRANICE = {
   "/moj-racun": { naziv: "Moj račun", samoPrijava: true },
   "/partneri": { naziv: "Partneri", modul: "partneri", razina: "pregled" },
   "/cjenici": { naziv: "Cjenici", modul: "partneri", razina: "pregled" },
+  "/primke": { naziv: "Primke", modul: "uredaji", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 
 export type PutanjaStranice = keyof typeof STRANICE;

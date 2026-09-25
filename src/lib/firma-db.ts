@@ -6,6 +6,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
  * Test `firma-db.test.ts` pukne ako model s `firmaId` u shemi nije na popisu.
  */
 export const MODELI_S_FIRMOM = [
+  "Brojac",
   "Cjenik",
   "ClanstvoFirme",
   "Dnevnik",
@@ -14,6 +15,7 @@ export const MODELI_S_FIRMOM = [
   "ModelUredaja",
   "Partner",
   "Poslovnica",
+  "Primka",
   "Proizvodjac",
   "Sesija",
   "Skladiste",
@@ -53,6 +55,8 @@ export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
     "stavkeCjenika",
     "uredaji",
     "dogadaji",
+    "brojaci",
+    "primke",
   ],
 };
 

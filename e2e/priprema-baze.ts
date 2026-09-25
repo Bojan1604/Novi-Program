@@ -32,6 +32,7 @@ async function priprema(): Promise<void> {
       },
     });
     await prisma.usluga.create({ data: { firmaId: firma.id, naziv: "E2E Instalacija", jedinica: "h", cijena: "40.00" } });
+    await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Distributer d.o.o.", kupac: false, dobavljac: true } });
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);
     for (const k of [
       { ime: E2E.admin.ime, email: E2E.admin.email, uloga: "Administrator" },

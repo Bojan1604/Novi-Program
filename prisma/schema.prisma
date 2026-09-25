@@ -18,13 +18,13 @@ datasource db {
 // ─── 0.2 Firma, korisnici, prijava ───────────────────────────────────────────
 
 model Firma {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  naziv     String
-  oib       String   @unique @db.Char(11)
-  aktivna   Boolean  @default(true)
+  id       String   @id @default(uuid(7)) @db.Uuid
+  naziv    String
+  oib      String   @unique @db.Char(11)
+  aktivna  Boolean  @default(true)
   /// boja firme u sučelju (#rrggbb); tekst na njoj bira se po kontrastu
-  boja      String?  @db.Char(7)
-  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  boja     String?  @db.Char(7)
+  stvoreno DateTime @default(now()) @db.Timestamptz(3)
 
   clanstva ClanstvoFirme[]
   sesije   Sesija[]
@@ -43,6 +43,8 @@ model Firma {
   stavkeCjenika StavkaCjenika[]
   uredaji       Uredaj[]
   dogadaji      DogadajUredaja[]
+  brojaci       Brojac[]
+  primke        Primka[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -173,8 +175,8 @@ model Kategorija {
   firma  Firma          @relation(fields: [firmaId], references: [id])
   modeli ModelUredaja[]
 
-  @@index([firmaId, naziv])
   @@unique([firmaId, id])
+  @@index([firmaId, naziv])
 }
 
 model Proizvodjac {
@@ -188,8 +190,8 @@ model Proizvodjac {
   firma  Firma          @relation(fields: [firmaId], references: [id])
   modeli ModelUredaja[]
 
-  @@index([firmaId, naziv])
   @@unique([firmaId, id])
+  @@index([firmaId, naziv])
 }
 
 /// Model uređaja (npr. Lenovo ThinkPad T14 Gen 4). Naziv jedinstven unutar proizvođača.
@@ -212,16 +214,16 @@ model ModelUredaja {
   stvoreno          DateTime @default(now()) @db.Timestamptz(3)
   azurirano         DateTime @updatedAt @db.Timestamptz(3)
 
-  firma       Firma       @relation(fields: [firmaId], references: [id])
-  proizvodjac Proizvodjac @relation(fields: [firmaId, proizvodjacId], references: [firmaId, id])
-  kategorija  Kategorija  @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
+  firma       Firma           @relation(fields: [firmaId], references: [id])
+  proizvodjac Proizvodjac     @relation(fields: [firmaId, proizvodjacId], references: [firmaId, id])
+  kategorija  Kategorija      @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
   cijene      StavkaCjenika[]
   uredaji     Uredaj[]
 
+  @@unique([firmaId, id])
   @@index([firmaId, naziv])
   @@index([proizvodjacId])
   @@index([kategorijaId])
-  @@unique([firmaId, id])
 }
 
 model Skladiste {
@@ -237,9 +239,10 @@ model Skladiste {
 
   firma   Firma    @relation(fields: [firmaId], references: [id])
   uredaji Uredaj[]
+  primke  Primka[]
 
-  @@index([firmaId, naziv])
   @@unique([firmaId, id])
+  @@index([firmaId, naziv])
 }
 
 /// Stanje robe (Novo, Rabljeno, Obnovljeno, Neispravno…) — neovisno o statusu uređaja.
@@ -254,8 +257,8 @@ model StanjeRobe {
   firma   Firma    @relation(fields: [firmaId], references: [id])
   uredaji Uredaj[]
 
-  @@index([firmaId, naziv])
   @@unique([firmaId, id])
+  @@index([firmaId, naziv])
 }
 
 /// Usluga (instalacija, sat servisa, dostava…) za stavke ponuda i računa.
@@ -274,8 +277,8 @@ model Usluga {
   firma  Firma           @relation(fields: [firmaId], references: [id])
   cijene StavkaCjenika[]
 
-  @@index([firmaId, naziv])
   @@unique([firmaId, id])
+  @@index([firmaId, naziv])
 }
 
 // ─── 1.2 Partneri i cjenici ────────────────────────────────────────────────────
@@ -317,6 +320,7 @@ model Partner {
   cjenik     Cjenik?      @relation(fields: [firmaId, cjenikId], references: [firmaId, id])
   poslovnice Poslovnica[]
   uredaji    Uredaj[]
+  primke     Primka[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -415,6 +419,8 @@ model Uredaj {
   /// kupac ili najmoprimac kod kojeg je uređaj
   partnerId          String?        @db.Uuid
   poslovnicaId       String?        @db.Uuid
+  /// primka kojom je zaprimljen
+  primkaId           String?        @db.Uuid
   /// nabavna cijena bez PDV-a — osjetljivo (pravo „costs“)
   nabavnaCijena      Decimal?       @db.Decimal(14, 2)
   nabavniDatum       DateTime?      @db.Date
@@ -436,6 +442,7 @@ model Uredaj {
   stanjeRobe StanjeRobe?      @relation(fields: [firmaId, stanjeRobeId], references: [firmaId, id])
   partner    Partner?         @relation(fields: [firmaId, partnerId], references: [firmaId, id])
   poslovnica Poslovnica?      @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
+  primka     Primka?          @relation(fields: [firmaId, primkaId], references: [firmaId, id])
   dogadaji   DogadajUredaja[]
 
   @@unique([firmaId, serijski])
@@ -445,32 +452,84 @@ model Uredaj {
   @@index([firmaId, skladisteId])
   @@index([firmaId, partnerId])
   @@index([firmaId, stvoreno(sort: Desc)])
+  @@index([primkaId])
 }
 
 /// Povijest uređaja: svaka promjena stanja ili lokacije.
 model DogadajUredaja {
-  id             String         @id @default(uuid(7)) @db.Uuid
-  firmaId        String         @db.Uuid
-  uredajId       String         @db.Uuid
-  vrijeme        DateTime       @default(now()) @db.Timestamptz(3)
+  id            String         @id @default(uuid(7)) @db.Uuid
+  firmaId       String         @db.Uuid
+  uredajId      String         @db.Uuid
+  vrijeme       DateTime       @default(now()) @db.Timestamptz(3)
   /// radnja iz stanja-uredaja.ts (zaprimanje, prodaja, najam…)
-  radnja         String
-  staroStanje    StanjeUredaja?
-  novoStanje     StanjeUredaja?
-  skladisteOdId  String?        @db.Uuid
-  skladisteDoId  String?        @db.Uuid
-  partnerId      String?        @db.Uuid
+  radnja        String
+  staroStanje   StanjeUredaja?
+  novoStanje    StanjeUredaja?
+  skladisteOdId String?        @db.Uuid
+  skladisteDoId String?        @db.Uuid
+  partnerId     String?        @db.Uuid
   /// dokument koji je uzrokovao promjenu (primka, račun, ugovor, servisni nalog…)
-  dokumentVrsta  String?
-  dokumentId     String?        @db.Uuid
-  dokumentBroj   String?
-  opis           String?
-  korisnikId     String?        @db.Uuid
-  korisnik       String         @default("Sustav")
+  dokumentVrsta String?
+  dokumentId    String?        @db.Uuid
+  dokumentBroj  String?
+  opis          String?
+  korisnikId    String?        @db.Uuid
+  korisnik      String         @default("Sustav")
 
   firma  Firma  @relation(fields: [firmaId], references: [id])
   uredaj Uredaj @relation(fields: [firmaId, uredajId], references: [firmaId, id])
 
   @@index([uredajId, vrijeme(sort: Desc)])
   @@index([firmaId, dokumentVrsta, dokumentId])
+}
+
+// ─── 1.4 Zaprimanje ────────────────────────────────────────────────────────────
+
+/// Brojač dokumenata po vrsti i godini: broj se uzima u istoj transakciji kao dokument,
+/// pa neuspjela radnja ne ostavlja rupu, a dva istovremena dokumenta ne dobiju isti broj.
+model Brojac {
+  firmaId String @db.Uuid
+  vrsta   String
+  godina  Int
+  zadnji  Int    @default(0)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@id([firmaId, vrsta, godina])
+}
+
+/// Primka: zaprimanje uređaja na skladište.
+model Primka {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  firmaId            String   @db.Uuid
+  /// PRI-12/2026
+  broj               String
+  godina             Int
+  redni              Int
+  datum              DateTime @db.Date
+  dobavljacId        String?  @db.Uuid
+  skladisteId        String   @db.Uuid
+  /// dokument dobavljača (otpremnica, račun)
+  dokumentDobavljaca String?
+  napomena           String?
+  /// knjiži nabavnu vrijednost u troškove (faza 4)
+  knjiziUTroskove    Boolean  @default(false)
+  brojUredaja        Int
+  /// zbroj nabavnih cijena — osjetljivo (pravo „costs“)
+  nabavnaVrijednost  Decimal? @db.Decimal(14, 2)
+  /// IZDANA ili STORNIRANA
+  status             String   @default("IZDANA")
+  korisnikId         String?  @db.Uuid
+  korisnik           String   @default("Sustav")
+  stvoreno           DateTime @default(now()) @db.Timestamptz(3)
+  azurirano          DateTime @updatedAt @db.Timestamptz(3)
+
+  firma     Firma     @relation(fields: [firmaId], references: [id])
+  dobavljac Partner?  @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
+  skladiste Skladiste @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
+  uredaji   Uredaj[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, godina, redni])
+  @@index([firmaId, datum(sort: Desc)])
 }
