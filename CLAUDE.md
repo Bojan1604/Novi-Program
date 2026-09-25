@@ -103,6 +103,8 @@ Dodatno:
 | `npm run test:e2e` | testovi u pregledniku (Playwright, računalo 1440 px i mobitel 390 px) nad buildom i testnom bazom |
 | `npm run verify` | **sve gore redom — obavezno prije svakog commita** |
 | `npm run db:migrate -- --name <ime>` | nova migracija u razvoju (+ `prisma generate` automatski) |
+| `npm run db:velika` | velika baza za mjerenje (300.000 uređaja…) u praznu bazu s „velika“ u imenu |
+| `npm run mjerenje -- <adresa> <putanje…>` | vrijeme poslužitelja i veličina stranica (granice 0,5 s i 1 MB) |
 | `npm run admin:prvi` | prva firma i administrator (`--ako-nema`: samo ako nema korisnika) |
 
 Git kukice (husky): prije commita typecheck + lint + `use server` + jedinični testovi; prije pusha build.
@@ -117,5 +119,8 @@ Na Windowsu sve pokreće `pokreni.bat`.
 - Rezultat provjere korisničkog upisa: `{ ok: true, vrijednost } | { ok: false, greska }` — greška je rečenica za korisnika.
 - Test uz datoteku: `novac.ts` → `novac.test.ts`; test nad bazom → `*.db.test.ts` (pomoć: `src/test/baza.ts`);
   test u pregledniku → `e2e/*.spec.ts` (podaci u `e2e/priprema-baze.ts`).
+- **Demo podaci** (`prisma/demo/`): svaki modul dodaje korak u `KORACI` (`prisma/demo/index.ts`) koji koristi
+  `Slucajno` (isto sjeme = isti podaci; ispravni OIB-i, kronološki datumi) i poštuje `k.kolicine` — isti kod puni
+  i veliku bazu. Za velike količine `createMany` u serijama. Prijava u demo: admin@demo.hr / Demo-lozinka-2026.
 - Prisma 7: klijent se generira u `src/generated/prisma` — nakon promjene sheme `npm run db:migrate`.
 - `src/generated/` se generira (`prisma generate` pri `npm install`) i ne ide u git.

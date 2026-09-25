@@ -22,7 +22,9 @@
     "test:e2e": "playwright test",
     "postdb:migrate": "prisma generate",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:velika": "tsx scripts/velika-baza.ts",
+    "mjerenje": "tsx scripts/mjerenje.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
