@@ -61,14 +61,21 @@ test.describe("prijava", () => {
   test("nakon 5 pogrešnih pokušaja račun je privremeno zaključan", async ({ page }) => {
     test.skip(test.info().project.name !== "racunalo", "jednom je dovoljno (dijeli bazu)");
     await page.goto("/prijava");
-    for (let i = 0; i < 5; i++) {
+    const posalji = async (lozinka: string) => {
       await page.getByLabel("E-pošta").fill(E2E.zakljucavanje.email);
-      await page.getByLabel("Lozinka").fill(`kriva-${i}-lozinka`);
-      await page.getByRole("button", { name: "Prijava" }).click();
-      await expect(page.locator("form").getByRole("alert")).toBeVisible();
+      await page.getByLabel("Lozinka").fill(lozinka);
+      // čekaj odgovor poslužitelja — prethodna poruka je još na ekranu pa njezina vidljivost ništa ne dokazuje
+      await Promise.all([
+        page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/prijava")),
+        page.getByRole("button", { name: "Prijava" }).click(),
+      ]);
+      await expect(page.getByRole("button", { name: "Prijava" })).toBeEnabled();
+    };
+    for (let i = 0; i < 5; i++) {
+      await posalji(`kriva-${i}-lozinka`);
+      await expect(page.locator("form").getByRole("alert")).toHaveText("Neispravna e-pošta ili lozinka.");
     }
-    await page.getByLabel("Lozinka").fill(E2E.admin.lozinka);
-    await page.getByRole("button", { name: "Prijava" }).click();
+    await posalji(E2E.admin.lozinka);
     await expect(page.locator("form").getByRole("alert")).toContainText("Previše neuspjelih pokušaja");
   });
 
