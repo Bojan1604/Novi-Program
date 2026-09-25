@@ -13,7 +13,7 @@ import type { Akter } from "./korisnici";
 type Tx = Prisma.TransactionClient;
 
 /** Gdje se partner koristi — brisanje samo ako nigdje (dopunjuje se s novim modulima). */
-export const REFERENCE_PARTNERA: { model: string; polje: string; naziv: string }[] = [];
+export const REFERENCE_PARTNERA: { model: string; polje: string; naziv: string }[] = [{ model: "uredaj", polje: "partnerId", naziv: "uređaja" }];
 
 function zaDnevnik(p: Record<string, unknown>) {
   const { id: _id, firmaId: _f, stvoreno: _s, azurirano: _a, ...ostalo } = p;

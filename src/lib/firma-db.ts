@@ -9,6 +9,7 @@ export const MODELI_S_FIRMOM = [
   "Cjenik",
   "ClanstvoFirme",
   "Dnevnik",
+  "DogadajUredaja",
   "Kategorija",
   "ModelUredaja",
   "Partner",
@@ -19,6 +20,7 @@ export const MODELI_S_FIRMOM = [
   "StanjeRobe",
   "StavkaCjenika",
   "Uloga",
+  "Uredaj",
   "Usluga",
 ] as const;
 
@@ -49,6 +51,8 @@ export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
     "poslovnice",
     "cjenici",
     "stavkeCjenika",
+    "uredaji",
+    "dogadaji",
   ],
 };
 

@@ -71,7 +71,7 @@ export const SIFRARNICI: DefinicijaSifrarnika[] = [
     ],
     jedinstvenoUnutar: ["proizvodjacId"],
     stupci: ["proizvodjacId", "naziv", "kategorijaId", "kpdProdaja", "jamstvoMjeseci", "preporucenaCijena", "marza"],
-    reference: [],
+    reference: [{ model: "uredaj", polje: "modelId", naziv: "uređaja" }],
   },
   {
     kljuc: "skladista",
@@ -86,7 +86,7 @@ export const SIFRARNICI: DefinicijaSifrarnika[] = [
       { ime: "zadano", oznaka: "Zadano za zaprimanje", vrsta: "kvacica" },
     ],
     stupci: ["naziv", "adresa", "zadano"],
-    reference: [],
+    reference: [{ model: "uredaj", polje: "skladisteId", naziv: "uređaja" }],
     jedinstvenaKvacica: "zadano",
   },
   {
@@ -98,7 +98,7 @@ export const SIFRARNICI: DefinicijaSifrarnika[] = [
     opis: "Novo, rabljeno, obnovljeno, neispravno…",
     polja: [NAZIV],
     stupci: ["naziv"],
-    reference: [],
+    reference: [{ model: "uredaj", polje: "stanjeRobeId", naziv: "uređaja" }],
   },
   {
     kljuc: "usluge",
