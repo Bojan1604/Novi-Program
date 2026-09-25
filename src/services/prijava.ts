@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { ULOGA_ADMINISTRATOR } from "@/domain/prava";
+import { zapisiDnevnik } from "./dnevnik";
 import { napraviZadaneUloge } from "./korisnici";
 import {
   istekSesije,
@@ -171,6 +172,11 @@ export async function napraviPrvogAdmina(db: PrismaClient, ulaz: UlazPrvogAdmina
     const uloge = await napraviZadaneUloge(tx, firma.id);
     const korisnik = await tx.korisnik.create({ data: { ime: ulaz.ime.trim(), email, lozinkaHash } });
     await tx.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[ULOGA_ADMINISTRATOR]! } });
+    await zapisiDnevnik(tx, {
+      firmaId: firma.id, korisnikId: null, radnja: "sustav.prvi-admin", entitet: "Firma", entitetId: firma.id,
+      opis: `Napravljena firma ${firma.naziv} i administrator ${korisnik.ime} (${email})`,
+      novo: { naziv: firma.naziv, oib: firma.oib, administrator: email },
+    });
     return { firmaId: firma.id, korisnikId: korisnik.id };
   });
 }

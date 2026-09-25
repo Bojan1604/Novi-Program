@@ -1,6 +1,10 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { jeEmail, normalizirajEmail, provjeriNovuLozinku } from "@/domain/prijava";
 import {
+  MODULI,
+  POPIS_MODULA,
+  POPIS_POSEBNIH,
+  POSEBNA,
   efektivnaPrava,
   jeAdministrator,
   procitajIznimke,
@@ -13,6 +17,7 @@ import {
 } from "@/domain/prava";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
+import { zapisiDnevnik } from "./dnevnik";
 import { hashLozinke, odjaviSveSesije } from "./prijava";
 
 type Tx = Prisma.TransactionClient;
@@ -40,7 +45,15 @@ export async function pravaClana(db: Baza, firmaId: string, korisnikId: string):
   return efektivnaPrava(procitajPrava(c.uloga.prava), procitajIznimke(c.iznimke));
 }
 
-export type Akter = { korisnikId: string; firmaId: string; prava: Prava };
+export type Akter = { korisnikId: string; firmaId: string; prava: Prava; ip?: string | null };
+
+/** Prava kao ravna polja za dnevnik: { "Prodaja": "operativno", "Nabavne cijene i marže": "da" } */
+function pravaZaDnevnik(p: Prava): Record<string, string> {
+  return {
+    ...Object.fromEntries(POPIS_MODULA.map((m) => [MODULI[m], p.moduli[m]])),
+    ...Object.fromEntries(POPIS_POSEBNIH.map((x) => [POSEBNA[x], p.posebna[x] ? "da" : "ne"])),
+  };
+}
 
 async function clanZaUpravljanje(tx: Tx, firmaId: string, korisnikId: string) {
   const c = await tx.clanstvoFirme.findUnique({
@@ -86,6 +99,11 @@ export async function dodajKorisnika(db: PrismaClient, akter: Akter, ulaz: NoviK
       const clan = await tx.clanstvoFirme.findUnique({ where: { firmaId_korisnikId: { firmaId: akter.firmaId, korisnikId: postojeci.id } } });
       if (clan) throw new GreskaKorisniku("Korisnik s tom e-poštom već je član firme.");
       await tx.clanstvoFirme.create({ data: { firmaId: akter.firmaId, korisnikId: postojeci.id, ulogaId: uloga.id } });
+      await zapisiDnevnik(tx, {
+        firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "korisnici.dodaj", entitet: "Korisnik", entitetId: postojeci.id,
+        opis: `Dodan postojeći korisnik ${postojeci.ime} (${email}) s ulogom ${uloga.naziv}`,
+        novo: { ime: postojeci.ime, email, uloga: uloga.naziv },
+      });
       return { korisnikId: postojeci.id, postojeci: true };
     }
 
@@ -93,6 +111,11 @@ export async function dodajKorisnika(db: PrismaClient, akter: Akter, ulaz: NoviK
     if (greska) throw new GreskaKorisniku(greska);
     const korisnik = await tx.korisnik.create({ data: { ime: ulaz.ime.trim(), email, lozinkaHash: await hashLozinke(ulaz.lozinka) } });
     await tx.clanstvoFirme.create({ data: { firmaId: akter.firmaId, korisnikId: korisnik.id, ulogaId: uloga.id } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "korisnici.dodaj", entitet: "Korisnik", entitetId: korisnik.id,
+      opis: `Dodan korisnik ${korisnik.ime} (${email}) s ulogom ${uloga.naziv}`,
+      novo: { ime: korisnik.ime, email, uloga: uloga.naziv },
+    });
     return { korisnikId: korisnik.id, postojeci: false };
   });
 }
@@ -139,6 +162,17 @@ export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId:
     if (izmjena.aktivno === false) {
       await tx.sesija.deleteMany({ where: { korisnikId, firmaId: akter.firmaId } });
     }
+    const opisIznimki = (iz: Iznimke) => (Object.keys(iz).length ? JSON.stringify(iz) : "nema");
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "korisnici.uredi", entitet: "Korisnik", entitetId: korisnikId,
+      opis: `Izmijenjen korisnik ${izmjena.ime?.trim() || cilj.korisnik.ime}`,
+      staro: { ime: cilj.korisnik.ime, uloga: cilj.uloga.naziv, iznimke: opisIznimki(stareIznimke), aktivan: cilj.aktivno },
+      novo: {
+        ...(izmjena.ime !== undefined ? { ime: izmjena.ime.trim() } : {}),
+        ...(mijenjaPrava ? { uloga: novaUloga.naziv, iznimke: opisIznimki(noveIznimke) } : {}),
+        ...(izmjena.aktivno !== undefined ? { aktivan: izmjena.aktivno } : {}),
+      },
+    });
   });
 }
 
@@ -155,6 +189,11 @@ export async function postaviLozinku(db: PrismaClient, akter: Akter, korisnikId:
     const greska = provjeriNovuLozinku(lozinka, cilj.korisnik.email);
     if (greska) throw new GreskaKorisniku(greska);
     await tx.korisnik.update({ where: { id: korisnikId }, data: { lozinkaHash: await hashLozinke(lozinka) } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "korisnici.lozinka", entitet: "Korisnik", entitetId: korisnikId,
+      opis: `Postavljena nova lozinka korisniku ${cilj.korisnik.ime}; odjavljen sa svih uređaja`,
+      promjene: [{ polje: "lozinka", staro: "(skriveno)", novo: "(promijenjeno)" }],
+    });
   });
   await odjaviSveSesije(db, korisnikId);
 }
@@ -173,6 +212,10 @@ export async function spremiUlogu(db: PrismaClient, akter: Akter, ulaz: UlazUlog
 
     if (!ulaz.id) {
       const u = await tx.uloga.create({ data: { firmaId: akter.firmaId, naziv, opis: ulaz.opis.trim(), prava: ulaz.prava } });
+      await zapisiDnevnik(tx, {
+        firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "uloge.spremi", entitet: "Uloga", entitetId: u.id,
+        opis: `Nova uloga ${naziv}`, novo: { naziv, opis: ulaz.opis.trim(), ...pravaZaDnevnik(ulaz.prava) },
+      });
       return u.id;
     }
 
@@ -191,6 +234,12 @@ export async function spremiUlogu(db: PrismaClient, akter: Akter, ulaz: UlazUlog
       provjeri(smijeUpravljati({ id: akter.korisnikId, prava: akter.prava }, { id: c.korisnikId, prava: efektivnaPrava(stara, iz) }, efektivnaPrava(ulaz.prava, iz)));
     }
     await tx.uloga.update({ where: { id: uloga.id }, data: { naziv, opis: ulaz.opis.trim(), prava: ulaz.prava } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "uloge.spremi", entitet: "Uloga", entitetId: uloga.id,
+      opis: `Izmijenjena uloga ${naziv}${clanovi.length ? ` (${clanovi.length} korisnika)` : ""}`,
+      staro: { naziv: uloga.naziv, opis: uloga.opis, ...pravaZaDnevnik(stara) },
+      novo: { naziv, opis: ulaz.opis.trim(), ...pravaZaDnevnik(ulaz.prava) },
+    });
     return uloga.id;
   });
 }
@@ -204,5 +253,9 @@ export async function obrisiUlogu(db: PrismaClient, akter: Akter, ulogaId: strin
     const broj = await tx.clanstvoFirme.count({ where: { ulogaId } });
     if (broj > 0) throw new GreskaKorisniku(`Ulogu ima ${broj} korisnik(a); prvo im dodijelite drugu ulogu.`);
     await tx.uloga.delete({ where: { id: ulogaId } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId, korisnikId: akter.korisnikId, ip: akter.ip, radnja: "uloge.obrisi", entitet: "Uloga", entitetId: ulogaId,
+      opis: `Obrisana uloga ${uloga.naziv}`, staro: { naziv: uloga.naziv, opis: uloga.opis },
+    });
   });
 }

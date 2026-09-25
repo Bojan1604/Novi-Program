@@ -120,3 +120,29 @@ function iz(godina: number, mjesec: number, dan: number): Datum {
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
+
+const zagrebSat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: ZONA,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Pomak Zagreba od UTC-a u milisekundama u zadanom trenutku (+1 h zimi, +2 h ljeti). */
+function pomakZagreba(trenutak: number): number {
+  const d = Object.fromEntries(zagrebSat.formatToParts(new Date(trenutak)).map((p) => [p.type, p.value]));
+  const kaoUtc = Date.UTC(Number(d["year"]), Number(d["month"]) - 1, Number(d["day"]), Number(d["hour"]), Number(d["minute"]), Number(d["second"]));
+  return kaoUtc - Math.floor(trenutak / 1000) * 1000;
+}
+
+/** Trenutak ponoći zadanog dana po Zagrebu (za filtre „od–do“ nad vremenima). */
+export function pocetakDana(d: Datum): Date {
+  const [godina, mjesec, dan] = dijelovi(d);
+  const ponocUtc = Date.UTC(godina, mjesec - 1, dan);
+  const priblizno = ponocUtc - pomakZagreba(ponocUtc);
+  return new Date(ponocUtc - pomakZagreba(priblizno));
+}

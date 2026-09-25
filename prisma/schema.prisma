@@ -27,6 +27,7 @@ model Firma {
   clanstva ClanstvoFirme[]
   sesije   Sesija[]
   uloge    Uloga[]
+  dnevnik  Dnevnik[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -109,4 +110,33 @@ model PokusajPrijave {
 
   @@index([email, vrijeme])
   @@index([ip, vrijeme])
+}
+
+// ─── 0.4 Dnevnik promjena ──────────────────────────────────────────────────────
+
+/// Tko je što promijenio, kada i razlika. Zapisuje se u istoj transakciji kao promjena.
+model Dnevnik {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  /// null = sustav (automatsko izdavanje, uvoz…)
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+  vrijeme    DateTime @default(now()) @db.Timestamptz(3)
+  /// npr. "korisnici.uredi"
+  radnja     String
+  /// npr. "Korisnik", "Uredaj"
+  entitet    String
+  entitetId  String?
+  opis       String
+  /// [{ polje, staro, novo, osjetljivo? }]
+  promjene   Json     @default("[]")
+  /// mala slova, bez osjetljivih vrijednosti
+  pretraga   String   @default("")
+  ip         String?
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@index([firmaId, vrijeme(sort: Desc)])
+  @@index([firmaId, entitet, entitetId, vrijeme(sort: Desc)])
+  @@index([firmaId, korisnikId, vrijeme(sort: Desc)])
 }

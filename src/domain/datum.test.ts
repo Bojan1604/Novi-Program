@@ -6,6 +6,7 @@ import {
   dodajDane,
   dodajMjesece,
   formatirajDatum,
+  pocetakDana,
   jeDatum,
   procitajDatum,
   razlikaUDanima,
@@ -106,5 +107,20 @@ describe("računanje s datumima", () => {
   it("odbija necijeli broj dana i mjeseci", () => {
     expect(() => dodajDane(datum("2026-01-01"), 1.5)).toThrow();
     expect(() => dodajMjesece(datum("2026-01-01"), 0.5)).toThrow();
+  });
+});
+
+describe("pocetakDana (ponoć po Zagrebu)", () => {
+  it.each([
+    ["2026-01-15", "2026-01-14T23:00:00.000Z"],
+    ["2026-07-15", "2026-07-14T22:00:00.000Z"],
+    ["2026-03-29", "2026-03-28T23:00:00.000Z"], // dan prelaska na ljetno
+    ["2026-03-30", "2026-03-29T22:00:00.000Z"],
+    ["2026-10-25", "2026-10-24T22:00:00.000Z"], // dan prelaska na zimsko
+    ["2026-10-26", "2026-10-25T23:00:00.000Z"],
+  ])("%s → %s", (d, ocekivano) => {
+    expect(pocetakDana(datum(d)).toISOString()).toBe(ocekivano);
+    expect(danas(pocetakDana(datum(d)))).toBe(d);
+    expect(danas(new Date(pocetakDana(datum(d)).getTime() - 1))).toBe(dodajDane(datum(d), -1));
   });
 });

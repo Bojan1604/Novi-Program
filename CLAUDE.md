@@ -75,6 +75,9 @@ Dodatno:
   za svaku ulogu u `src/lib/akcije-prava.test.ts`. `npm run check:use-server` odbija akciju bez `akcija(…)`
   (iznimka: `// javna akcija: razlog`). Stranica počinje s `pristupStranici("/putanja")` (putanja u `STRANICE`),
   API ruta s `pristupApi(…)`. `proxy.ts` je samo brzo preusmjeravanje, ne zaštita.
+- **Dnevnik:** svaka radnja koja mijenja podatke poziva `zapisiDnevnik(tx, …)` (`src/services/dnevnik.ts`) u ISTOJ
+  transakciji, sa `staro`/`novo` (razlika se računa sama). Nabavne cijene i marže (`OSJETLJIVA_POLJA` u
+  `src/domain/dnevnik.ts`) maskiraju se na poslužitelju za korisnike bez prava „costs“; lozinke se nikad ne zapisuju.
 - Poslovna greška za korisnika: `throw new GreskaKorisniku("…")` u servisu → `akcija` je vraća kao `{ ok: false, greska }`.
 - Mobitel: nijedna stranica ne smije biti šira od 390 px (`bezVodoravnogPomicanja` u e2e); `fieldset` uvijek s `min-w-0`.
 - Datoteka s `'use server'` izvozi **samo async funkcije** (i tipove) — provjerava `npm run check:use-server`.
@@ -93,7 +96,7 @@ Dodatno:
 | `npm run typecheck` / `lint` / `build` | TypeScript, ESLint, izgradnja |
 | `npm run test:e2e` | testovi u pregledniku (Playwright, računalo 1440 px i mobitel 390 px) nad buildom i testnom bazom |
 | `npm run verify` | **sve gore redom — obavezno prije svakog commita** |
-| `npm run db:migrate` | nova migracija u razvoju + `prisma generate` |
+| `npm run db:migrate -- --name <ime>` | nova migracija u razvoju (+ `prisma generate` automatski) |
 | `npm run admin:prvi` | prva firma i administrator (`--ako-nema`: samo ako nema korisnika) |
 
 Git kukice (husky): prije commita typecheck + lint + `use server` + jedinični testovi; prije pusha build.

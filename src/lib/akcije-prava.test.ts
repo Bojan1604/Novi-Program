@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { izbornikZa, prvaDopustena } from "@/domain/izbornik";
-import { imaPravo, ZADANE_ULOGE } from "@/domain/prava";
+import { ZADANE_ULOGE } from "@/domain/prava";
 import { AKCIJE, STRANICE, zadovoljava, type KljucAkcije, type PutanjaStranice } from "./akcije-prava";
 import { IZBORNIK } from "./izbornik";
 
@@ -20,8 +20,8 @@ const DOPUSTENE_AKCIJE: Record<string, KljucAkcije[]> = {
 };
 
 const DOPUSTENE_STRANICE: Record<string, PutanjaStranice[]> = {
-  Administrator: ["/", "/korisnici", "/uloge"],
-  Voditelj: ["/", "/korisnici", "/uloge"],
+  Administrator: ["/", "/korisnici", "/uloge", "/dnevnik"],
+  Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik"],
   "Prodavač": ["/"],
   "Skladištar": ["/"],
   Serviser: ["/"],
@@ -44,8 +44,8 @@ describe("svaka uloga × svaka akcija", () => {
     for (const putanja of Object.keys(STRANICE) as PutanjaStranice[]) {
       const ocekivano = DOPUSTENE_STRANICE[uloga.naziv]!.includes(putanja);
       it(`${uloga.naziv} · stranica ${putanja} → ${ocekivano ? "dopušteno" : "zabranjeno"}`, () => {
-        const s = STRANICE[putanja];
-        expect(imaPravo(uloga.prava, s.modul, s.razina)).toBe(ocekivano);
+        const { naziv: _n, ...pravo } = STRANICE[putanja];
+        expect(zadovoljava(uloga.prava, pravo)).toBe(ocekivano);
       });
     }
   }
@@ -62,7 +62,7 @@ describe("posebna prava u akcijama", () => {
 describe("izbornik", () => {
   it("prikazuje samo dopušteno; prva stranica je prva dopuštena", () => {
     expect(izbornikZa(pravaUloge("Prodavač"), IZBORNIK).map((s) => s.putanja)).toEqual(["/"]);
-    expect(izbornikZa(pravaUloge("Administrator"), IZBORNIK).map((s) => s.putanja)).toEqual(["/", "/korisnici", "/uloge"]);
+    expect(izbornikZa(pravaUloge("Administrator"), IZBORNIK).map((s) => s.putanja)).toEqual(["/", "/korisnici", "/uloge", "/dnevnik"]);
     expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBeNull();
   });
 

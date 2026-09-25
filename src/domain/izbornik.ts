@@ -1,10 +1,10 @@
-import { imaPravo, type Modul, type Prava, type Razina } from "./prava";
+import { zadovoljava, type PotrebnoPravo, type Prava } from "./prava";
 
-export type StavkaIzbornika = { naziv: string; putanja: string; modul: Modul; razina: Razina; grupa: string };
+export type StavkaIzbornika = { naziv: string; putanja: string; grupa: string; pravo: PotrebnoPravo };
 
 /** Samo stavke za koje korisnik ima pravo, redoslijedom izbornika. */
 export function izbornikZa(prava: Prava, stavke: readonly StavkaIzbornika[]): StavkaIzbornika[] {
-  return stavke.filter((s) => imaPravo(prava, s.modul, s.razina));
+  return stavke.filter((s) => zadovoljava(prava, s.pravo));
 }
 
 /** Prva stranica na koju korisnik smije (početna nakon prijave) ili null. */

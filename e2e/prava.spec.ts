@@ -61,8 +61,10 @@ test("stranice prava stanu na ekran", async ({ page }) => {
   }
   await page.goto("/uloge");
   await page.getByRole("link", { name: /^Voditelj/ }).click();
+  await expect(page).toHaveURL(/\/uloge\/[0-9a-f-]{36}$/);
   await bezVodoravnogPomicanja(page);
   await page.goto("/korisnici");
   await page.getByRole("link", { name: /Petar/ }).click();
+  await expect(page).toHaveURL(/\/korisnici\/[0-9a-f-]{36}$/);
   await bezVodoravnogPomicanja(page);
 });

@@ -1,19 +1,20 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { imaPravo, type Prava } from "@/domain/prava";
+import type { Prava } from "@/domain/prava";
 import { pravaClana } from "@/services/korisnici";
 import type { Sesija } from "@/services/prijava";
 import { AKCIJE, STRANICE, zadovoljava, type KljucAkcije, type PotrebnoPravo, type PutanjaStranice } from "./akcije-prava";
 import { db, dbFirme } from "./db";
 import { GreskaKorisniku, type Neuspjeh } from "./greske";
-import { trenutnaSesija } from "./sesija";
+import { podaciZahtjeva, trenutnaSesija } from "./sesija";
 
 export type Kontekst = {
   sesija: Sesija;
   korisnikId: string;
   firmaId: string;
   prava: Prava;
+  ip: string | null;
   /** baza ograničena na firmu korisnika */
   db: ReturnType<typeof dbFirme>;
 };
@@ -24,7 +25,8 @@ export const trenutniKontekst = cache(async (): Promise<Kontekst | null> => {
   if (!sesija) return null;
   const prava = await pravaClana(db, sesija.firma.id, sesija.korisnik.id);
   if (!prava) return null;
-  return { sesija, korisnikId: sesija.korisnik.id, firmaId: sesija.firma.id, prava, db: dbFirme(sesija.firma.id) };
+  const { ip } = await podaciZahtjeva();
+  return { sesija, korisnikId: sesija.korisnik.id, firmaId: sesija.firma.id, prava, ip, db: dbFirme(sesija.firma.id) };
 });
 
 const NEMA_PRAVA: Neuspjeh = { ok: false, greska: "Nemate pravo na ovu radnju." };
@@ -53,8 +55,8 @@ export async function akcija<T>(kljuc: KljucAkcije, radnja: (k: Kontekst) => Pro
 export async function pristupStranici(putanja: PutanjaStranice, dodatno?: PotrebnoPravo): Promise<Kontekst> {
   const k = await trenutniKontekst();
   if (!k) redirect("/prijava");
-  const pravo = STRANICE[putanja];
-  if (!imaPravo(k.prava, pravo.modul, pravo.razina) || (dodatno && !zadovoljava(k.prava, dodatno))) {
+  const { naziv: _naziv, ...pravo } = STRANICE[putanja];
+  if (!zadovoljava(k.prava, pravo) || (dodatno && !zadovoljava(k.prava, dodatno))) {
     redirect("/nema-pristupa");
   }
   return k;

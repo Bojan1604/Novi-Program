@@ -5,7 +5,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
  * nad ovim modelima automatski je ograničen na firmu.
  * Test `firma-db.test.ts` pukne ako model s `firmaId` u shemi nije na popisu.
  */
-export const MODELI_S_FIRMOM = ["ClanstvoFirme", "Sesija", "Uloga"] as const;
+export const MODELI_S_FIRMOM = ["ClanstvoFirme", "Dnevnik", "Sesija", "Uloga"] as const;
 
 /** Modeli s `firmaId` koji se namjerno NE ograničavaju (s razlogom). */
 export const MODELI_S_FIRMOM_IZUZETI: Record<string, string> = {};
