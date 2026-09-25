@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { prijaviSe } from "./pomoc";
+import { bezVodoravnogPomicanja, prijaviSe } from "./pomoc";
 import { E2E } from "./podaci";
 
 test.describe("prijava", () => {
@@ -74,9 +74,8 @@ test.describe("prijava", () => {
 
   test("na mobitelu nema vodoravnog pomicanja", async ({ page }) => {
     await page.goto("/prijava");
-    const sirina = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    expect(sirina).toBeLessThanOrEqual(0);
+    await bezVodoravnogPomicanja(page);
     await prijaviSe(page);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await bezVodoravnogPomicanja(page);
   });
 });

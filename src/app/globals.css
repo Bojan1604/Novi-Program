@@ -1,25 +1,48 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Tamna tema: prema sustavu, ili ručno (data-tema="tamna|svijetla" na <html>) */
+@custom-variant dark {
+  &:where([data-tema="tamna"], [data-tema="tamna"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(html:not([data-tema="svijetla"]), html:not([data-tema="svijetla"]) *) {
+      @slot;
+    }
   }
 }
 
+:root {
+  --pozadina: #ffffff;
+  --tekst: #171717;
+  /* boja firme (postavke firme mogu je promijeniti) */
+  --primarna: #1d4ed8;
+  --primarna-tamnija: #1e40af;
+  --primarna-tekst: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="svijetla"]) {
+    --pozadina: #0a0a0a;
+    --tekst: #ededed;
+  }
+}
+:root[data-tema="tamna"] {
+  --pozadina: #0a0a0a;
+  --tekst: #ededed;
+}
+
+@theme inline {
+  --color-pozadina: var(--pozadina);
+  --color-tekst: var(--tekst);
+  --color-primarna: var(--primarna);
+  --color-primarna-tamnija: var(--primarna-tamnija);
+  --color-primarna-tekst: var(--primarna-tekst);
+  --font-sans: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--pozadina);
+  color: var(--tekst);
   font-family: var(--font-sans);
 }

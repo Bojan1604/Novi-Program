@@ -8,6 +8,7 @@ import { prijavi } from "@/services/prijava";
 
 export type StanjePrijave = { greska?: string; email?: string } | undefined;
 
+// javna akcija: prijava se izvodi prije nego što sesija postoji
 export async function prijaviSe(_prethodno: StanjePrijave, formData: FormData): Promise<StanjePrijave> {
   const email = String(formData.get("email") ?? "");
   const lozinka = String(formData.get("lozinka") ?? "");

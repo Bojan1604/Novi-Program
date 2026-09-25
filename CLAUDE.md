@@ -70,7 +70,13 @@ Dodatno:
   Goli `db` samo za sustavne tablice (Korisnik, Firma, Sesija, PokusajPrijave). U `$queryRaw` firmaId se piše ručno.
 - Radnje koje se ne smiju izvesti dvaput istovremeno: transakcija + `zakljucajKljuc(tx, "vrsta:id")`
   (`src/lib/zakljucavanje.ts`) ili `SELECT … FOR UPDATE`.
-- Stranica i server akcija počinju s `zahtijevajPrijavu()` (`src/lib/sesija.ts`); `proxy.ts` je samo brzo preusmjeravanje, ne zaštita.
+- **Prava:** svaka server akcija je `export async function x(…) { return akcija("modul.radnja", async (k) => …) }`
+  (`src/lib/akcija.ts`); ključ i potrebno pravo upisuju se u `AKCIJE` (`src/lib/akcije-prava.ts`), a očekivanje
+  za svaku ulogu u `src/lib/akcije-prava.test.ts`. `npm run check:use-server` odbija akciju bez `akcija(…)`
+  (iznimka: `// javna akcija: razlog`). Stranica počinje s `pristupStranici("/putanja")` (putanja u `STRANICE`),
+  API ruta s `pristupApi(…)`. `proxy.ts` je samo brzo preusmjeravanje, ne zaštita.
+- Poslovna greška za korisnika: `throw new GreskaKorisniku("…")` u servisu → `akcija` je vraća kao `{ ok: false, greska }`.
+- Mobitel: nijedna stranica ne smije biti šira od 390 px (`bezVodoravnogPomicanja` u e2e); `fieldset` uvijek s `min-w-0`.
 - Datoteka s `'use server'` izvozi **samo async funkcije** (i tipove) — provjerava `npm run check:use-server`.
 - Testovi nad bazom i demo podaci rade samo nad bazom kojoj ime sadrži „test“ (`DATABASE_URL_TEST`).
 - Zakonske stvari (PDV, fiskalizacija, KPD) potvrđuje knjigovođa prije koraka.

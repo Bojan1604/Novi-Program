@@ -8,3 +8,10 @@ export async function prijaviSe(page: Page, email = E2E.admin.email, lozinka = E
   await page.getByRole("button", { name: "Prijava" }).click();
   await expect(page.getByRole("button", { name: "Odjava" })).toBeVisible();
 }
+
+/** Stranica ne smije biti šira od ekrana (mobitel bi je inače smanjio ili pomicao vodoravno). */
+export async function bezVodoravnogPomicanja(page: Page): Promise<void> {
+  const sirinaEkrana = page.viewportSize()!.width;
+  const sirinaStranice = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(sirinaStranice, `stranica ${page.url()} je šira od ekrana`).toBeLessThanOrEqual(sirinaEkrana);
+}

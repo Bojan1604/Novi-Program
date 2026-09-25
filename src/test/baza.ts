@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { kontrolnaZnamenkaOib } from "@/domain/oib";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { napraviPrismu } from "@/lib/prisma";
+import { napraviZadaneUloge } from "@/services/korisnici";
 
 export function testnaPrisma(): PrismaClient {
   const url = process.env["DATABASE_URL"] ?? "";
@@ -35,14 +36,17 @@ function hashTestneLozinke(): string {
   return testniHash;
 }
 
+/** Firma sa zadanim ulogama; `uloge` su id-evi po nazivu. */
 export async function napraviFirmu(prisma: PrismaClient, naziv = "Firma d.o.o.") {
-  return prisma.firma.create({ data: { naziv, oib: testniOib() } });
+  const firma = await prisma.firma.create({ data: { naziv, oib: testniOib() } });
+  const uloge = await napraviZadaneUloge(prisma, firma.id);
+  return { ...firma, uloge };
 }
 
 export async function napraviKorisnika(
   prisma: PrismaClient,
   firmaId: string,
-  podaci: { email?: string; ime?: string; aktivan?: boolean } = {},
+  podaci: { email?: string; ime?: string; aktivan?: boolean; uloga?: string } = {},
 ) {
   brojac++;
   const korisnik = await prisma.korisnik.create({
@@ -53,6 +57,7 @@ export async function napraviKorisnika(
       aktivan: podaci.aktivan ?? true,
     },
   });
-  await prisma.clanstvoFirme.create({ data: { firmaId, korisnikId: korisnik.id } });
+  const uloga = await prisma.uloga.findFirstOrThrow({ where: { firmaId, naziv: podaci.uloga ?? "Administrator" } });
+  await prisma.clanstvoFirme.create({ data: { firmaId, korisnikId: korisnik.id, ulogaId: uloga.id } });
   return korisnik;
 }

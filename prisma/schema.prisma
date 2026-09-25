@@ -26,6 +26,7 @@ model Firma {
 
   clanstva ClanstvoFirme[]
   sesije   Sesija[]
+  uloge    Uloga[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -46,14 +47,38 @@ model ClanstvoFirme {
   id         String   @id @default(uuid(7)) @db.Uuid
   firmaId    String   @db.Uuid
   korisnikId String   @db.Uuid
+  ulogaId    String   @db.Uuid
+  /// iznimke po korisniku u odnosu na ulogu: { moduli: { prodaja: "pregled" }, posebna: { costs: true } }
+  iznimke    Json     @default("{}")
   aktivno    Boolean  @default(true)
   stvoreno   DateTime @default(now()) @db.Timestamptz(3)
 
   firma    Firma    @relation(fields: [firmaId], references: [id])
   korisnik Korisnik @relation(fields: [korisnikId], references: [id])
+  uloga    Uloga    @relation(fields: [ulogaId], references: [id])
 
   @@unique([firmaId, korisnikId])
   @@index([korisnikId])
+  @@index([ulogaId])
+}
+
+// ─── 0.3 Uloge i prava ───────────────────────────────────────────────────────
+
+/// Uloga s pravima po modulima (vidi src/domain/prava.ts). Sustavna (Administrator) se ne mijenja.
+model Uloga {
+  id       String   @id @default(uuid(7)) @db.Uuid
+  firmaId  String   @db.Uuid
+  naziv    String
+  opis     String   @default("")
+  /// { moduli: { prodaja: "operativno", ... }, posebna: { costs: false, ... } }
+  prava    Json
+  sustavna Boolean  @default(false)
+  stvoreno DateTime @default(now()) @db.Timestamptz(3)
+
+  firma    Firma           @relation(fields: [firmaId], references: [id])
+  clanstva ClanstvoFirme[]
+
+  @@unique([firmaId, naziv])
 }
 
 /// Prijava na uređaju. U bazi je samo SHA-256 tokena; sam token je samo u kolačiću.

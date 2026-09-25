@@ -80,3 +80,50 @@ function jeAsyncIzraz(izraz: ts.Expression): boolean {
   while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e)) e = e.expression;
   return (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) && imaAsync(e);
 }
+
+/**
+ * Pravilo prava: svaka izvezena funkcija u 'use server' datoteci mora pozvati `akcija(…)`
+ * (provjera prijave i prava na poslužitelju), osim ako iznad nje piše `// javna akcija: <razlog>`.
+ */
+export function provjeriZastituAkcija(tekst: string, ime = "datoteka.ts"): string[] {
+  const izvor = ts.createSourceFile(ime, tekst, ts.ScriptTarget.Latest, true, ime.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  if (!imaDirektivuNaVrhu(izvor)) return [];
+  const greske: string[] = [];
+
+  for (const naredba of izvor.statements) {
+    if (!imaExport(naredba)) continue;
+    const tijela: { naziv: string; cvor: ts.Node; tijelo: ts.Node | undefined }[] = [];
+    if (ts.isFunctionDeclaration(naredba)) {
+      tijela.push({ naziv: naredba.name?.text ?? "default", cvor: naredba, tijelo: naredba.body });
+    } else if (ts.isVariableStatement(naredba)) {
+      for (const d of naredba.declarationList.declarations) {
+        const init = d.initializer;
+        if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
+          tijela.push({ naziv: d.name.getText(izvor), cvor: naredba, tijelo: init.body });
+        }
+      }
+    }
+    for (const { naziv, cvor, tijelo } of tijela) {
+      const komentari = (ts.getLeadingCommentRanges(tekst, cvor.getFullStart()) ?? []).map((r) => tekst.slice(r.pos, r.end));
+      if (komentari.some((k) => /javna akcija:\s*\S/.test(k))) continue;
+      if (tijelo && poziva(tijelo, "akcija")) continue;
+      const { line } = izvor.getLineAndCharacterOfPosition(cvor.getStart(izvor));
+      greske.push(`${ime}:${line + 1} — akcija „${naziv}“ ne poziva akcija(…) (provjera prava) niti je označena „// javna akcija: razlog“.`);
+    }
+  }
+  return greske;
+}
+
+function poziva(cvor: ts.Node, ime: string): boolean {
+  let nadeno = false;
+  const obidi = (n: ts.Node) => {
+    if (nadeno) return;
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === ime) {
+      nadeno = true;
+      return;
+    }
+    ts.forEachChild(n, obidi);
+  };
+  obidi(cvor);
+  return nadeno;
+}

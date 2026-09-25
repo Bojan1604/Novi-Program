@@ -1,13 +1,27 @@
-import { zahtijevajPrijavu } from "@/lib/sesija";
+import { redirect } from "next/navigation";
+import { NaslovStranice, Stranica } from "@/components/ui/stranica";
+import { Obavijest } from "@/components/ui/obavijest";
+import { prvaDopustena } from "@/domain/izbornik";
+import { imaPravo } from "@/domain/prava";
+import { trenutniKontekst } from "@/lib/akcija";
+import { IZBORNIK } from "@/lib/izbornik";
 
 export default async function Pocetna() {
-  const sesija = await zahtijevajPrijavu();
+  const k = await trenutniKontekst();
+  if (!k) redirect("/prijava");
+  if (!imaPravo(k.prava, "nadzorna", "pregled")) {
+    const prva = prvaDopustena(k.prava, IZBORNIK);
+    if (prva && prva !== "/") redirect(prva);
+    return (
+      <Stranica sirina="3xl">
+        <NaslovStranice naslov={`Dobro došli, ${k.sesija.korisnik.ime}`} />
+        <Obavijest vrsta="upozorenje">Još vam nisu dodijeljena prava. Javite se administratoru.</Obavijest>
+      </Stranica>
+    );
+  }
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-2 px-4 py-8">
-      <h1 className="text-2xl font-semibold">Dobro došli, {sesija.korisnik.ime}</h1>
-      <p className="text-neutral-600 dark:text-neutral-400">
-        Prijavljeni ste kao {sesija.korisnik.email} · {sesija.firma.naziv}
-      </p>
-    </main>
+    <Stranica>
+      <NaslovStranice naslov={`Dobro došli, ${k.sesija.korisnik.ime}`} opis={`${k.sesija.korisnik.email} · ${k.sesija.firma.naziv}`} />
+    </Stranica>
   );
 }

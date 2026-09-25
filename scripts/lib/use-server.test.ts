@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { provjeriUseServer } from "./use-server";
+import { provjeriUseServer, provjeriZastituAkcija } from "./use-server";
 
 const sDirektivom = (kod: string) => `"use server";\n${kod}`;
 
@@ -49,5 +49,32 @@ describe("provjeriUseServer — zabranjeno", () => {
 
   it("radi i s jednostrukim navodnicima i .tsx", () => {
     expect(provjeriUseServer("'use server'\nexport const A = 1;", "a.tsx")).toHaveLength(1);
+  });
+});
+
+describe("provjeriZastituAkcija", () => {
+  it("akcija koja poziva akcija(…) je u redu", () => {
+    const kod = '"use server";\nexport async function spremi(fd: FormData) {\n  return akcija("x.y", async (k) => ({ ok: true }));\n}';
+    expect(provjeriZastituAkcija(kod)).toEqual([]);
+  });
+
+  it("javna akcija s razlogom je u redu", () => {
+    const kod = '"use server";\n// javna akcija: prijava se radi prije sesije\nexport async function prijaviSe() {}';
+    expect(provjeriZastituAkcija(kod)).toEqual([]);
+  });
+
+  it("akcija bez provjere prava je greška", () => {
+    const kod = '"use server";\nexport async function obrisiSve() {\n  await db.x.deleteMany();\n}';
+    const g = provjeriZastituAkcija(kod, "a.ts");
+    expect(g).toHaveLength(1);
+    expect(g[0]).toContain("obrisiSve");
+  });
+
+  it("oznaka bez razloga nije dovoljna", () => {
+    expect(provjeriZastituAkcija('"use server";\n// javna akcija:\nexport async function x() {}')).toHaveLength(1);
+  });
+
+  it("datoteka bez 'use server' se ne provjerava", () => {
+    expect(provjeriZastituAkcija("export async function x() {}")).toEqual([]);
   });
 });

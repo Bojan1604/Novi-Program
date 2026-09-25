@@ -1,12 +1,12 @@
 /**
  * Pregledava sve .ts/.tsx datoteke u src/ i javlja 'use server' datoteke
- * koje izvoze nešto osim async funkcija.
+ * koje izvoze nešto osim async funkcija, i akcije koje ne provjeravaju prava.
  *
  * Pokretanje: npm run check:use-server
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { provjeriUseServer } from "./lib/use-server";
+import { provjeriUseServer, provjeriZastituAkcija } from "./lib/use-server";
 
 function* datoteke(mapa: string): Generator<string> {
   for (const ime of readdirSync(mapa)) {
@@ -23,7 +23,8 @@ function glavno(): void {
   let pregledano = 0;
   for (const put of datoteke(join(korijen, "src"))) {
     pregledano++;
-    greske.push(...provjeriUseServer(readFileSync(put, "utf8"), relative(korijen, put)));
+    const tekst = readFileSync(put, "utf8");
+    greske.push(...provjeriUseServer(tekst, relative(korijen, put)), ...provjeriZastituAkcija(tekst, relative(korijen, put)));
   }
   if (greske.length > 0) {
     console.error(`Provjera 'use server' nije prošla (${greske.length}):\n${greske.map((g) => `  ${g}`).join("\n")}`);

@@ -2,6 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
+import { ULOGA_ADMINISTRATOR } from "@/domain/prava";
+import { napraviZadaneUloge } from "./korisnici";
 import {
   istekSesije,
   jeEmail,
@@ -166,8 +168,9 @@ export async function napraviPrvogAdmina(db: PrismaClient, ulaz: UlazPrvogAdmina
     await zakljucajKljuc(tx, "prvi-admin");
     if ((await tx.korisnik.count()) > 0) throw new Error("Korisnici već postoje; prvi administrator se ne može ponovno napraviti.");
     const firma = await tx.firma.create({ data: { naziv: ulaz.nazivFirme.trim(), oib: ulaz.oib } });
+    const uloge = await napraviZadaneUloge(tx, firma.id);
     const korisnik = await tx.korisnik.create({ data: { ime: ulaz.ime.trim(), email, lozinkaHash } });
-    await tx.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id } });
+    await tx.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[ULOGA_ADMINISTRATOR]! } });
     return { firmaId: firma.id, korisnikId: korisnik.id };
   });
 }

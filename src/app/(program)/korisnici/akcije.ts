@@ -1,0 +1,47 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { akcija } from "@/lib/akcija";
+import { db } from "@/lib/db";
+import type { Odgovor } from "@/lib/greske";
+import { iznimkeIzObrasca, tekst } from "@/lib/obrazac";
+import { dodajKorisnika, postaviLozinku, urediKorisnika } from "@/services/korisnici";
+
+export async function dodajKorisnikaAkcija(_p: Odgovor<{ korisnikId: string }> | undefined, fd: FormData) {
+  return akcija("korisnici.dodaj", async (k) => {
+    const r = await dodajKorisnika(db, k, {
+      ime: tekst(fd, "ime"),
+      email: tekst(fd, "email"),
+      lozinka: String(fd.get("lozinka") ?? ""),
+      ulogaId: tekst(fd, "ulogaId"),
+    });
+    revalidatePath("/korisnici");
+    return {
+      ok: true as const,
+      poruka: r.postojeci ? "Postojeći korisnik (iz druge firme) dodan je u firmu; lozinka mu je ostala ista." : "Korisnik je dodan.",
+      podaci: { korisnikId: r.korisnikId },
+    };
+  });
+}
+
+export async function urediKorisnikaAkcija(korisnikId: string, _p: Odgovor | undefined, fd: FormData) {
+  return akcija("korisnici.uredi", async (k) => {
+    await urediKorisnika(db, k, korisnikId, {
+      ime: tekst(fd, "ime"),
+      ulogaId: tekst(fd, "ulogaId"),
+      iznimke: iznimkeIzObrasca(fd),
+      aktivno: fd.get("aktivno") === "on",
+    });
+    revalidatePath("/korisnici");
+    return { ok: true as const, poruka: "Spremljeno." };
+  });
+}
+
+export async function postaviLozinkuAkcija(korisnikId: string, _p: Odgovor | undefined, fd: FormData) {
+  return akcija("korisnici.lozinka", async (k) => {
+    const lozinka = String(fd.get("lozinka") ?? "");
+    if (lozinka !== String(fd.get("ponovljena") ?? "")) return { ok: false as const, greska: "Lozinke se ne podudaraju." };
+    await postaviLozinku(db, k, korisnikId, lozinka);
+    return { ok: true as const, poruka: "Lozinka je promijenjena; korisnik je odjavljen sa svih uređaja." };
+  });
+}
