@@ -27,6 +27,10 @@ export const AKCIJE = {
   "primke.zaprimi": { modul: "uredaji", razina: "operativno" },
   "primke.provjera": { modul: "uredaji", razina: "operativno" },
   "primke.storno": { modul: "uredaji", razina: "puno" },
+  "uredaji.ispravak": { modul: "uredaji", razina: "operativno" },
+  "uredaji.obrisi": { modul: "uredaji", razina: "puno" },
+  "uredaji.prilogDodaj": { modul: "uredaji", razina: "operativno" },
+  "uredaji.prilogObrisi": { modul: "uredaji", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -46,3 +50,8 @@ export const STRANICE = {
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 
 export type PutanjaStranice = keyof typeof STRANICE;
+
+/** Tko smije preuzeti prilog, po vrsti zapisa uz koji je (isto pravo kao za pregled tog zapisa). */
+export const PRAVA_PRILOGA: Record<string, PotrebnoPravo> = {
+  Uredaj: { modul: "uredaji", razina: "pregled" },
+};

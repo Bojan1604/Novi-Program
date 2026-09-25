@@ -43,3 +43,63 @@ test("nabavnu cijenu uređaja ne vidi korisnik bez prava — ni u stranici ni u 
   const r = await page.request.get("/uredaji?sort=nabavnaCijena&smjer=desc");
   expect(r.status()).toBe(200);
 });
+
+test("kartica uređaja: ispravak, prilog (prikaz i preuzimanje), brisanje bez veza", async ({ page }) => {
+  const serijski = `E2E-KARTICA-${test.info().project.name.toUpperCase()}`;
+  await prijaviSe(page);
+  await page.goto(`/uredaji?trazi=${serijski}`);
+  await page.getByTestId("popis-uredaja").getByRole("link", { name: serijski }).first().click();
+  await expect(page.getByRole("heading", { name: serijski })).toBeVisible();
+  await bezVodoravnogPomicanja(page);
+
+  // ispravak: neispravan datum ne briše upisano; zatim spremanje
+  const obrazac = page.getByRole("form", { name: "Ispravak uređaja" });
+  await obrazac.getByLabel("RAM").fill("32 GB");
+  await obrazac.getByLabel("Jamstvo do").fill("31.02.2028.");
+  await obrazac.getByRole("button", { name: "Spremi ispravak" }).click();
+  await expect(obrazac.getByText("Datum nije ispravan")).toBeVisible();
+  await expect(obrazac.getByLabel("RAM")).toHaveValue("32 GB");
+  await obrazac.getByLabel("Jamstvo do").fill("31.12.2028.");
+  await obrazac.getByRole("button", { name: "Spremi ispravak" }).click();
+  await expect(obrazac.getByText("Spremljeno.")).toBeVisible();
+  await expect(page.getByTestId("ispravci")).toContainText("ram");
+  // drugo spremanje s istog obrasca radi (verzija se osvježila)
+  await obrazac.getByLabel("Disk").fill("1 TB");
+  await obrazac.getByRole("button", { name: "Spremi ispravak" }).click();
+  await expect(page.getByTestId("ispravci").getByText(/Ispravak uređaja .*: disk/)).toBeVisible();
+
+  // prilog
+  const prilozi = page.getByRole("form", { name: "Dodavanje priloga" });
+  await prilozi
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "Jamstveni list.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF\n") });
+  await prilozi.getByRole("button", { name: "Dodaj" }).click();
+  await expect(page.getByTestId("prilozi").getByRole("link", { name: "Jamstveni list.pdf" })).toBeVisible();
+  const href = await page.getByTestId("prilozi").getByRole("link", { name: "Preuzmi" }).getAttribute("href");
+  const r = await page.request.get(href!);
+  expect(r.status()).toBe(200);
+  expect(r.headers()["content-disposition"]).toContain("attachment");
+  expect(await r.text()).toContain("%PDF-1.4");
+  // nedopuštena vrsta
+  await prilozi.locator('input[type="file"]').setInputFiles({ name: "alat.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") });
+  await prilozi.getByRole("button", { name: "Dodaj" }).click();
+  await expect(page.getByText("Vrsta datoteke „alat.exe“ nije dopuštena")).toBeVisible();
+
+  // brisanje (nema primke ni dokumenata)
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Obriši uređaj" }).click();
+  await expect(page).toHaveURL(/\/uredaji$/);
+  // prilog obrisanog uređaja više se ne može preuzeti
+  expect((await page.request.get(href!)).status()).toBe(404);
+});
+
+test("kartica uređaja za prodavača: bez ispravka, bez nabavne cijene", async ({ page }) => {
+  await prijaviSe(page, E2E.prodavac.email);
+  await page.goto("/uredaji?trazi=E2E-UR-001");
+  await page.getByTestId("popis-uredaja").getByRole("link", { name: "E2E-UR-001" }).first().click();
+  await expect(page.getByRole("heading", { name: "E2E-UR-001" })).toBeVisible();
+  await expect(page.getByText("Ispravak podataka")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Obriši uređaj" })).toHaveCount(0);
+  expect(await page.content()).not.toContain("700,00");
+  await bezVodoravnogPomicanja(page);
+});

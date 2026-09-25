@@ -1,3 +1,4 @@
+import { Promjene } from "@/components/ui/promjene";
 import { klaseGumba } from "@/components/ui/gumb";
 import { GumbiIzvoza } from "@/components/ui/izvoz";
 import { klaseUnosa } from "@/components/ui/polje";
@@ -101,31 +102,7 @@ export default async function Dnevnik({ searchParams }: PageProps<"/dnevnik">) {
                   {vrijemeFormat.format(z.vrijeme)} · {z.korisnik}
                 </div>
               </div>
-              {z.promjene.length > 0 && (
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-xs text-neutral-600 dark:text-neutral-400">{z.promjene.length} promjena</summary>
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-neutral-500">
-                          <th className="py-1 pr-3 font-medium">Polje</th>
-                          <th className="py-1 pr-3 font-medium">Prije</th>
-                          <th className="py-1 font-medium">Poslije</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {z.promjene.map((p) => (
-                          <tr key={p.polje} className="border-t border-neutral-100 align-top dark:border-neutral-900">
-                            <td className="py-1 pr-3 whitespace-nowrap">{p.polje}</td>
-                            <td className="py-1 pr-3 break-all text-red-700 dark:text-red-400">{p.staro ?? "—"}</td>
-                            <td className="py-1 break-all text-green-700 dark:text-green-400">{p.novo ?? "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              )}
+              <Promjene promjene={z.promjene} />
             </li>
           ))}
           {rezultat.zapisi.length === 0 && <li className="py-6 text-center text-sm text-neutral-500">Nema zapisa.</li>}

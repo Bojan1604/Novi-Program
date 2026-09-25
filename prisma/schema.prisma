@@ -45,6 +45,7 @@ model Firma {
   dogadaji      DogadajUredaja[]
   brojaci       Brojac[]
   primke        Primka[]
+  prilozi       Prilog[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -536,4 +537,28 @@ model Primka {
   @@unique([firmaId, id])
   @@unique([firmaId, godina, redni])
   @@index([firmaId, datum(sort: Desc)])
+}
+
+/// Datoteka uz zapis (uređaj, ugovor, račun, servisni nalog…). Sadržaj je u bazi — ide u sigurnosnu kopiju.
+model Prilog {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  /// vrsta zapisa (NAZIVI_ENTITETA) i njegov id
+  entitet    String
+  entitetId  String   @db.Uuid
+  naziv      String
+  /// MIME vrsta određena iz nastavka
+  vrsta      String
+  velicina   Int
+  sadrzaj    Bytes
+  /// vidljiv klijentu na portalu (servis)
+  javno      Boolean  @default(false)
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+  stvoreno   DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, entitet, entitetId])
 }

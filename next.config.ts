@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfkit", "exceljs"],
   // fontovi za PDF moraju biti uz program i u produkcijskoj instalaciji
   outputFileTracingIncludes: { "/**": ["./assets/fonts/**"] },
+  experimental: {
+    // prilozi do 10 MB po datoteci, više datoteka odjednom (provjera veličine je i u src/domain/prilozi.ts)
+    serverActions: { bodySizeLimit: "30mb" },
+    proxyClientMaxBodySize: "30mb",
+  },
 };
 
 export default nextConfig;

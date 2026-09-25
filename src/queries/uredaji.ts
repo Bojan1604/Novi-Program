@@ -1,6 +1,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { dodajDane, jeDatum } from "@/domain/datum";
+import { maskiraj, procitajPromjene } from "@/domain/dnevnik";
 import { jeUuid } from "@/domain/id";
+import { dopustenaPolja, mozeSeObrisati } from "@/domain/kartica-uredaja";
 import { centiIzDecimala } from "@/domain/novac";
 import type { Sortiranje } from "@/domain/popis";
 import { POPIS_STANJA, type Stanje } from "@/domain/stanja-uredaja";
@@ -125,4 +127,90 @@ export async function opcijeFiltaraUredaja(db: DbFirme, firmaId: string) {
   ]);
   const o = (l: { id: string; naziv: string }[]) => l.map((x) => ({ vrijednost: x.id, naziv: x.naziv }));
   return { skladista: o(skladista), kategorije: o(kategorije), proizvodjaci: o(proizvodjaci) };
+}
+
+export const NAJVISE_DOGADAJA_NA_KARTICI = 500;
+
+/**
+ * Kartica uređaja: podaci, povijest, prilozi (bez sadržaja), ispravci iz dnevnika i što se smije mijenjati.
+ * Nabavna cijena se bez prava uopće ne vraća (ni u povijesti ispravaka — maskirano ovdje).
+ */
+export async function karticaUredaja(db: DbFirme, firmaId: string, id: string, vidiNabavne: boolean) {
+  if (!jeUuid(id)) return null;
+  const u = await db.uredaj.findFirst({
+    where: { firmaId, id },
+    include: {
+      model: {
+        select: { id: true, naziv: true, jamstvoMjeseci: true, proizvodjac: { select: { naziv: true } }, kategorija: { select: { naziv: true } } },
+      },
+      skladiste: { select: { naziv: true } },
+      stanjeRobe: { select: { id: true, naziv: true } },
+      partner: { select: { id: true, naziv: true } },
+      poslovnica: { select: { naziv: true } },
+      primka: { select: { id: true, broj: true, status: true } },
+    },
+  });
+  if (!u) return null;
+  const [dogadaji, ukupnoDogadaja, prilozi, ispravci, stanjaRobe] = await Promise.all([
+    db.dogadajUredaja.findMany({
+      where: { firmaId, uredajId: id },
+      orderBy: [{ vrijeme: "desc" }, { id: "desc" }],
+      take: NAJVISE_DOGADAJA_NA_KARTICI,
+    }),
+    db.dogadajUredaja.count({ where: { firmaId, uredajId: id } }),
+    db.prilog.findMany({
+      where: { firmaId, entitet: "Uredaj", entitetId: id },
+      orderBy: { stvoreno: "desc" },
+      select: { id: true, naziv: true, vrsta: true, velicina: true, korisnik: true, stvoreno: true },
+    }),
+    db.dnevnik.findMany({
+      where: { firmaId, entitet: "Uredaj", entitetId: id },
+      orderBy: [{ vrijeme: "desc" }, { id: "desc" }],
+      take: 100,
+      select: { id: true, vrijeme: true, korisnik: true, radnja: true, opis: true, promjene: true },
+    }),
+    db.stanjeRobe.findMany({ where: { firmaId }, orderBy: { naziv: "asc" }, select: { id: true, naziv: true, aktivan: true } }),
+  ]);
+  // nazivi skladišta i partnera iz povijesti (jedan upit za sve)
+  const skladistaIds = [...new Set(dogadaji.flatMap((d) => [d.skladisteOdId, d.skladisteDoId]).filter((x): x is string => !!x))];
+  const partneriIds = [...new Set(dogadaji.map((d) => d.partnerId).filter((x): x is string => !!x))];
+  const [skladista, partneri] = await Promise.all([
+    skladistaIds.length ? db.skladiste.findMany({ where: { firmaId, id: { in: skladistaIds } }, select: { id: true, naziv: true } }) : [],
+    partneriIds.length ? db.partner.findMany({ where: { firmaId, id: { in: partneriIds } }, select: { id: true, naziv: true } }) : [],
+  ]);
+  const nazivSkladista = new Map(skladista.map((x) => [x.id, x.naziv]));
+  const nazivPartnera = new Map(partneri.map((x) => [x.id, x.naziv]));
+
+  const veze = {
+    primka: u.primka?.broj ?? null,
+    dokumenti: dogadaji.filter((d) => d.dokumentVrsta).map((d) => ({ vrsta: d.dokumentVrsta!, broj: d.dokumentBroj })),
+  };
+  const { polja, zakljucano } = dopustenaPolja(veze, vidiNabavne);
+  const brisanje = mozeSeObrisati(veze);
+  return {
+    ...u,
+    nabavnaCijena: vidiNabavne && u.nabavnaCijena !== null ? centiIzDecimala(u.nabavnaCijena.toString()) : null,
+    dogadaji: dogadaji.map((d) => ({
+      id: d.id,
+      vrijeme: d.vrijeme,
+      radnja: d.radnja,
+      staroStanje: d.staroStanje,
+      novoStanje: d.novoStanje,
+      skladisteOd: d.skladisteOdId ? (nazivSkladista.get(d.skladisteOdId) ?? null) : null,
+      skladisteDo: d.skladisteDoId ? (nazivSkladista.get(d.skladisteDoId) ?? null) : null,
+      partner: d.partnerId ? { id: d.partnerId, naziv: nazivPartnera.get(d.partnerId) ?? "" } : null,
+      dokumentVrsta: d.dokumentVrsta,
+      dokumentId: d.dokumentId,
+      dokumentBroj: d.dokumentBroj,
+      opis: d.opis,
+      korisnik: d.korisnik,
+    })),
+    ukupnoDogadaja,
+    prilozi,
+    ispravci: ispravci.map((z) => ({ ...z, promjene: maskiraj(procitajPromjene(z.promjene), vidiNabavne) })),
+    stanjaRobe,
+    dopusteno: [...polja],
+    zakljucano,
+    brisanje: brisanje.ok ? null : brisanje.razlog,
+  };
 }

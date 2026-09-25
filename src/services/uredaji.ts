@@ -1,7 +1,13 @@
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { jeDatum } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
-import { prijelaz, type Stanje, type VrstaRadnje } from "@/domain/stanja-uredaja";
+import { dopustenaPolja, mozeSeObrisati, promijenjenaPolja, type PoljeIspravka, type VezeUredaja } from "@/domain/kartica-uredaja";
+import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
+import { imaPosebno } from "@/domain/prava";
+import { prijelaz, provjeriSerijski, type Stanje, type VrstaRadnje } from "@/domain/stanja-uredaja";
 import { GreskaKorisniku } from "@/lib/greske";
+import { zapisiDnevnik } from "./dnevnik";
+import type { Akter } from "./korisnici";
 
 type Tx = Prisma.TransactionClient;
 
@@ -196,4 +202,182 @@ export async function stvoriUredaje(
     })),
   });
   return stvoreni.map((u) => u.id);
+}
+
+/** Veze uređaja s dokumentima (za pravila ispravka i brisanja) — iz primke i povijesti. */
+export async function vezeUredaja(tx: Tx, firmaId: string, uredajId: string, primkaId: string | null): Promise<VezeUredaja> {
+  const [primka, dokumenti] = await Promise.all([
+    primkaId ? tx.primka.findFirst({ where: { id: primkaId, firmaId }, select: { broj: true } }) : null,
+    tx.dogadajUredaja.findMany({
+      where: { firmaId, uredajId, dokumentVrsta: { not: null } },
+      distinct: ["dokumentVrsta", "dokumentId"],
+      select: { dokumentVrsta: true, dokumentBroj: true },
+      take: 100,
+    }),
+  ]);
+  return { primka: primka?.broj ?? null, dokumenti: dokumenti.map((d) => ({ vrsta: d.dokumentVrsta!, broj: d.dokumentBroj })) };
+}
+
+export type IspravakUredaja = {
+  /** verzija koju je korisnik gledao (netko drugi je u međuvremenu promijenio → greška) */
+  verzija: number;
+  serijski?: string;
+  modelId?: string;
+  /** centi; null = bez nabavne cijene */
+  nabavnaCijena?: number | null;
+  jamstvoDo?: string | null;
+  stanjeRobeId?: string | null;
+  cpu?: string | null;
+  ram?: string | null;
+  disk?: string | null;
+  ekran?: string | null;
+  os?: string | null;
+  napomena?: string | null;
+};
+
+const NAZIVI_POLJA: Record<PoljeIspravka, string> = {
+  serijski: "Serijski broj",
+  modelId: "Model",
+  nabavnaCijena: "Nabavna cijena",
+  jamstvoDo: "Jamstvo do",
+  stanjeRobeId: "Stanje robe",
+  cpu: "Procesor",
+  ram: "RAM",
+  disk: "Disk",
+  ekran: "Ekran",
+  os: "Operacijski sustav",
+  napomena: "Napomena",
+};
+
+const dan = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+/**
+ * Ručni ispravak podataka uređaja. Stanje i lokacija se NE mijenjaju ovdje (samo `promijeniStanje`);
+ * serijski i model samo dok uređaj nije ni na jednom dokumentu osim svoje primke.
+ */
+export async function ispraviUredaj(db: PrismaClient, akter: Akter, id: string, ulaz: IspravakUredaja): Promise<void> {
+  if (!jeUuid(id)) throw new GreskaKorisniku("Uređaj ne postoji.");
+  const vidiNabavne = imaPosebno(akter.prava, "costs");
+  await db.$transaction(async (tx) => {
+    const f = akter.firmaId;
+    await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE id = ${id}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
+    const u = await tx.uredaj.findFirst({ where: { id, firmaId: f } });
+    if (!u) throw new GreskaKorisniku("Uređaj ne postoji.");
+    if (u.verzija !== ulaz.verzija)
+      throw new GreskaKorisniku("Netko je u međuvremenu promijenio ovaj uređaj. Osvježite stranicu i ponovite ispravak.");
+
+    const staro: Partial<Record<PoljeIspravka, string | null>> = {
+      serijski: u.serijski,
+      modelId: u.modelId,
+      nabavnaCijena: u.nabavnaCijena === null ? null : String(centiIzDecimala(u.nabavnaCijena.toFixed(2))),
+      jamstvoDo: dan(u.jamstvoDo),
+      stanjeRobeId: u.stanjeRobeId,
+      cpu: u.cpu,
+      ram: u.ram,
+      disk: u.disk,
+      ekran: u.ekran,
+      os: u.os,
+      napomena: u.napomena,
+    };
+    const novo: Partial<Record<PoljeIspravka, string | null>> = {};
+    for (const k of Object.keys(NAZIVI_POLJA) as PoljeIspravka[]) {
+      const v = ulaz[k];
+      if (v === undefined) continue;
+      if (k === "nabavnaCijena") {
+        if (v !== null && (typeof v !== "number" || !Number.isSafeInteger(v) || v < 0)) throw new GreskaKorisniku("Nabavna cijena nije ispravna.");
+        novo[k] = v === null ? null : String(v);
+      } else if (typeof v === "string") {
+        const t = v.trim();
+        novo[k] = t === "" ? null : t.slice(0, k === "napomena" ? 2000 : 200);
+      } else if (v === null) {
+        novo[k] = null;
+      }
+    }
+    if (novo.serijski !== undefined) {
+      const r = provjeriSerijski(novo.serijski ?? "");
+      if (!r.ok) throw new GreskaKorisniku(r.greska);
+      novo.serijski = r.vrijednost;
+    }
+    if (novo.modelId === null) throw new GreskaKorisniku("Odaberite model.");
+
+    const promijenjena = promijenjenaPolja(staro, novo);
+    if (promijenjena.length === 0) throw new GreskaKorisniku("Ništa nije promijenjeno.");
+
+    const { polja, zakljucano } = dopustenaPolja(await vezeUredaja(tx, f, id, u.primkaId), vidiNabavne);
+    for (const p of promijenjena) {
+      if (!polja.has(p)) {
+        if (p === "nabavnaCijena") throw new GreskaKorisniku("Nemate pravo mijenjati nabavnu cijenu.");
+        throw new GreskaKorisniku(zakljucano ?? `Polje „${NAZIVI_POLJA[p]}“ se ne smije mijenjati.`);
+      }
+    }
+    if (promijenjena.includes("jamstvoDo") && novo.jamstvoDo !== null && !jeDatum(novo.jamstvoDo))
+      throw new GreskaKorisniku("Datum jamstva nije ispravan.");
+    for (const p of ["modelId", "stanjeRobeId"] as const) {
+      const v = novo[p];
+      if (!promijenjena.includes(p) || v === null || v === undefined) continue;
+      if (!jeUuid(v)) throw new GreskaKorisniku("Neispravan odabir.");
+      const postoji =
+        p === "modelId" ? await tx.modelUredaja.count({ where: { id: v, firmaId: f } }) : await tx.stanjeRobe.count({ where: { id: v, firmaId: f } });
+      if (!postoji) throw new GreskaKorisniku(p === "modelId" ? "Model ne postoji." : "Stanje robe ne postoji.");
+    }
+    if (promijenjena.includes("serijski")) {
+      const drugi = await tx.uredaj.findFirst({ where: { firmaId: f, serijski: novo.serijski!, NOT: { id } }, select: { id: true } });
+      if (drugi) throw new GreskaKorisniku(`Serijski broj ${novo.serijski} već ima drugi uređaj.`);
+    }
+
+    const data: Prisma.UredajUncheckedUpdateInput = { verzija: { increment: 1 } };
+    for (const p of promijenjena) {
+      const v = novo[p] ?? null;
+      if (p === "nabavnaCijena") data.nabavnaCijena = v === null ? null : centiUDecimal(Number(v));
+      else if (p === "jamstvoDo") data.jamstvoDo = v === null ? null : new Date(`${v}T00:00:00Z`);
+      else if (p === "modelId") data.modelId = v!;
+      else if (p === "serijski") data.serijski = v!;
+      else data[p] = v;
+    }
+    try {
+      await tx.uredaj.update({ where: { id }, data });
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2002") throw new GreskaKorisniku(`Serijski broj ${novo.serijski} već ima drugi uređaj.`);
+      throw e;
+    }
+    const zaDnevnik = (o: Partial<Record<PoljeIspravka, string | null>>) =>
+      Object.fromEntries(promijenjena.map((p) => [p, p === "nabavnaCijena" && o[p] != null ? centiUDecimal(Number(o[p])) : (o[p] ?? null)]));
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "uredaji.ispravak",
+      entitet: "Uredaj",
+      entitetId: id,
+      opis: `Ispravak uređaja ${u.serijski}: ${promijenjena.map((p) => NAZIVI_POLJA[p].toLowerCase()).join(", ")}`,
+      staro: zaDnevnik(staro),
+      novo: zaDnevnik(novo),
+    });
+  });
+}
+
+/** Brisanje uređaja — samo bez ikakvih veza (primka, dokumenti). Briše i povijest i priloge. */
+export async function obrisiUredaj(db: PrismaClient, akter: Akter, id: string): Promise<void> {
+  if (!jeUuid(id)) throw new GreskaKorisniku("Uređaj ne postoji.");
+  await db.$transaction(async (tx) => {
+    const f = akter.firmaId;
+    await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE id = ${id}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
+    const u = await tx.uredaj.findFirst({ where: { id, firmaId: f }, select: { serijski: true, primkaId: true, stanje: true, modelId: true } });
+    if (!u) throw new GreskaKorisniku("Uređaj ne postoji.");
+    const r = mozeSeObrisati(await vezeUredaja(tx, f, id, u.primkaId));
+    if (!r.ok) throw new GreskaKorisniku(r.razlog);
+    await tx.prilog.deleteMany({ where: { firmaId: f, entitet: "Uredaj", entitetId: id } });
+    await tx.dogadajUredaja.deleteMany({ where: { firmaId: f, uredajId: id } });
+    await tx.uredaj.delete({ where: { id } });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "uredaji.obrisi",
+      entitet: "Uredaj",
+      entitetId: id,
+      opis: `Obrisan uređaj ${u.serijski}`,
+      staro: { serijski: u.serijski, stanje: u.stanje, modelId: u.modelId },
+    });
+  });
 }

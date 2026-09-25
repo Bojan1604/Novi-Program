@@ -147,3 +147,8 @@ Na Windowsu sve pokreće `pokreni.bat`.
   (`src/services/partneri.ts`); cijena za kupca uvijek kroz `cijenaZaKupca` (cjenik → popust → preporučena).
 - Dnevnik: `opis` se nikad ne maskira — u opis ne pisati nabavne cijene ni marže.
 - `src/generated/` se generira (`prisma generate` pri `npm install`) i ne ide u git.
+- **Prilozi:** `dodajPriloge`/`obrisiPrilog` (`src/services/prilozi.ts`) za svaki zapis; nova vrsta zapisa = unos u `VLASNICI`
+  (postoji li zapis u firmi) i u `PRAVA_PRILOGA` (`src/lib/akcije-prava.ts`, tko smije preuzeti). Vrsta datoteke iz nastavka
+  (`src/domain/prilozi.ts`), preuzimanje samo kroz `/api/prilozi/[id]`.
+- **Kartica uređaja:** serijski i model zaključani čim je uređaj na dokumentu osim svoje primke (`dopustenaPolja`);
+  svaki novi dokument mora u `promijeniStanje` predati `dokument` — tako ga kartica vidi kao vezu.

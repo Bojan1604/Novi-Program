@@ -33,6 +33,10 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "primke.zaprimi": ["Administrator", "Voditelj", "Skladištar"],
   "primke.provjera": ["Administrator", "Voditelj", "Skladištar"],
   "primke.storno": ["Administrator", "Voditelj"],
+  "uredaji.ispravak": ["Administrator", "Voditelj", "Skladištar"],
+  "uredaji.obrisi": ["Administrator", "Voditelj"],
+  "uredaji.prilogDodaj": ["Administrator", "Voditelj", "Skladištar"],
+  "uredaji.prilogObrisi": ["Administrator", "Voditelj", "Skladištar"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {

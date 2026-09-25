@@ -36,6 +36,9 @@ async function priprema(): Promise<void> {
       ["E2E-UR-001", "NA_SKLADISTU", "Intel i5"],
       ["E2E-UR-002", "NA_SKLADISTU", "Intel i7"],
       ["E2E-UR-003", "OTPISAN", "AMD Ryzen 5"],
+      // kartica uređaja: po jedan za svaki projekt (ispravak, prilozi i brisanje)
+      ["E2E-KARTICA-RACUNALO", "NA_SKLADISTU", "Intel i3"],
+      ["E2E-KARTICA-MOBITEL", "NA_SKLADISTU", "Intel i3"],
     ] as const) {
       await prisma.uredaj.create({
         data: {
