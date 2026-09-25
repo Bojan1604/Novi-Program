@@ -1,12 +1,13 @@
 /**
  * Pregledava sve .ts/.tsx datoteke u src/ i javlja 'use server' datoteke
- * koje izvoze nešto osim async funkcija, i akcije koje ne provjeravaju prava.
+ * koje izvoze nešto osim async funkcija, akcije koje ne provjeravaju prava (ili nešto rade prije
+ * provjere), 'use server' unutar funkcija, te stranice i API rute bez provjere pristupa.
  *
  * Pokretanje: npm run check:use-server
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { provjeriUseServer, provjeriZastituAkcija } from "./lib/use-server";
+import { provjeriPristupStranice, provjeriUnutarnjiUseServer, provjeriUseServer, provjeriZastituAkcija } from "./lib/use-server";
 
 function* datoteke(mapa: string): Generator<string> {
   for (const ime of readdirSync(mapa)) {
@@ -24,7 +25,10 @@ function glavno(): void {
   for (const put of datoteke(join(korijen, "src"))) {
     pregledano++;
     const tekst = readFileSync(put, "utf8");
-    greske.push(...provjeriUseServer(tekst, relative(korijen, put)), ...provjeriZastituAkcija(tekst, relative(korijen, put)));
+    const rel = relative(korijen, put);
+    greske.push(...provjeriUseServer(tekst, rel), ...provjeriZastituAkcija(tekst, rel), ...provjeriUnutarnjiUseServer(tekst, rel));
+    if (/src\/app\/\(program\)\/.*page\.tsx$/.test(rel)) greske.push(...provjeriPristupStranice(tekst, rel, "stranica"));
+    if (/src\/app\/api\/.*route\.ts$/.test(rel)) greske.push(...provjeriPristupStranice(tekst, rel, "ruta"));
   }
   if (greske.length > 0) {
     console.error(`Provjera 'use server' nije prošla (${greske.length}):\n${greske.map((g) => `  ${g}`).join("\n")}`);

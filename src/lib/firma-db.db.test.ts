@@ -55,6 +55,17 @@ describe("izolacija firmi: firma A ne vidi i ne mijenja firmu B", () => {
     expect(g).toHaveLength(1);
   });
 
+  it("baza odbija vezu na zapis druge firme (složeni ključ)", async () => {
+    const { a, b, kb } = await dvijeFirme();
+    await expect(prisma.clanstvoFirme.create({ data: { firmaId: a.id, korisnikId: kb.id, ulogaId: b.uloge["Prodavač"]! } })).rejects.toThrow(
+      /Foreign key|foreign key|constraint/i,
+    );
+    const dbA = sFirmom(prisma, a.id);
+    await expect(dbA.clanstvoFirme.create({ data: { firmaId: a.id, korisnikId: kb.id, ulogaId: b.uloge["Prodavač"]! } })).rejects.toThrow(
+      /Foreign key|foreign key|constraint/i,
+    );
+  });
+
   it("transakcija na klijentu firme ostaje ograničena", async () => {
     const { dbA } = await dvijeFirme();
     const broj = await dbA.$transaction(async (tx) => tx.clanstvoFirme.count());

@@ -28,7 +28,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/izvoz/[izvor
 
   const url = new URL(request.url);
   const format = url.searchParams.get("format") as Format;
-  if (!(format in VRSTE)) return Response.json({ greska: "Nepoznat format." }, { status: 400 });
+  if (!Object.hasOwn(VRSTE, format)) return Response.json({ greska: "Nepoznat format." }, { status: 400 });
 
   const sp: Record<string, string | string[]> = {};
   for (const [a, v] of url.searchParams) if (a !== "format") sp[a] = a in sp ? [...[sp[a]!].flat(), v] : v;

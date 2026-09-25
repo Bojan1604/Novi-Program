@@ -1,5 +1,6 @@
 "use client";
 
+import { Obrazac } from "@/components/ui/obrazac";
 import { useActionState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
@@ -22,7 +23,7 @@ export function ObrazacUloge({
 }) {
   const [stanje, akcija, uTijeku] = useActionState(spremiUloguAkcija.bind(null, id), undefined);
   return (
-    <form action={akcija} className="flex flex-col gap-4">
+    <Obrazac akcija={akcija} className="flex flex-col gap-4">
       <fieldset disabled={samoPregled || uTijeku} className="flex min-w-0 flex-col gap-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Polje oznaka="Naziv" name="naziv" defaultValue={naziv} required />
@@ -71,7 +72,7 @@ export function ObrazacUloge({
           </div>
         )}
       </fieldset>
-    </form>
+    </Obrazac>
   );
 }
 

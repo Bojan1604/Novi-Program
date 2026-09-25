@@ -65,12 +65,13 @@ export function pretrazivac(s: Stanje, r: Radnja): Stanje {
       return n;
     }
     case "enter": {
-      if (!svjezi(s)) return s.upit.trim() ? { ...s, cekaEnter: true } : s;
+      // čekati svježe rezultate ima smisla samo dok korisnik tipka (popis otvoren, ništa odabrano)
+      if (!svjezi(s)) return s.upit.trim() && s.otvoren && !s.odabrano ? { ...s, cekaEnter: true } : s;
       const st = s.rezultati[s.istaknut];
       return st ? odaberi(s, st) : s;
     }
     case "dolje":
-      if (!s.otvoren) return { ...s, otvoren: true };
+      if (!s.otvoren) return { ...s, otvoren: true, cekaEnter: false };
       return svjezi(s) ? { ...s, istaknut: Math.min(s.istaknut + 1, Math.max(0, s.rezultati.length - 1)) } : s;
     case "gore":
       return svjezi(s) ? { ...s, istaknut: Math.max(s.istaknut - 1, 0) } : s;
@@ -79,7 +80,7 @@ export function pretrazivac(s: Stanje, r: Radnja): Stanje {
     case "klik":
       return odaberi(s, r.stavka);
     case "otvori":
-      return s.odabrano ? s : { ...s, otvoren: true };
+      return s.odabrano ? s : { ...s, otvoren: true, cekaEnter: false };
     case "zatvori":
       return { ...s, otvoren: false, cekaEnter: false };
     case "ocisti":

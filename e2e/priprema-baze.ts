@@ -4,6 +4,7 @@ import "dotenv/config";
 import { adresaTestneBaze } from "../scripts/lib/testna-baza";
 import { napraviPrismu } from "../src/lib/prisma";
 import { napraviZadaneUloge } from "../src/services/korisnici";
+import { napraviZadaneSifrarnike } from "../src/services/sifrarnici";
 import { ocistiBazu } from "../src/test/baza";
 import { E2E } from "./podaci";
 
@@ -17,6 +18,7 @@ async function priprema(): Promise<void> {
     await ocistiBazu(prisma);
     const firma = await prisma.firma.create({ data: { naziv: E2E.firma, oib: "69435151530", boja: E2E.boja } });
     const uloge = await napraviZadaneUloge(prisma, firma.id);
+    await napraviZadaneSifrarnike(prisma, firma.id);
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);
     for (const k of [
       { ime: E2E.admin.ime, email: E2E.admin.email, uloga: "Administrator" },

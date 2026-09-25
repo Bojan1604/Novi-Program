@@ -33,9 +33,11 @@ export function Pretrazivac({
   const unos = useRef<HTMLInputElement>(null);
 
   // dohvat rezultata za trenutni upit (s kratkom stankom; prethodni zahtjev se prekida)
+  const trebaDohvat = s.otvoren && !svjezi(s);
+  const upitZaDohvat = s.upit;
   useEffect(() => {
-    if (!s.otvoren || svjezi(s)) return;
-    const upit = s.upit;
+    if (!trebaDohvat) return;
+    const upit = upitZaDohvat;
     const prekid = new AbortController();
     const t = setTimeout(async () => {
       try {
@@ -51,7 +53,7 @@ export function Pretrazivac({
       clearTimeout(t);
       prekid.abort();
     };
-  }, [s, izvor]);
+  }, [trebaDohvat, upitZaDohvat, izvor]);
 
   // promjena odabira javlja se roditelju (ne i početna vrijednost)
   const prvi = useRef(true);

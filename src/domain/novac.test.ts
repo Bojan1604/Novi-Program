@@ -51,6 +51,13 @@ describe("procitajIznos — neispravni upisi nikad nisu 0", () => {
     ["+5"],
     ["--5"],
     ["99999999999999"],
+    // točka s tri decimale nije tisućica ako počinje nulom (inače bi „0.500“ bilo 500 €)
+    ["0.500"],
+    ["01.500"],
+    ["000.000"],
+    ["0 500"],
+    ["0500"],
+    ["00,50"],
   ])("„%s“ → greška", (upis) => {
     const r = procitajIznos(upis);
     expect(r.ok).toBe(false);

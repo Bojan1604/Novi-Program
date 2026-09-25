@@ -9,7 +9,7 @@ import { dodajKorisnika, postaviLozinku, urediKorisnika } from "@/services/koris
 
 export async function dodajKorisnikaAkcija(_p: Odgovor<{ korisnikId: string }> | undefined, fd: FormData) {
   return akcija("korisnici.dodaj", async (k) => {
-    const r = await dodajKorisnika(db, k, {
+    await dodajKorisnika(db, k, {
       ime: tekst(fd, "ime"),
       email: tekst(fd, "email"),
       lozinka: String(fd.get("lozinka") ?? ""),
@@ -18,8 +18,7 @@ export async function dodajKorisnikaAkcija(_p: Odgovor<{ korisnikId: string }> |
     revalidatePath("/korisnici");
     return {
       ok: true as const,
-      poruka: r.postojeci ? "Postojeći korisnik (iz druge firme) dodan je u firmu; lozinka mu je ostala ista." : "Korisnik je dodan.",
-      podaci: { korisnikId: r.korisnikId },
+      poruka: "Korisnik je dodan.",
     };
   });
 }

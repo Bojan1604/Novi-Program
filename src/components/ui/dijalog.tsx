@@ -20,6 +20,9 @@ export function Dijalog({
   sirina?: "md" | "lg" | "xl";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // zatvaranje klikom na pozadinu samo ako je i pritisak mišem bio na pozadini
+  // (inače označavanje teksta koje završi izvan dijaloga zatvori obrazac)
+  const pritisakNaPozadini = useRef(false);
 
   useEffect(() => {
     const d = ref.current;
@@ -37,7 +40,13 @@ export function Dijalog({
         e.preventDefault();
         onZatvori();
       }}
-      onClick={(e) => e.target === ref.current && onZatvori()}
+      onMouseDown={(e) => {
+        pritisakNaPozadini.current = e.target === ref.current;
+      }}
+      onClick={(e) => {
+        if (e.target === ref.current && pritisakNaPozadini.current) onZatvori();
+        pritisakNaPozadini.current = false;
+      }}
       className={`m-auto w-[calc(100%-2rem)] ${max} rounded-xl border border-neutral-200 bg-pozadina p-0 text-tekst shadow-2xl backdrop:bg-black/40 dark:border-neutral-800`}
     >
       {otvoren && (

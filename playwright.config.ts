@@ -33,10 +33,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npx next start -p ${PORT}`,
+    command: `node posluzitelj/index.mjs`,
     url: `http://localhost:${PORT}/api/zdravlje`,
     reuseExistingServer: false,
     timeout: 60_000,
-    env: { DATABASE_URL: process.env["DATABASE_URL_TEST"] ?? "", E2E_KOMPONENTE: "1" },
+    env: { DATABASE_URL: process.env["DATABASE_URL_TEST"] ?? "", E2E_KOMPONENTE: "1", PORT: String(PORT) },
   },
 });

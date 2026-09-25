@@ -1,3 +1,4 @@
+// javna stranica: samo poruka bez podataka (izgled programa ionako traži prijavu)
 import { GumbVeza } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { NaslovStranice, Stranica } from "@/components/ui/stranica";

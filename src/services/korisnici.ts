@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { jeEmail, normalizirajEmail, provjeriNovuLozinku } from "@/domain/prijava";
 import {
@@ -15,6 +16,7 @@ import {
   type Iznimke,
   type Prava,
 } from "@/domain/prava";
+import { jeUuid } from "@/domain/id";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { zapisiDnevnik } from "./dnevnik";
@@ -56,6 +58,7 @@ function pravaZaDnevnik(p: Prava): Record<string, string> {
 }
 
 async function clanZaUpravljanje(tx: Tx, firmaId: string, korisnikId: string) {
+  if (!jeUuid(korisnikId)) throw new GreskaKorisniku("Korisnik nije član ove firme.");
   const c = await tx.clanstvoFirme.findUnique({
     where: { firmaId_korisnikId: { firmaId, korisnikId } },
     include: { uloga: true, korisnik: true },
@@ -79,37 +82,22 @@ function provjeri(odluka: { dopusteno: true } | { dopusteno: false; razlog: stri
 
 export type NoviKorisnik = { ime: string; email: string; lozinka: string; ulogaId: string };
 
-/**
- * Dodaje korisnika u firmu. Ako korisnik s tom e-poštom već postoji (u drugoj firmi),
- * dobiva samo članstvo — lozinka i podaci mu se NE mijenjaju.
- */
-export async function dodajKorisnika(db: PrismaClient, akter: Akter, ulaz: NoviKorisnik): Promise<{ korisnikId: string; postojeci: boolean }> {
+/** Dodaje novog korisnika u firmu (e-pošta ne smije postojati). */
+export async function dodajKorisnika(db: PrismaClient, akter: Akter, ulaz: NoviKorisnik): Promise<{ korisnikId: string }> {
   const email = normalizirajEmail(ulaz.email);
   if (!ulaz.ime.trim()) throw new GreskaKorisniku("Upišite ime.");
   if (!jeEmail(email)) throw new GreskaKorisniku("E-pošta nije ispravna.");
 
   return db.$transaction(async (tx) => {
     await zakljucajKljuc(tx, `korisnik:${email}`);
-    const uloga = await tx.uloga.findFirst({ where: { id: ulaz.ulogaId, firmaId: akter.firmaId } });
+    const uloga = jeUuid(ulaz.ulogaId) ? await tx.uloga.findFirst({ where: { id: ulaz.ulogaId, firmaId: akter.firmaId } }) : null;
     if (!uloga) throw new GreskaKorisniku("Odaberite ulogu.");
     provjeri(smijeUpravljati({ id: akter.korisnikId, prava: akter.prava }, { id: "novi", prava: procitajPrava({}) }, procitajPrava(uloga.prava)));
 
-    const postojeci = await tx.korisnik.findUnique({ where: { email } });
-    if (postojeci) {
-      const clan = await tx.clanstvoFirme.findUnique({ where: { firmaId_korisnikId: { firmaId: akter.firmaId, korisnikId: postojeci.id } } });
-      if (clan) throw new GreskaKorisniku("Korisnik s tom e-poštom već je član firme.");
-      await tx.clanstvoFirme.create({ data: { firmaId: akter.firmaId, korisnikId: postojeci.id, ulogaId: uloga.id } });
-      await zapisiDnevnik(tx, {
-        firmaId: akter.firmaId,
-        korisnikId: akter.korisnikId,
-        ip: akter.ip,
-        radnja: "korisnici.dodaj",
-        entitet: "Korisnik",
-        entitetId: postojeci.id,
-        opis: `Dodan postojeći korisnik ${postojeci.ime} (${email}) s ulogom ${uloga.naziv}`,
-        novo: { ime: postojeci.ime, email, uloga: uloga.naziv },
-      });
-      return { korisnikId: postojeci.id, postojeci: true };
+    // Postojeći korisnik (iz druge firme) se NE pripaja sam: inače bi firma koja ga je
+    // napravila znala lozinku računa koji koristi druga firma. Rad u više firmi ide preko poziva.
+    if (await tx.korisnik.findUnique({ where: { email }, select: { id: true } })) {
+      throw new GreskaKorisniku("Ta e-pošta je već zauzeta.");
     }
 
     const greska = provjeriNovuLozinku(ulaz.lozinka, email);
@@ -126,7 +114,7 @@ export async function dodajKorisnika(db: PrismaClient, akter: Akter, ulaz: NoviK
       opis: `Dodan korisnik ${korisnik.ime} (${email}) s ulogom ${uloga.naziv}`,
       novo: { ime: korisnik.ime, email, uloga: uloga.naziv },
     });
-    return { korisnikId: korisnik.id, postojeci: false };
+    return { korisnikId: korisnik.id };
   });
 }
 
@@ -143,7 +131,7 @@ export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId:
       (izmjena.iznimke !== undefined && JSON.stringify(procitajIznimke(izmjena.iznimke)) !== JSON.stringify(stareIznimke));
     let novaUloga = cilj.uloga;
     if (izmjena.ulogaId !== undefined && izmjena.ulogaId !== cilj.ulogaId) {
-      const u = await tx.uloga.findFirst({ where: { id: izmjena.ulogaId, firmaId: akter.firmaId } });
+      const u = jeUuid(izmjena.ulogaId) ? await tx.uloga.findFirst({ where: { id: izmjena.ulogaId, firmaId: akter.firmaId } }) : null;
       if (!u) throw new GreskaKorisniku("Uloga ne postoji.");
       novaUloga = u;
     }
@@ -160,8 +148,12 @@ export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId:
       throw new GreskaKorisniku("Firma mora imati barem jednog aktivnog administratora.");
     }
 
-    if (izmjena.ime !== undefined) {
+    if (izmjena.ime !== undefined && izmjena.ime.trim() !== cilj.korisnik.ime) {
       if (!izmjena.ime.trim()) throw new GreskaKorisniku("Upišite ime.");
+      // ime je zajedničko svim firmama korisnika — jedna firma ga ne mijenja drugima
+      const drugaClanstva = await tx.clanstvoFirme.count({ where: { korisnikId, firmaId: { not: akter.firmaId } } });
+      if (drugaClanstva > 0 && korisnikId !== akter.korisnikId)
+        throw new GreskaKorisniku("Korisnik radi i u drugoj firmi; ime može promijeniti samo on sam.");
       await tx.korisnik.update({ where: { id: korisnikId }, data: { ime: izmjena.ime.trim() } });
     }
     await tx.clanstvoFirme.update({
@@ -249,7 +241,7 @@ export async function spremiUlogu(db: PrismaClient, akter: Akter, ulaz: UlazUlog
       return u.id;
     }
 
-    const uloga = await tx.uloga.findFirst({ where: { id: ulaz.id, firmaId: akter.firmaId } });
+    const uloga = jeUuid(ulaz.id) ? await tx.uloga.findFirst({ where: { id: ulaz.id, firmaId: akter.firmaId } }) : null;
     if (!uloga) throw new GreskaKorisniku("Uloga ne postoji.");
     if (uloga.sustavna) throw new GreskaKorisniku("Uloga Administrator se ne može mijenjati.");
 
@@ -288,7 +280,7 @@ export async function spremiUlogu(db: PrismaClient, akter: Akter, ulaz: UlazUlog
 export async function obrisiUlogu(db: PrismaClient, akter: Akter, ulogaId: string): Promise<void> {
   provjeri(smijeUrediti(akter.prava, procitajPrava({})));
   await db.$transaction(async (tx) => {
-    const uloga = await tx.uloga.findFirst({ where: { id: ulogaId, firmaId: akter.firmaId } });
+    const uloga = jeUuid(ulogaId) ? await tx.uloga.findFirst({ where: { id: ulogaId, firmaId: akter.firmaId } }) : null;
     if (!uloga) throw new GreskaKorisniku("Uloga ne postoji.");
     if (uloga.sustavna) throw new GreskaKorisniku("Uloga Administrator se ne može obrisati.");
     const broj = await tx.clanstvoFirme.count({ where: { ulogaId } });
@@ -303,6 +295,29 @@ export async function obrisiUlogu(db: PrismaClient, akter: Akter, ulogaId: strin
       entitetId: ulogaId,
       opis: `Obrisana uloga ${uloga.naziv}`,
       staro: { naziv: uloga.naziv, opis: uloga.opis },
+    });
+  });
+}
+
+/** Promjena vlastite lozinke (svaki korisnik; traži trenutnu lozinku). Odjavljuje ostale uređaje. */
+export async function promijeniVlastituLozinku(db: PrismaClient, akter: Akter & { sesijaId: string }, trenutna: string, nova: string): Promise<void> {
+  const k = await db.korisnik.findUniqueOrThrow({ where: { id: akter.korisnikId } });
+  if (!(await bcrypt.compare(trenutna, k.lozinkaHash))) throw new GreskaKorisniku("Trenutna lozinka nije ispravna.");
+  if (trenutna === nova) throw new GreskaKorisniku("Nova lozinka mora biti različita od trenutne.");
+  const greska = provjeriNovuLozinku(nova, k.email);
+  if (greska) throw new GreskaKorisniku(greska);
+  await db.$transaction(async (tx) => {
+    await tx.korisnik.update({ where: { id: k.id }, data: { lozinkaHash: await hashLozinke(nova) } });
+    await tx.sesija.deleteMany({ where: { korisnikId: k.id, NOT: { id: akter.sesijaId } } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "racun.lozinka",
+      entitet: "Korisnik",
+      entitetId: k.id,
+      opis: `${k.ime} je promijenio vlastitu lozinku; ostali uređaji odjavljeni`,
+      promjene: [{ polje: "lozinka", staro: "(skriveno)", novo: "(promijenjeno)" }],
     });
   });
 }

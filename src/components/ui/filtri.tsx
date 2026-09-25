@@ -57,6 +57,8 @@ export function FilterVise({ oznaka, parametar, opcije }: { oznaka: string; para
     const klik = (e: MouseEvent) => okvir.current && !okvir.current.contains(e.target as Node) && setOtvoren(false);
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // zatvori samo popis filtra, ne i dijalog oko njega
+        e.preventDefault();
         e.stopPropagation();
         setOtvoren(false);
       }

@@ -53,8 +53,10 @@ export function procitajIznos(upis: string, opcije: OpcijeUpisa = {}): Rezultat<
 
   let znamenke: string;
   if (/^\d+$/.test(cijeliDio)) {
+    // „0500“ je vjerojatno tipfeler — dopuštena je samo jedna vodeća nula („0“, „0,50“)
+    if (/^0\d/.test(cijeliDio)) return { ok: false, greska: "Iznos ne smije počinjati nulom." };
     znamenke = cijeliDio;
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(cijeliDio) || /^\d{1,3}( \d{3})+$/.test(cijeliDio)) {
+  } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(cijeliDio) || /^[1-9]\d{0,2}( \d{3})+$/.test(cijeliDio)) {
     znamenke = cijeliDio.replace(/[. ]/g, "");
   } else if (/^\d*\.\d{1,2}$/.test(cijeliDio) && decimalniDio === undefined) {
     return { ok: false, greska: "Za decimale koristite zarez (npr. 1,50); točka odvaja tisućice." };

@@ -11,21 +11,31 @@ const pravaUloge = (naziv: string) => ZADANE_ULOGE.find((u) => u.naziv === naziv
  * Nova akcija ili stranica mora se dodati ovdje, inače test pukne.
  */
 const DOPUSTENE_AKCIJE: Record<string, KljucAkcije[]> = {
-  Administrator: ["korisnici.dodaj", "korisnici.uredi", "korisnici.lozinka", "uloge.spremi", "uloge.obrisi"],
-  Voditelj: [],
-  Prodavač: [],
-  Skladištar: [],
-  Serviser: [],
-  Knjigovođa: [],
+  Administrator: [
+    "racun.lozinka",
+    "korisnici.dodaj",
+    "korisnici.uredi",
+    "korisnici.lozinka",
+    "uloge.spremi",
+    "uloge.obrisi",
+    "sifrarnici.spremi",
+    "sifrarnici.aktivnost",
+    "sifrarnici.obrisi",
+  ],
+  Voditelj: ["racun.lozinka", "sifrarnici.spremi", "sifrarnici.aktivnost"],
+  Prodavač: ["racun.lozinka"],
+  Skladištar: ["racun.lozinka"],
+  Serviser: ["racun.lozinka"],
+  Knjigovođa: ["racun.lozinka"],
 };
 
 const DOPUSTENE_STRANICE: Record<string, PutanjaStranice[]> = {
-  Administrator: ["/", "/korisnici", "/uloge", "/dnevnik"],
-  Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik"],
-  Prodavač: ["/"],
-  Skladištar: ["/"],
-  Serviser: ["/"],
-  Knjigovođa: [],
+  Administrator: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun"],
+  Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun"],
+  Prodavač: ["/", "/sifrarnici", "/moj-racun"],
+  Skladištar: ["/", "/sifrarnici", "/moj-racun"],
+  Serviser: ["/", "/moj-racun"],
+  Knjigovođa: ["/moj-racun"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -61,9 +71,16 @@ describe("posebna prava u akcijama", () => {
 
 describe("izbornik", () => {
   it("prikazuje samo dopušteno; prva stranica je prva dopuštena", () => {
-    expect(izbornikZa(pravaUloge("Prodavač"), IZBORNIK).map((s) => s.putanja)).toEqual(["/"]);
-    expect(izbornikZa(pravaUloge("Administrator"), IZBORNIK).map((s) => s.putanja)).toEqual(["/", "/korisnici", "/uloge", "/dnevnik"]);
-    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBeNull();
+    expect(izbornikZa(pravaUloge("Prodavač"), IZBORNIK).map((s) => s.putanja)).toEqual(["/", "/sifrarnici", "/moj-racun"]);
+    expect(izbornikZa(pravaUloge("Administrator"), IZBORNIK).map((s) => s.putanja)).toEqual([
+      "/",
+      "/sifrarnici",
+      "/korisnici",
+      "/uloge",
+      "/dnevnik",
+      "/moj-racun",
+    ]);
+    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/moj-racun");
   });
 
   it("svaka stranica iz popisa je u izborniku", () => {

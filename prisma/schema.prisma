@@ -30,6 +30,13 @@ model Firma {
   sesije   Sesija[]
   uloge    Uloga[]
   dnevnik  Dnevnik[]
+
+  kategorije    Kategorija[]
+  proizvodjaci  Proizvodjac[]
+  modeli        ModelUredaja[]
+  skladista     Skladiste[]
+  stanjaRobe    StanjeRobe[]
+  usluge        Usluga[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -58,7 +65,8 @@ model ClanstvoFirme {
 
   firma    Firma    @relation(fields: [firmaId], references: [id])
   korisnik Korisnik @relation(fields: [korisnikId], references: [id])
-  uloga    Uloga    @relation(fields: [ulogaId], references: [id])
+  /// složeni ključ: uloga mora biti iz iste firme (baza to jamči)
+  uloga    Uloga    @relation(fields: [firmaId, ulogaId], references: [firmaId, id])
 
   @@unique([firmaId, korisnikId])
   @@index([korisnikId])
@@ -82,6 +90,7 @@ model Uloga {
   clanstva ClanstvoFirme[]
 
   @@unique([firmaId, naziv])
+  @@unique([firmaId, id])
 }
 
 /// Prijava na uređaju. U bazi je samo SHA-256 tokena; sam token je samo u kolačiću.
@@ -141,4 +150,119 @@ model Dnevnik {
   @@index([firmaId, vrijeme(sort: Desc)])
   @@index([firmaId, entitet, entitetId, vrijeme(sort: Desc)])
   @@index([firmaId, korisnikId, vrijeme(sort: Desc)])
+}
+
+// ─── 1.1 Šifrarnici ────────────────────────────────────────────────────────────
+// Naziv je jedinstven u firmi (bez obzira na velika slova) — provjerava servis pod zaključavanjem.
+// Deaktivacija umjesto brisanja: povijest (uređaji, računi) ostaje; brisanje samo neiskorištenog.
+
+model Kategorija {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  naziv     String
+  aktivan   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma  Firma          @relation(fields: [firmaId], references: [id])
+  modeli ModelUredaja[]
+
+  @@index([firmaId, naziv])
+  @@unique([firmaId, id])
+}
+
+model Proizvodjac {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  naziv     String
+  aktivan   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma  Firma          @relation(fields: [firmaId], references: [id])
+  modeli ModelUredaja[]
+
+  @@index([firmaId, naziv])
+  @@unique([firmaId, id])
+}
+
+/// Model uređaja (npr. Lenovo ThinkPad T14 Gen 4). Naziv jedinstven unutar proizvođača.
+model ModelUredaja {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  firmaId           String   @db.Uuid
+  proizvodjacId     String   @db.Uuid
+  kategorijaId      String   @db.Uuid
+  naziv             String
+  sifra             String?
+  /// KPD za prodaju (npr. 26.20.11) i za najam (usluga, npr. 77.33.11)
+  kpdProdaja        String?
+  kpdNajam          String?
+  jamstvoMjeseci    Int      @default(24)
+  preporucenaCijena Decimal? @db.Decimal(14, 2)
+  /// ciljana marža u % — osjetljivo (pravo „costs“)
+  marza             Decimal? @db.Decimal(7, 2)
+  opis              String?
+  aktivan           Boolean  @default(true)
+  stvoreno          DateTime @default(now()) @db.Timestamptz(3)
+  azurirano         DateTime @updatedAt @db.Timestamptz(3)
+
+  firma       Firma       @relation(fields: [firmaId], references: [id])
+  proizvodjac Proizvodjac @relation(fields: [firmaId, proizvodjacId], references: [firmaId, id])
+  kategorija  Kategorija  @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
+
+  @@index([firmaId, naziv])
+  @@index([proizvodjacId])
+  @@index([kategorijaId])
+  @@unique([firmaId, id])
+}
+
+model Skladiste {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  naziv     String
+  adresa    String?
+  /// zadano skladište za zaprimanje
+  zadano    Boolean  @default(false)
+  aktivan   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@index([firmaId, naziv])
+  @@unique([firmaId, id])
+}
+
+/// Stanje robe (Novo, Rabljeno, Obnovljeno, Neispravno…) — neovisno o statusu uređaja.
+model StanjeRobe {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  naziv     String
+  aktivan   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@index([firmaId, naziv])
+  @@unique([firmaId, id])
+}
+
+/// Usluga (instalacija, sat servisa, dostava…) za stavke ponuda i računa.
+model Usluga {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  naziv     String
+  sifra     String?
+  jedinica  String   @default("kom")
+  cijena    Decimal? @db.Decimal(14, 2)
+  kpd       String?
+  aktivan   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@index([firmaId, naziv])
+  @@unique([firmaId, id])
 }

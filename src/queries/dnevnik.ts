@@ -1,6 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { dodajDane, jeDatum, pocetakDana } from "@/domain/datum";
-import { maskiraj, procitajPromjene } from "@/domain/dnevnik";
+import { maskiraj, NAZIVI_ENTITETA, procitajPromjene } from "@/domain/dnevnik";
 import type { DbFirme } from "@/lib/firma-db";
 
 export type FilterDnevnika = {
@@ -23,7 +23,7 @@ export function uvjetDnevnika(firmaId: string, f: FilterDnevnika): Prisma.Dnevni
   if (f.od || f.do) {
     w.vrijeme = {};
     if (jeDatum(f.od)) w.vrijeme.gte = pocetakDana(f.od);
-    if (jeDatum(f.do)) w.vrijeme.lt = pocetakDana(dodajDane(f.do, 1));
+    if (jeDatum(f.do) && f.do < "2999-12-31") w.vrijeme.lt = pocetakDana(dodajDane(f.do, 1));
   }
   const t = f.trazi?.trim().toLowerCase();
   if (t)
@@ -60,14 +60,14 @@ export async function stranicaDnevnika(db: DbFirme, firmaId: string, f: FilterDn
   };
 }
 
+/** Opcije filtara bez čitanja cijelog dnevnika: korisnici iz članstava, vrste iz stalnog popisa. */
 export async function filtriDnevnika(db: DbFirme, firmaId: string) {
-  const [korisnici, entiteti] = await Promise.all([
-    db.dnevnik.findMany({ where: { firmaId, korisnikId: { not: null } }, distinct: ["korisnikId"], select: { korisnikId: true, korisnik: true } }),
-    db.dnevnik.findMany({ where: { firmaId }, distinct: ["entitet"], select: { entitet: true } }),
-  ]);
+  const clanovi = await db.clanstvoFirme.findMany({ where: { firmaId }, select: { korisnikId: true, korisnik: { select: { ime: true } } } });
   return {
-    korisnici: korisnici.map((k) => ({ id: k.korisnikId!, ime: k.korisnik })).sort((a, b) => a.ime.localeCompare(b.ime, "hr")),
-    entiteti: entiteti.map((e) => e.entitet).sort(),
+    korisnici: clanovi.map((c) => ({ id: c.korisnikId, ime: c.korisnik.ime })).sort((a, b) => a.ime.localeCompare(b.ime, "hr")),
+    entiteti: Object.entries(NAZIVI_ENTITETA)
+      .map(([vrijednost, naziv]) => ({ vrijednost, naziv }))
+      .sort((a, b) => a.naziv.localeCompare(b.naziv, "hr")),
   };
 }
 

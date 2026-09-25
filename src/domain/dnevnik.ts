@@ -24,8 +24,48 @@ const ZANEMARENA = new Set(["id", "firmaId", "stvoreno", "azurirano", "verzija"]
 
 export const MASKA = "•••";
 
+/** Vrste zapisa u dnevniku (entitet) i nazivi za prikaz. Nova vrsta = novi unos. */
+export const NAZIVI_ENTITETA: Record<string, string> = {
+  Firma: "Firma",
+  Korisnik: "Korisnik",
+  Uloga: "Uloga",
+  Izvoz: "Izvoz",
+  Kategorija: "Kategorija",
+  Proizvodjac: "Proizvođač",
+  ModelUredaja: "Model uređaja",
+  Skladiste: "Skladište",
+  StanjeRobe: "Stanje robe",
+  Usluga: "Usluga",
+};
+
+const OSJETLJIVA_MALA = new Set([...OSJETLJIVA_POLJA].map((p) => p.toLowerCase()));
+const TAJNA_MALA = new Set([...TAJNA_POLJA].map((p) => p.toLowerCase()));
+
+/** Naziv polja otkriva nabavnu cijenu/maržu (bez obzira na velika slova). */
 export function jeOsjetljivo(polje: string): boolean {
-  return OSJETLJIVA_POLJA.has(polje);
+  return OSJETLJIVA_MALA.has(polje.toLowerCase());
+}
+
+function jeTajno(polje: string): boolean {
+  return TAJNA_MALA.has(polje.toLowerCase());
+}
+
+/** Sadrži li vrijednost (i u ugniježđenim objektima/nizovima) osjetljivo polje. */
+function sadrziOsjetljivo(v: unknown, dodatna: ReadonlySet<string>): boolean {
+  if (Array.isArray(v)) return v.some((x) => sadrziOsjetljivo(x, dodatna));
+  if (v && typeof v === "object" && !(v instanceof Date) && !("toFixed" in v)) {
+    return Object.entries(v).some(([k, x]) => jeOsjetljivo(k) || dodatna.has(k.toLowerCase()) || sadrziOsjetljivo(x, dodatna));
+  }
+  return false;
+}
+
+/** Tajne (lozinke, tokeni) zamijenjene i u ugniježđenim objektima. */
+function bezTajni(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(bezTajni);
+  if (v && typeof v === "object" && !(v instanceof Date) && !("toFixed" in v)) {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, jeTajno(k) ? "(skriveno)" : bezTajni(x)]));
+  }
+  return v;
 }
 
 /** Vrijednost u tekst za dnevnik (datumi, Decimal, JSON). */
@@ -48,22 +88,26 @@ export function razlika(
   novo: Record<string, unknown> | null,
   opcije: { osjetljiva?: readonly string[]; zanemari?: readonly string[] } = {},
 ): Promjena[] {
-  const osjetljiva = new Set([...OSJETLJIVA_POLJA, ...(opcije.osjetljiva ?? [])]);
+  const dodatna = new Set((opcije.osjetljiva ?? []).map((p) => p.toLowerCase()));
   const zanemari = new Set([...ZANEMARENA, ...(opcije.zanemari ?? [])]);
   const polja = new Set([...Object.keys(staro ?? {}), ...Object.keys(novo ?? {})]);
   const promjene: Promjena[] = [];
   for (const polje of polja) {
     if (zanemari.has(polje)) continue;
     if (staro && novo && !(polje in novo)) continue;
-    const s = uTekst(staro?.[polje]);
-    const n = uTekst(novo?.[polje]);
-    if (s === n) continue;
-    const tajno = TAJNA_POLJA.has(polje);
+    const st = staro?.[polje];
+    const nv = novo?.[polje];
+    const s = uTekst(bezTajni(st));
+    const n = uTekst(bezTajni(nv));
+    if (s === n && uTekst(st) === uTekst(nv)) continue;
+    const tajno = jeTajno(polje);
     promjene.push({
       polje,
       staro: tajno && s !== null ? "(skriveno)" : s,
       novo: tajno && n !== null ? "(promijenjeno)" : n,
-      ...(osjetljiva.has(polje) ? { osjetljivo: true } : {}),
+      ...(jeOsjetljivo(polje) || dodatna.has(polje.toLowerCase()) || sadrziOsjetljivo(st, dodatna) || sadrziOsjetljivo(nv, dodatna)
+        ? { osjetljivo: true }
+        : {}),
     });
   }
   return promjene.sort((a, b) => a.polje.localeCompare(b.polje));
@@ -84,12 +128,24 @@ export function procitajPromjene(v: unknown): Promjena[] {
       polje: String(p["polje"]),
       staro: p["staro"] === null || p["staro"] === undefined ? null : String(p["staro"]),
       novo: p["novo"] === null || p["novo"] === undefined ? null : String(p["novo"]),
-      // što god piše u zapisu, poznata osjetljiva polja su uvijek osjetljiva
-      ...(p["osjetljivo"] === true || OSJETLJIVA_POLJA.has(String(p["polje"])) ? { osjetljivo: true } : {}),
+      // što god piše u zapisu, poznata osjetljiva polja (i ugniježđena) su uvijek osjetljiva
+      ...(p["osjetljivo"] === true || jeOsjetljivo(String(p["polje"])) || sadrziOsjetljivoTekst(p["staro"]) || sadrziOsjetljivoTekst(p["novo"])
+        ? { osjetljivo: true }
+        : {}),
     }));
 }
 
 /** Tekst za pretragu ne smije sadržavati osjetljive vrijednosti (pretraga bi ih otkrila). */
 export function tekstZaPretragu(opis: string, promjene: readonly Promjena[]): string {
   return [opis, ...promjene.filter((p) => !p.osjetljivo).flatMap((p) => [p.polje, p.staro ?? "", p.novo ?? ""])].join(" ").toLowerCase();
+}
+
+/** Spremljeni JSON (tekst) sadrži li ključ osjetljivog polja. */
+function sadrziOsjetljivoTekst(v: unknown): boolean {
+  if (typeof v !== "string" || (!v.startsWith("{") && !v.startsWith("["))) return false;
+  try {
+    return sadrziOsjetljivo(JSON.parse(v), new Set());
+  } catch {
+    return false;
+  }
 }

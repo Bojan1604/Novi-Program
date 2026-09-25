@@ -1,5 +1,6 @@
 "use client";
 
+import { Obrazac } from "@/components/ui/obrazac";
 import { useActionState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
@@ -18,7 +19,7 @@ function Poruka({ stanje }: { stanje: Odgovor<unknown> | undefined }) {
 export function DodajKorisnika({ uloge }: { uloge: Uloga[] }) {
   const [stanje, akcija, uTijeku] = useActionState(dodajKorisnikaAkcija, undefined);
   return (
-    <form action={akcija} className="grid gap-3 sm:grid-cols-2" key={stanje?.ok ? "novi" : "isti"}>
+    <Obrazac akcija={akcija} className="grid gap-3 sm:grid-cols-2" key={stanje?.ok ? "novi" : "isti"}>
       <Polje oznaka="Ime i prezime" name="ime" required autoComplete="off" />
       <Polje oznaka="E-pošta" name="email" type="email" required autoComplete="off" />
       <Polje
@@ -26,7 +27,7 @@ export function DodajKorisnika({ uloge }: { uloge: Uloga[] }) {
         name="lozinka"
         type="password"
         autoComplete="new-password"
-        opis="Najmanje 10 znakova. Ne treba ako korisnik već radi u drugoj firmi."
+        opis="Najmanje 10 znakova. Korisnik je može promijeniti u „Moj račun“."
       />
       <Odabir oznaka="Uloga" name="ulogaId" required defaultValue="">
         <option value="" disabled>
@@ -46,7 +47,7 @@ export function DodajKorisnika({ uloge }: { uloge: Uloga[] }) {
           </Gumb>
         </div>
       </div>
-    </form>
+    </Obrazac>
   );
 }
 
@@ -71,7 +72,7 @@ export function UrediKorisnika({
 }) {
   const [stanje, akcija, uTijeku] = useActionState(urediKorisnikaAkcija.bind(null, korisnikId), undefined);
   return (
-    <form action={akcija} className="flex flex-col gap-4">
+    <Obrazac akcija={akcija} className="flex flex-col gap-4">
       <fieldset disabled={!smijeUredivati || uTijeku} className="flex min-w-0 flex-col gap-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Polje oznaka="Ime i prezime" name="ime" defaultValue={ime} required />
@@ -119,14 +120,14 @@ export function UrediKorisnika({
           </div>
         )}
       </fieldset>
-    </form>
+    </Obrazac>
   );
 }
 
 export function NovaLozinka({ korisnikId }: { korisnikId: string }) {
   const [stanje, akcija, uTijeku] = useActionState(postaviLozinkuAkcija.bind(null, korisnikId), undefined);
   return (
-    <form action={akcija} className="flex flex-col gap-3" key={stanje?.ok ? "ok" : "forma"}>
+    <Obrazac akcija={akcija} className="flex flex-col gap-3" key={stanje?.ok ? "ok" : "forma"}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Polje oznaka="Nova lozinka" name="lozinka" type="password" autoComplete="new-password" required />
         <Polje oznaka="Ponovite lozinku" name="ponovljena" type="password" autoComplete="new-password" required />
@@ -137,6 +138,6 @@ export function NovaLozinka({ korisnikId }: { korisnikId: string }) {
           Postavi lozinku
         </Gumb>
       </div>
-    </form>
+    </Obrazac>
   );
 }

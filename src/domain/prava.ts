@@ -118,9 +118,14 @@ export function imaPosebno(prava: Prava, posebno: Posebno): boolean {
 }
 
 /** Pravo koje traži akcija ili stranica: razina u modulu i/ili posebno pravo. */
-export type PotrebnoPravo = { modul: Modul; razina: Razina; posebno?: Posebno } | { posebno: Posebno; modul?: undefined; razina?: undefined };
+export type PotrebnoPravo =
+  | { modul: Modul; razina: Razina; posebno?: Posebno }
+  | { posebno: Posebno; modul?: undefined; razina?: undefined }
+  /** svaki prijavljeni korisnik (npr. vlastita lozinka) */
+  | { samoPrijava: true; modul?: undefined; razina?: undefined; posebno?: undefined };
 
 export function zadovoljava(prava: Prava, pravo: PotrebnoPravo): boolean {
+  if ("samoPrijava" in pravo) return true;
   if (pravo.modul && !imaPravo(prava, pravo.modul, pravo.razina)) return false;
   if (pravo.posebno && !imaPosebno(prava, pravo.posebno)) return false;
   return true;

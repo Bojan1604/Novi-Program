@@ -5,12 +5,14 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: erp
-      POSTGRES_PASSWORD: erp
+      # lozinku generira pokreni.bat u .env (BAZA_LOZINKA); bez nje se baza ne pokreće
+      POSTGRES_PASSWORD: ${BAZA_LOZINKA:?Postavite BAZA_LOZINKA u .env}
       POSTGRES_DB: erp_wms
       TZ: Europe/Zagreb
       PGTZ: Europe/Zagreb
     ports:
-      - "5432:5432"
+      # samo s ovog računala — baza nikad nije otvorena prema mreži
+      - "127.0.0.1:5432:5432"
     volumes:
       - baza-podaci:/var/lib/postgresql/data
       - ./docker/baza-init:/docker-entrypoint-initdb.d:ro

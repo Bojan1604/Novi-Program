@@ -5,12 +5,82 @@ import type { PrismaClient } from "@/generated/prisma/client";
  * nad ovim modelima automatski je ograničen na firmu.
  * Test `firma-db.test.ts` pukne ako model s `firmaId` u shemi nije na popisu.
  */
-export const MODELI_S_FIRMOM = ["ClanstvoFirme", "Dnevnik", "Sesija", "Uloga"] as const;
+export const MODELI_S_FIRMOM = [
+  "ClanstvoFirme",
+  "Dnevnik",
+  "Kategorija",
+  "ModelUredaja",
+  "Proizvodjac",
+  "Sesija",
+  "Skladiste",
+  "StanjeRobe",
+  "Uloga",
+  "Usluga",
+] as const;
 
 /** Modeli s `firmaId` koji se namjerno NE ograničavaju (s razlogom). */
 export const MODELI_S_FIRMOM_IZUZETI: Record<string, string> = {};
 
 const S_FIRMOM = new Set<string>(MODELI_S_FIRMOM);
+
+/**
+ * Relacije globalnih modela (Korisnik, Firma) prema podacima više firmi. Kroz njih bi upit
+ * iz jedne firme mogao dohvatiti tuđe podatke (npr. korisnik → sva njegova članstva), pa su
+ * u upitima kroz dbFirme zabranjene. Test provjerava da je popis potpun.
+ */
+export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
+  korisnik: ["clanstva", "sesije"],
+  firma: ["clanstva", "sesije", "uloge", "dnevnik", "kategorije", "proizvodjaci", "modeli", "skladista", "stanjaRobe", "usluge"],
+};
+
+/** Provjera include/select: ulaz u korisnika/firmu smije dohvatiti samo njihova obična polja. */
+export function provjeriUgnijezdeno(model: string, args: Record<string, unknown>): void {
+  const obidji = (cvor: unknown, put: string) => {
+    if (!cvor || typeof cvor !== "object") return;
+    for (const kljuc of ["include", "select"] as const) {
+      const odabir = (cvor as Record<string, unknown>)[kljuc];
+      if (!odabir || typeof odabir !== "object") continue;
+      for (const [rel, vrijednost] of Object.entries(odabir as Record<string, unknown>)) {
+        const zabranjene = RELACIJE_PREMA_FIRMAMA[rel];
+        if (zabranjene && vrijednost && typeof vrijednost === "object") {
+          const v = vrijednost as Record<string, unknown>;
+          if (v["include"]) throw new Error(`${model}: ${put}${rel} ne smije uključivati relacije (dbFirme).`);
+          const sel = v["select"] as Record<string, unknown> | undefined;
+          for (const polje of Object.keys(sel ?? {})) {
+            if (zabranjene.includes(polje) || polje === "_count")
+              throw new Error(`${model}: ${put}${rel}.${polje} vodi do podataka drugih firmi (dbFirme).`);
+          }
+        }
+        obidji(vrijednost, `${put}${rel}.`);
+      }
+    }
+  };
+  obidji(args, "");
+}
+
+/** Ugniježđeni novi zapisi (create unutar data) moraju nositi firmaId ove firme. */
+export function provjeriUgnijezdenoPisanje(model: string, data: unknown, firmaId: string): void {
+  const provjeriNovi = (zapis: unknown) => {
+    for (const z of Array.isArray(zapis) ? zapis : [zapis]) {
+      if (!z || typeof z !== "object") continue;
+      if ((z as Record<string, unknown>)["firmaId"] !== firmaId)
+        throw new Error(`${model}: ugniježđeni novi zapis mora imati firmaId ove firme (dbFirme).`);
+      obidji(z);
+    }
+  };
+  const obidji = (cvor: unknown) => {
+    if (!cvor || typeof cvor !== "object" || Array.isArray(cvor)) return;
+    for (const v of Object.values(cvor as Record<string, unknown>)) {
+      if (!v || typeof v !== "object" || Array.isArray(v) || v instanceof Date) continue;
+      const o = v as Record<string, unknown>;
+      if ("create" in o) provjeriNovi(o["create"]);
+      if ("createMany" in o) provjeriNovi((o["createMany"] as { data?: unknown })?.data);
+      if ("connectOrCreate" in o) for (const c of [o["connectOrCreate"]].flat()) provjeriNovi((c as { create?: unknown })?.create);
+      if ("upsert" in o) for (const u of [o["upsert"]].flat()) provjeriNovi((u as { create?: unknown })?.create);
+    }
+  };
+  for (const z of Array.isArray(data) ? data : [data]) obidji(z);
+}
 
 const S_WHERE = new Set([
   "findUnique",
@@ -43,6 +113,10 @@ type Argumenti = {
  */
 export function ogranicniNaFirmu(model: string, operacija: string, args: Argumenti, firmaId: string): Argumenti {
   if (!S_FIRMOM.has(model)) return args;
+  provjeriUgnijezdeno(model, args as Record<string, unknown>);
+  if (args.data) provjeriUgnijezdenoPisanje(model, args.data, firmaId);
+  if (args.create) provjeriUgnijezdenoPisanje(model, args.create, firmaId);
+  if (args.update) provjeriUgnijezdenoPisanje(model, args.update, firmaId);
   const a: Argumenti = { ...args };
 
   const provjeriPodatke = (podaci: Record<string, unknown> | undefined, stvaranje: boolean) => {

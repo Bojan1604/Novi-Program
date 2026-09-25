@@ -3,7 +3,8 @@ import { STRANICE, type PutanjaStranice } from "./akcije-prava";
 
 const GRUPE: { grupa: string; putanje: PutanjaStranice[] }[] = [
   { grupa: "Pregled", putanje: ["/"] },
-  { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik"] },
+  { grupa: "Skladište", putanje: ["/sifrarnici"] },
+  { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik", "/moj-racun"] },
 ];
 
 export const IZBORNIK: StavkaIzbornika[] = GRUPE.flatMap(({ grupa, putanje }) =>

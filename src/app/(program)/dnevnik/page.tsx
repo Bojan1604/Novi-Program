@@ -5,21 +5,18 @@ import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { Stranicenje } from "@/components/ui/stranicenje";
 import { imaPosebno } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
+import { jedan, stranica as procitajStranicu } from "@/domain/popis";
 import { filtriDnevnika, stranicaDnevnika } from "@/queries/dnevnik";
 
 export const metadata = { title: "Dnevnik promjena · ERP-WMS" };
 
 const vrijemeFormat = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "medium", timeZone: "Europe/Zagreb" });
 
-function jedan(v: string | string[] | undefined): string | undefined {
-  return typeof v === "string" && v !== "" ? v : undefined;
-}
-
 export default async function Dnevnik({ searchParams }: PageProps<"/dnevnik">) {
   const k = await pristupStranici("/dnevnik");
   const sp = await searchParams;
   const f = {
-    stranica: Number(jedan(sp["stranica"]) ?? 1),
+    stranica: procitajStranicu(sp["stranica"]),
     korisnikId: jedan(sp["korisnik"]),
     entitet: jedan(sp["entitet"]),
     entitetId: jedan(sp["id"]),
@@ -63,8 +60,8 @@ export default async function Dnevnik({ searchParams }: PageProps<"/dnevnik">) {
             <select name="entitet" defaultValue={f.entitet ?? ""} className={klaseUnosa}>
               <option value="">Sve</option>
               {filtri.entiteti.map((x) => (
-                <option key={x} value={x}>
-                  {x}
+                <option key={x.vrijednost} value={x.vrijednost}>
+                  {x.naziv}
                 </option>
               ))}
             </select>

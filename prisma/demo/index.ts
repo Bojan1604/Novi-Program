@@ -6,6 +6,7 @@
 import type { PrismaClient } from "../../src/generated/prisma/client";
 import { Slucajno } from "./slucajno";
 import { demoFirmeIKorisnici } from "./firme";
+import { demoSifrarnici } from "./sifrarnici";
 
 export type Kolicine = {
   /** uređaja po firmi (velika baza: 300.000) */
@@ -33,7 +34,7 @@ export type DemoKontekst = {
 type Korak = { naziv: string; izvedi: (k: DemoKontekst) => Promise<void> };
 
 /** Koraci nakon firmi i korisnika — svaki modul dodaje svoj. */
-export const KORACI: Korak[] = [];
+export const KORACI: Korak[] = [{ naziv: "Šifrarnici", izvedi: demoSifrarnici }];
 
 export async function napuniDemo(
   prisma: PrismaClient,

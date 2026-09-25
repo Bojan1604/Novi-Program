@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../../src/generated/prisma/client";
 import { napraviZadaneUloge } from "../../src/services/korisnici";
 import { hashLozinke } from "../../src/services/prijava";
+import { napraviZadaneSifrarnike } from "../../src/services/sifrarnici";
 import type { Slucajno } from "./slucajno";
 
 export const DEMO_LOZINKA = "Demo-lozinka-2026";
@@ -20,6 +21,8 @@ export async function demoFirmeIKorisnici(prisma: PrismaClient, s: Slucajno) {
   const druga = await prisma.firma.create({ data: { naziv: "Demo Servis j.d.o.o.", oib: s.oib(), boja: "#0f766e" } });
   const uloge = await napraviZadaneUloge(prisma, firma.id);
   const ulogeDruge = await napraviZadaneUloge(prisma, druga.id);
+  await napraviZadaneSifrarnike(prisma, firma.id);
+  await napraviZadaneSifrarnike(prisma, druga.id);
   const lozinkaHash = await hashLozinke(DEMO_LOZINKA);
   const korisnici: Record<string, string> = {};
   for (const d of DEMO_KORISNICI) {

@@ -30,10 +30,10 @@ if errorlevel 1 (
 )
 
 if not exist ".env" (
-  echo Datoteka .env ne postoji - radim je iz .env.example.
-  copy /y ".env.example" ".env" >nul
+  echo Datoteka .env ne postoji - radim je sa slucajnom lozinkom baze.
+  powershell -NoProfile -Command "$l = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}); (Get-Content '.env.example') -replace 'promijenite-me', $l | Set-Content -Encoding utf8 '.env'"
   if errorlevel 1 (
-    echo Nije uspjelo kopiranje .env.example u .env.
+    echo Nije uspjelo napraviti .env.
     goto :greska
   )
 )

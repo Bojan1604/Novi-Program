@@ -2,7 +2,16 @@ import bcrypt from "bcryptjs";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { praznaPrava, punaPrava, type Prava } from "@/domain/prava";
 import { napraviFirmu, napraviKorisnika, ocistiBazu, testnaPrisma, TESTNA_LOZINKA } from "@/test/baza";
-import { dodajKorisnika, obrisiUlogu, postaviLozinku, pravaClana, spremiUlogu, urediKorisnika, type Akter } from "./korisnici";
+import {
+  dodajKorisnika,
+  obrisiUlogu,
+  postaviLozinku,
+  pravaClana,
+  promijeniVlastituLozinku,
+  spremiUlogu,
+  urediKorisnika,
+  type Akter,
+} from "./korisnici";
 
 const prisma = testnaPrisma();
 afterAll(() => prisma.$disconnect());
@@ -34,7 +43,6 @@ describe("dodavanje korisnika", () => {
   it("administrator dodaje korisnika s ulogom", async () => {
     const { firma, A } = await pripremi();
     const r = await dodajKorisnika(prisma, A, { ime: "Nova", email: "Nova@Firma.hr", lozinka: "Dobra-lozinka-1", ulogaId: firma.uloge["Prodavač"]! });
-    expect(r.postojeci).toBe(false);
     const p = await pravaClana(prisma, firma.id, r.korisnikId);
     expect(p?.moduli.prodaja).toBe("operativno");
     expect((await prisma.korisnik.findUniqueOrThrow({ where: { id: r.korisnikId } })).email).toBe("nova@firma.hr");
@@ -52,20 +60,16 @@ describe("dodavanje korisnika", () => {
     ).rejects.toThrow(/pravo/);
   });
 
-  it("korisnik iz druge firme dobije samo članstvo; lozinka mu ostaje", async () => {
+  it("e-pošta korisnika iz druge firme se ne može pripojiti (firma B ne smije znati lozinku računa firme A)", async () => {
     const { firma, A } = await pripremi();
     const b = await napraviFirmu(prisma, "Firma B");
-    const iz_b = await napraviKorisnika(prisma, b.id, { email: "zajednicki@x.hr" });
-    const r = await dodajKorisnika(prisma, A, {
-      ime: "Drugo ime",
-      email: "zajednicki@x.hr",
-      lozinka: "Nova-lozinka-99",
-      ulogaId: firma.uloge["Serviser"]!,
-    });
-    expect(r).toEqual({ korisnikId: iz_b.id, postojeci: true });
-    const k = await prisma.korisnik.findUniqueOrThrow({ where: { id: iz_b.id } });
+    const izB = await napraviKorisnika(prisma, b.id, { email: "zajednicki@x.hr" });
+    await expect(
+      dodajKorisnika(prisma, A, { ime: "Drugo ime", email: "Zajednicki@X.hr", lozinka: "Nova-lozinka-99", ulogaId: firma.uloge["Serviser"]! }),
+    ).rejects.toThrow("Ta e-pošta je već zauzeta.");
+    expect(await prisma.clanstvoFirme.count({ where: { korisnikId: izB.id, firmaId: firma.id } })).toBe(0);
+    const k = await prisma.korisnik.findUniqueOrThrow({ where: { id: izB.id } });
     expect(await bcrypt.compare(TESTNA_LOZINKA, k.lozinkaHash)).toBe(true);
-    expect(k.ime).not.toBe("Drugo ime");
   });
 
   it("ne može dodati korisnika s ulogom druge firme", async () => {
@@ -97,8 +101,8 @@ describe("preuzimanje računa administratora (stvarna greška s prethodnog proje
   it("ne može isključiti administratora ni promijeniti mu ulogu", async () => {
     const { firma, admin } = await pripremi();
     const u = await upravitelj(firma.id);
-    await expect(urediKorisnika(prisma, u.akter, admin.id, { aktivno: false })).rejects.toThrow();
-    await expect(urediKorisnika(prisma, u.akter, admin.id, { ulogaId: firma.uloge["Prodavač"]! })).rejects.toThrow();
+    await expect(urediKorisnika(prisma, u.akter, admin.id, { aktivno: false })).rejects.toThrow("prava koja vi nemate");
+    await expect(urediKorisnika(prisma, u.akter, admin.id, { ulogaId: firma.uloge["Prodavač"]! })).rejects.toThrow("prava koja vi nemate");
   });
 
   it("ne može sebi dodijeliti prava (ni kroz ulogu ni kroz iznimke)", async () => {
@@ -171,6 +175,45 @@ describe("izmjena korisnika", () => {
     const kb = await napraviKorisnika(prisma, b.id, { uloga: "Prodavač" });
     await expect(urediKorisnika(prisma, A, kb.id, { aktivno: false })).rejects.toThrow(/nije član/);
     await expect(postaviLozinku(prisma, A, kb.id, "Preuzeto-12345")).rejects.toThrow(/nije član/);
+  });
+});
+
+describe("korisnik u više firmi", () => {
+  it("jedna firma ne mijenja ime korisniku koji radi i u drugoj", async () => {
+    const { firma, A } = await pripremi();
+    const b = await napraviFirmu(prisma, "Firma B");
+    const kb = await napraviKorisnika(prisma, b.id, { ime: "Ivan", uloga: "Prodavač" });
+    await prisma.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: kb.id, ulogaId: firma.uloge["Prodavač"]! } });
+    await expect(urediKorisnika(prisma, A, kb.id, { ime: "Lažni Ivan" })).rejects.toThrow("ime može promijeniti samo on sam");
+    // isto ime (spremanje drugih polja) je u redu
+    await urediKorisnika(prisma, A, kb.id, { ime: "Ivan", ulogaId: firma.uloge["Serviser"]! });
+  });
+});
+
+describe("vlastita lozinka", () => {
+  async function saSesijom() {
+    const p = await pripremi();
+    const s1 = await prisma.sesija.create({
+      data: { id: "1".repeat(64), korisnikId: p.prodavac.id, firmaId: p.firma.id, istjece: new Date(Date.now() + 1e9) },
+    });
+    await prisma.sesija.create({ data: { id: "2".repeat(64), korisnikId: p.prodavac.id, firmaId: p.firma.id, istjece: new Date(Date.now() + 1e9) } });
+    const akt = { ...(await akter(p.firma.id, p.prodavac.id)), sesijaId: s1.id };
+    return { ...p, akt };
+  }
+
+  it("svatko mijenja svoju lozinku uz trenutnu; ostali uređaji su odjavljeni, ovaj ne", async () => {
+    const { prodavac, akt } = await saSesijom();
+    await promijeniVlastituLozinku(prisma, akt, TESTNA_LOZINKA, "Moja-nova-lozinka-1");
+    const k = await prisma.korisnik.findUniqueOrThrow({ where: { id: prodavac.id } });
+    expect(await bcrypt.compare("Moja-nova-lozinka-1", k.lozinkaHash)).toBe(true);
+    expect((await prisma.sesija.findMany({ where: { korisnikId: prodavac.id } })).map((x) => x.id)).toEqual(["1".repeat(64)]);
+  });
+
+  it("kriva trenutna lozinka, ista lozinka i slaba lozinka se odbijaju", async () => {
+    const { akt } = await saSesijom();
+    await expect(promijeniVlastituLozinku(prisma, akt, "kriva-lozinka", "Moja-nova-lozinka-1")).rejects.toThrow("Trenutna lozinka nije ispravna.");
+    await expect(promijeniVlastituLozinku(prisma, akt, TESTNA_LOZINKA, TESTNA_LOZINKA)).rejects.toThrow("različita");
+    await expect(promijeniVlastituLozinku(prisma, akt, TESTNA_LOZINKA, "kratka")).rejects.toThrow("najmanje 10");
   });
 });
 

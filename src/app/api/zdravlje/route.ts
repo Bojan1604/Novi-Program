@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 // Nikad se ne sprema u predmemoriju i ne izvodi pri buildu.
 export const dynamic = "force-dynamic";
 
+// javna ruta: provjera rada za nadzor i pokreni.bat — ne vraća podatke
 /** GET /api/zdravlje — radi li program i je li baza dostupna. */
 export async function GET() {
   try {

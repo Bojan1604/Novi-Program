@@ -106,9 +106,21 @@ export function provjeriZastituAkcija(tekst: string, ime = "datoteka.ts"): strin
     for (const { naziv, cvor, tijelo } of tijela) {
       const komentari = (ts.getLeadingCommentRanges(tekst, cvor.getFullStart()) ?? []).map((r) => tekst.slice(r.pos, r.end));
       if (komentari.some((k) => /javna akcija:\s*\S/.test(k))) continue;
-      if (tijelo && poziva(tijelo, "akcija")) continue;
       const { line } = izvor.getLineAndCharacterOfPosition(cvor.getStart(izvor));
-      greske.push(`${ime}:${line + 1} — akcija „${naziv}“ ne poziva akcija(…) (provjera prava) niti je označena „// javna akcija: razlog“.`);
+      if (!tijelo || !poziva(tijelo, "akcija")) {
+        greske.push(`${ime}:${line + 1} — akcija „${naziv}“ ne poziva akcija(…) (provjera prava) niti je označena „// javna akcija: razlog“.`);
+        continue;
+      }
+      // ništa se ne smije izvršiti prije provjere prava: nijedan await prije naredbe s akcija(…)
+      if (ts.isBlock(tijelo)) {
+        for (const n of tijelo.statements) {
+          if (poziva(n, "akcija")) break;
+          if (imaAwait(n)) {
+            greske.push(`${ime}:${line + 1} — akcija „${naziv}“ radi nešto (await) prije provjere prava akcija(…).`);
+            break;
+          }
+        }
+      }
     }
   }
   return greske;
@@ -126,4 +138,51 @@ function poziva(cvor: ts.Node, ime: string): boolean {
   };
   obidi(cvor);
   return nadeno;
+}
+
+function imaAwait(cvor: ts.Node): boolean {
+  let nadeno = false;
+  const obidi = (n: ts.Node) => {
+    if (nadeno) return;
+    if (ts.isAwaitExpression(n)) {
+      nadeno = true;
+      return;
+    }
+    if (ts.isFunctionLike(n) && n !== cvor) return; // unutarnje funkcije se ne izvršavaju ovdje
+    ts.forEachChild(n, obidi);
+  };
+  obidi(cvor);
+  return nadeno;
+}
+
+/** 'use server' smije biti samo na vrhu datoteke (akcije unutar komponenti se ne mogu provjeriti). */
+export function provjeriUnutarnjiUseServer(tekst: string, ime = "datoteka.ts"): string[] {
+  const izvor = ts.createSourceFile(ime, tekst, ts.ScriptTarget.Latest, true, ime.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const greske: string[] = [];
+  const obidi = (n: ts.Node) => {
+    if (ts.isFunctionLike(n) && "body" in n && n.body && ts.isBlock(n.body as ts.Node)) {
+      const prva = (n.body as ts.Block).statements[0];
+      if (prva && ts.isExpressionStatement(prva) && ts.isStringLiteral(prva.expression) && prva.expression.text === "use server") {
+        const { line } = izvor.getLineAndCharacterOfPosition(prva.getStart(izvor));
+        greske.push(`${ime}:${line + 1} — 'use server' unutar funkcije nije dopušten; akciju stavite u datoteku akcije.ts.`);
+      }
+    }
+    ts.forEachChild(n, obidi);
+  };
+  obidi(izvor);
+  return greske;
+}
+
+/**
+ * Stranica programa mora provjeriti pristup (pristupStranici ili trenutniKontekst),
+ * API ruta pristupApi — osim ako je označena „// javna stranica: razlog“ / „// javna ruta: razlog“.
+ */
+export function provjeriPristupStranice(tekst: string, ime: string, vrsta: "stranica" | "ruta"): string[] {
+  const oznaka = vrsta === "stranica" ? /javna stranica:\s*\S/ : /javna ruta:\s*\S/;
+  if (oznaka.test(tekst)) return [];
+  const provjere = vrsta === "stranica" ? /\b(pristupStranici|trenutniKontekst)\(/ : /\bpristupApi\(/;
+  if (provjere.test(tekst)) return [];
+  return [
+    `${ime} — ${vrsta === "stranica" ? "stranica ne poziva pristupStranici(…)/trenutniKontekst()" : "ruta ne poziva pristupApi(…)"} niti je označena „// javna ${vrsta}: razlog“.`,
+  ];
 }

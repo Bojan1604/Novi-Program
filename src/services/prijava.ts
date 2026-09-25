@@ -5,6 +5,7 @@ import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { ULOGA_ADMINISTRATOR } from "@/domain/prava";
 import { zapisiDnevnik } from "./dnevnik";
 import { napraviZadaneUloge } from "./korisnici";
+import { napraviZadaneSifrarnike } from "./sifrarnici";
 import {
   istekSesije,
   jeEmail,
@@ -53,10 +54,10 @@ export async function prijavi(db: PrismaClient, ulaz: UlazPrijave, sada = new Da
 
       const od = new Date(sada.getTime() - PROZOR_POKUSAJA_MS);
       const [poEmailu, poIp] = await Promise.all([
-        tx.pokusajPrijave.findMany({ where: { email, vrijeme: { gt: od } }, select: { vrijeme: true, uspjeh: true } }),
-        tx.pokusajPrijave.findMany({ where: { ip, vrijeme: { gt: od } }, select: { vrijeme: true, uspjeh: true } }),
+        tx.pokusajPrijave.findMany({ where: { email, vrijeme: { gt: od } }, select: { vrijeme: true, uspjeh: true, ip: true } }),
+        tx.pokusajPrijave.findMany({ where: { ip, vrijeme: { gt: od } }, select: { vrijeme: true, uspjeh: true, ip: true } }),
       ]);
-      const odluka = odluciOPrijavi(poEmailu, poIp, sada);
+      const odluka = odluciOPrijavi(poEmailu, poIp, ip, sada);
       if (!odluka.dopusteno) return { ok: false as const, greska: porukaZakljucano(odluka.zakljucanoDo, sada) };
 
       const korisnik = await tx.korisnik.findUnique({
@@ -168,6 +169,7 @@ export async function napraviPrvogAdmina(db: PrismaClient, ulaz: UlazPrvogAdmina
     if ((await tx.korisnik.count()) > 0) throw new Error("Korisnici već postoje; prvi administrator se ne može ponovno napraviti.");
     const firma = await tx.firma.create({ data: { naziv: ulaz.nazivFirme.trim(), oib: ulaz.oib } });
     const uloge = await napraviZadaneUloge(tx, firma.id);
+    await napraviZadaneSifrarnike(tx, firma.id);
     const korisnik = await tx.korisnik.create({ data: { ime: ulaz.ime.trim(), email, lozinkaHash } });
     await tx.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[ULOGA_ADMINISTRATOR]! } });
     await zapisiDnevnik(tx, {

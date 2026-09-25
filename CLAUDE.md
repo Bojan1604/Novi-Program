@@ -65,6 +65,12 @@ Svako pravilo je stvarna greška koju su testeri našli na prethodnom projektu.
 | 15 | Jedan agent mijenja jedno područje; spajanje se testira odmah. | Najviše regresija nastalo je na spoju dijelova koje su radili različiti agenti. |
 
 Dodatno:
+- **Složeni strani ključevi:** svaka veza između dva modela firme ide preko `(firmaId, id)` — npr.
+  `@relation(fields: [firmaId, ulogaId], references: [firmaId, id])` i `@@unique([firmaId, id])` na cilju — pa baza
+  sama odbija vezu na zapis druge firme (test u `firma-db.test.ts` provjerava shemu).
+- Kroz `dbFirme` se u `include/select` ne ulazi u relacije Korisnik/Firma prema drugim firmama (`RELACIJE_PREMA_FIRMAMA`),
+  a ugniježđeni `create` mora imati `firmaId` — inače iznimka.
+- **Id-evi od klijenta** (iz obrasca, URL-a) provjeravaju se s `jeUuid` prije upita (`src/domain/id.ts`).
 - **Podaci firme samo kroz `dbFirme(sesija.firma.id)`** (`src/lib/db.ts`) — svakom upitu sam dodaje `firmaId`;
   novi model s `firmaId` obavezno ide u `MODELI_S_FIRMOM` (`src/lib/firma-db.ts`), inače test pukne.
   Goli `db` samo za sustavne tablice (Korisnik, Firma, Sesija, PokusajPrijave). U `$queryRaw` firmaId se piše ručno.
@@ -74,7 +80,14 @@ Dodatno:
   (`src/lib/akcija.ts`); ključ i potrebno pravo upisuju se u `AKCIJE` (`src/lib/akcije-prava.ts`), a očekivanje
   za svaku ulogu u `src/lib/akcije-prava.test.ts`. `npm run check:use-server` odbija akciju bez `akcija(…)`
   (iznimka: `// javna akcija: razlog`). Stranica počinje s `pristupStranici("/putanja")` (putanja u `STRANICE`),
-  API ruta s `pristupApi(…)`. `proxy.ts` je samo brzo preusmjeravanje, ne zaštita.
+  API ruta s `pristupApi(…)`. `proxy.ts` je samo brzo preusmjeravanje, ne zaštita. Prije `akcija(…)` nema `await`
+  (ništa se ne radi prije provjere prava); `'use server'` samo na vrhu datoteke. Javna stranica/ruta mora imati
+  komentar `// javna stranica: razlog` / `// javna ruta: razlog` — sve to provjerava `npm run check:use-server`.
+- **Obrasci:** `<Obrazac akcija={posalji}>` (`src/components/ui/obrazac.tsx`) umjesto `<form action>` — neuspjelo
+  spremanje ne smije obrisati upisano. Greške polja vraćaju se kao `{ ok: false, greska, polja: { ime: poruka } }`.
+- **Adresa klijenta:** program se pokreće s `node posluzitelj/index.mjs` (`npm start`), koji adresu uzima iz TCP veze
+  (`x-erp-ip`); zaglavljima proxyja vjeruje samo uz `VJERUJ_PROXYJU=1`. Nikad ne čitati `x-forwarded-for` u programu.
+- Ograničenje prijava: 5 po e-pošti+adresi, 20 po adresi, 50 po e-pošti (napadač ne može zaključati tuđi račun).
 - **Dnevnik:** svaka radnja koja mijenja podatke poziva `zapisiDnevnik(tx, …)` (`src/services/dnevnik.ts`) u ISTOJ
   transakciji, sa `staro`/`novo` (razlika se računa sama). Nabavne cijene i marže (`OSJETLJIVA_POLJA` u
   `src/domain/dnevnik.ts`) maskiraju se na poslužitelju za korisnike bez prava „costs“; lozinke se nikad ne zapisuju.
@@ -102,7 +115,7 @@ Dodatno:
 | `npm run typecheck` / `lint` / `build` | TypeScript, ESLint, izgradnja |
 | `npm run test:e2e` | testovi u pregledniku (Playwright, računalo 1440 px i mobitel 390 px) nad buildom i testnom bazom |
 | `npm run verify` | **sve gore redom — obavezno prije svakog commita** |
-| `npm run db:migrate -- --name <ime>` | nova migracija u razvoju (+ `prisma generate` automatski) |
+| `npm run db:migrate -- <ime>` | nova migracija iz razlike sheme i baze (radi bez terminala; odbija DROP), primijeni + generate |
 | `npm run db:velika` | velika baza za mjerenje (300.000 uređaja…) u praznu bazu s „velika“ u imenu |
 | `npm run mjerenje -- <adresa> <putanje…>` | vrijeme poslužitelja i veličina stranica (granice 0,5 s i 1 MB) |
 | `npm run admin:prvi` | prva firma i administrator (`--ako-nema`: samo ako nema korisnika) |
@@ -122,5 +135,6 @@ Na Windowsu sve pokreće `pokreni.bat`.
 - **Demo podaci** (`prisma/demo/`): svaki modul dodaje korak u `KORACI` (`prisma/demo/index.ts`) koji koristi
   `Slucajno` (isto sjeme = isti podaci; ispravni OIB-i, kronološki datumi) i poštuje `k.kolicine` — isti kod puni
   i veliku bazu. Za velike količine `createMany` u serijama. Prijava u demo: admin@demo.hr / Demo-lozinka-2026.
-- Prisma 7: klijent se generira u `src/generated/prisma` — nakon promjene sheme `npm run db:migrate`.
+- Prisma 7: klijent se generira u `src/generated/prisma` — nakon promjene sheme `npm run db:migrate -- ime`.
+- Dnevnik: `opis` se nikad ne maskira — u opis ne pisati nabavne cijene ni marže.
 - `src/generated/` se generira (`prisma generate` pri `npm install`) i ne ide u git.

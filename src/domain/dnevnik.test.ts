@@ -43,6 +43,37 @@ describe("razlika", () => {
   });
 });
 
+describe("ugniježđeni podaci (stavke dokumenata)", () => {
+  it("nabavna cijena unutar stavki označava cijelo polje kao osjetljivo", () => {
+    const [p] = razlika({ stavke: [{ naziv: "A", nabavnaCijena: "10.00" }] }, { stavke: [{ naziv: "A", nabavnaCijena: "12.00" }] });
+    expect(p).toMatchObject({ polje: "stavke", osjetljivo: true });
+    expect(maskiraj([p!], false)[0]).toMatchObject({ staro: MASKA, novo: MASKA });
+    expect(tekstZaPretragu("x", [p!])).not.toContain("12.00");
+  });
+
+  it("velika slova u nazivu polja ne zaobilaze maskiranje", () => {
+    expect(razlika({ NabavnaCijena: "1" }, { NabavnaCijena: "2" })[0]?.osjetljivo).toBe(true);
+    expect(razlika({ MARZA: "1" }, { MARZA: "2" })[0]?.osjetljivo).toBe(true);
+  });
+
+  it("lozinka unutar ugniježđenog objekta se ne zapisuje", () => {
+    const [p] = razlika({ korisnik: { ime: "A", lozinkaHash: "$2a$12$stari" } }, { korisnik: { ime: "B", lozinkaHash: "$2a$12$novi" } });
+    expect(JSON.stringify(p)).not.toContain("$2a$");
+    expect(p?.novo).toContain("(skriveno)");
+  });
+
+  it("promjena samo tajnog ugniježđenog polja i dalje je zabilježena (bez vrijednosti)", () => {
+    const r = razlika({ k: { token: "a" } }, { k: { token: "b" } });
+    expect(r).toHaveLength(1);
+    expect(JSON.stringify(r)).not.toMatch(/"a"|"b"/);
+  });
+
+  it("stari zapis iz baze s ugniježđenom nabavnom cijenom maskira se pri čitanju", () => {
+    const iz = procitajPromjene([{ polje: "stavke", staro: '[{"nabavnaCijena":"10.00"}]', novo: '[{"nabavnaCijena":"12.00"}]' }]);
+    expect(maskiraj(iz, false)[0]).toMatchObject({ staro: MASKA, novo: MASKA });
+  });
+});
+
 describe("maskiranje", () => {
   const promjene = [
     { polje: "naziv", staro: "A", novo: "B" },

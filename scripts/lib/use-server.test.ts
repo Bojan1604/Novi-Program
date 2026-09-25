@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { provjeriUseServer, provjeriZastituAkcija } from "./use-server";
+import { provjeriPristupStranice, provjeriUnutarnjiUseServer, provjeriUseServer, provjeriZastituAkcija } from "./use-server";
 
 const sDirektivom = (kod: string) => `"use server";\n${kod}`;
 
@@ -76,5 +76,41 @@ describe("provjeriZastituAkcija", () => {
 
   it("datoteka bez 'use server' se ne provjerava", () => {
     expect(provjeriZastituAkcija("export async function x() {}")).toEqual([]);
+  });
+});
+
+describe("ništa prije provjere prava", () => {
+  it("await prije akcija(…) je greška (npr. brisanje prije provjere)", () => {
+    const kod =
+      '"use server";\nexport async function x() {\n  await db.uloga.deleteMany();\n  return akcija("uloge.obrisi", async () => ({ ok: true }));\n}';
+    expect(provjeriZastituAkcija(kod)).toEqual([expect.stringContaining("prije provjere prava")]);
+  });
+
+  it("sinkrone pripreme prije akcija(…) su u redu; await unutar akcija je u redu", () => {
+    const kod =
+      '"use server";\nexport async function x(k: string) {\n  const def = definicija(k);\n  if (!def) return { ok: false };\n  const r = await akcija("a.b", async () => { await db.x(); return { ok: true }; });\n  if (r.ok) redirect("/");\n  return r;\n}';
+    expect(provjeriZastituAkcija(kod)).toEqual([]);
+  });
+});
+
+describe("'use server' unutar funkcije", () => {
+  it("je zabranjen", () => {
+    expect(provjeriUnutarnjiUseServer('export default function P() {\n  async function spremi() {\n    "use server";\n  }\n}', "p.tsx")).toHaveLength(
+      1,
+    );
+    expect(provjeriUnutarnjiUseServer('"use server";\nexport async function a() {}')).toEqual([]);
+  });
+});
+
+describe("stranice i rute provjeravaju pristup", () => {
+  it("stranica bez provjere je greška", () => {
+    expect(provjeriPristupStranice("export default async function P() { return null; }", "p.tsx", "stranica")).toHaveLength(1);
+    expect(provjeriPristupStranice('const k = await pristupStranici("/x");', "p.tsx", "stranica")).toEqual([]);
+    expect(provjeriPristupStranice("// javna stranica: poruka o grešci\nexport default function P() {}", "p.tsx", "stranica")).toEqual([]);
+  });
+
+  it("ruta bez pristupApi je greška", () => {
+    expect(provjeriPristupStranice("export async function GET() {}", "r.ts", "ruta")).toHaveLength(1);
+    expect(provjeriPristupStranice('const k = await pristupApi({ posebno: "log" });', "r.ts", "ruta")).toEqual([]);
   });
 });

@@ -73,6 +73,14 @@ describe("odabir s pretragom — brzi Enter nikad ne bira krivu stavku", () => {
     expect(s.odabrano).toBeNull();
   });
 
+  it("Enter nakon odabira (popis zatvoren) ne ostavlja čekanje koje bi kasnije samo odabralo", () => {
+    let s = niz({ tip: "tipkanje", upit: "alfa" }, { tip: "rezultati", za: "alfa", stavke: [A, AB] }, { tip: "klik", stavka: AB }, { tip: "enter" });
+    expect(s.cekaEnter).toBe(false);
+    s = pretrazivac(s, { tip: "dolje" });
+    s = pretrazivac(s, { tip: "rezultati", za: s.upit, stavke: [{ id: "9", naziv: "Alfa Beta d.d. Split" }] });
+    expect(s.odabrano).toEqual(AB);
+  });
+
   it("klik bira stavku; tipkanje poništava odabir", () => {
     const s = niz({ tip: "tipkanje", upit: "b" }, { tip: "klik", stavka: B });
     expect(s.odabrano).toEqual(B);

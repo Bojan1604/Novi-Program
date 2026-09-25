@@ -52,14 +52,17 @@ describe("prijava", () => {
     expect((await pokusaj()).ok).toBe(false);
   });
 
-  it("5 pogrešnih zaključava e-poštu; i ispravna lozinka tada ne prolazi; nakon 15 min prolazi", async () => {
+  it("5 pogrešnih s iste adrese zaključava tu e-poštu s te adrese; nakon 15 min prolazi", async () => {
     await pripremi();
     for (let i = 0; i < 5; i++) {
-      await prijavi(prisma, { email: "ana@firma.hr", lozinka: "kriva-lozinka", ip: `2.2.2.${i}` }, za(i));
+      await prijavi(prisma, { email: "ana@firma.hr", lozinka: "kriva-lozinka", ip: "2.2.2.2" }, za(i));
     }
-    const zakljucano = await prijavi(prisma, { email: "ana@firma.hr", lozinka: TESTNA_LOZINKA, ip: "3.3.3.3" }, za(5));
+    const zakljucano = await prijavi(prisma, { email: "ana@firma.hr", lozinka: TESTNA_LOZINKA, ip: "2.2.2.2" }, za(5));
     expect(zakljucano).toEqual({ ok: false, greska: expect.stringContaining("Previše neuspjelih") });
-    const kasnije = await prijavi(prisma, { email: "ana@firma.hr", lozinka: TESTNA_LOZINKA, ip: "3.3.3.3" }, za(15.1));
+    // pravi korisnik s druge adrese i dalje može (napadač ga ne može zaključati)
+    const drugaAdresa = await prijavi(prisma, { email: "ana@firma.hr", lozinka: TESTNA_LOZINKA, ip: "3.3.3.3" }, za(5));
+    expect(drugaAdresa.ok).toBe(true);
+    const kasnije = await prijavi(prisma, { email: "ana@firma.hr", lozinka: TESTNA_LOZINKA, ip: "2.2.2.2" }, za(15.1));
     expect(kasnije.ok).toBe(true);
   });
 
@@ -76,9 +79,7 @@ describe("prijava", () => {
 
   it("10 istovremenih pogrešnih pokušaja ne prelazi ograničenje (zapiše se najviše 5)", async () => {
     await pripremi();
-    await Promise.all(
-      Array.from({ length: 10 }, (_, i) => prijavi(prisma, { email: "ana@firma.hr", lozinka: "kriva-lozinka", ip: `4.4.4.${i}` }, SADA)),
-    );
+    await Promise.all(Array.from({ length: 10 }, () => prijavi(prisma, { email: "ana@firma.hr", lozinka: "kriva-lozinka", ip: "4.4.4.4" }, SADA)));
     expect(await prisma.pokusajPrijave.count({ where: { email: "ana@firma.hr", uspjeh: false } })).toBe(5);
   });
 });

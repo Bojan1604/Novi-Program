@@ -26,7 +26,8 @@ export async function zahtijevajPrijavu(): Promise<Sesija> {
 
 export async function podaciZahtjeva(): Promise<{ ip: string; preglednik: string | null; protokol: string | null }> {
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "nepoznat";
+  // postavlja ga samo naš poslužitelj (posluzitelj/ip.mjs) iz TCP veze ili pouzdanog proxyja
+  const ip = h.get("x-erp-ip") || "nepoznat";
   return { ip, preglednik: h.get("user-agent"), protokol: h.get("x-forwarded-proto") };
 }
 

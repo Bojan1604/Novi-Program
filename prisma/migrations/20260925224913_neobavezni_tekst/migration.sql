@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "ModelUredaja" ALTER COLUMN "opis" DROP NOT NULL,
+ALTER COLUMN "opis" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "Skladiste" ALTER COLUMN "adresa" DROP NOT NULL,
+ALTER COLUMN "adresa" DROP DEFAULT;
+
