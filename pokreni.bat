@@ -38,7 +38,7 @@ if not exist ".env" (
   )
 )
 
-echo [1/5] Baza podataka (Docker)...
+echo [1/6] Baza podataka (Docker)...
 docker compose up -d --wait baza
 if errorlevel 1 (
   echo Baza se nije pokrenula. Provjerite Docker Desktop i je li port 5432 slobodan.
@@ -46,7 +46,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/5] Instalacija paketa (npm install)...
+echo [2/6] Instalacija paketa (npm install)...
 call npm install
 if errorlevel 1 (
   echo npm install nije uspio.
@@ -54,7 +54,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/5] Migracije baze...
+echo [3/6] Migracije baze...
 call npx prisma migrate deploy
 if errorlevel 1 (
   echo Migracije baze nisu uspjele.
@@ -62,7 +62,15 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/5] Izgradnja programa (build)...
+echo [4/6] Prvi administrator (samo ako jos nema korisnika)...
+call npm run admin:prvi -- --ako-nema
+if errorlevel 1 (
+  echo Prvi administrator nije napravljen.
+  goto :greska
+)
+
+echo.
+echo [5/6] Izgradnja programa (build)...
 call npm run build
 if errorlevel 1 (
   echo Izgradnja programa nije uspjela.
@@ -70,7 +78,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo [5/5] Pokretanje. Program je na http://localhost:3000  (zaustavljanje: Ctrl+C)
+echo [6/6] Pokretanje. Program je na http://localhost:3000  (zaustavljanje: Ctrl+C)
+echo       S mobitela u istoj mrezi: http://ADRESA-RACUNALA:3000  (adresu vidi naredba ipconfig)
 echo.
 call npm run start
 if errorlevel 1 (

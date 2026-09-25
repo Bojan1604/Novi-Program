@@ -65,6 +65,12 @@ Svako pravilo je stvarna greška koju su testeri našli na prethodnom projektu.
 | 15 | Jedan agent mijenja jedno područje; spajanje se testira odmah. | Najviše regresija nastalo je na spoju dijelova koje su radili različiti agenti. |
 
 Dodatno:
+- **Podaci firme samo kroz `dbFirme(sesija.firma.id)`** (`src/lib/db.ts`) — svakom upitu sam dodaje `firmaId`;
+  novi model s `firmaId` obavezno ide u `MODELI_S_FIRMOM` (`src/lib/firma-db.ts`), inače test pukne.
+  Goli `db` samo za sustavne tablice (Korisnik, Firma, Sesija, PokusajPrijave). U `$queryRaw` firmaId se piše ručno.
+- Radnje koje se ne smiju izvesti dvaput istovremeno: transakcija + `zakljucajKljuc(tx, "vrsta:id")`
+  (`src/lib/zakljucavanje.ts`) ili `SELECT … FOR UPDATE`.
+- Stranica i server akcija počinju s `zahtijevajPrijavu()` (`src/lib/sesija.ts`); `proxy.ts` je samo brzo preusmjeravanje, ne zaštita.
 - Datoteka s `'use server'` izvozi **samo async funkcije** (i tipove) — provjerava `npm run check:use-server`.
 - Testovi nad bazom i demo podaci rade samo nad bazom kojoj ime sadrži „test“ (`DATABASE_URL_TEST`).
 - Zakonske stvari (PDV, fiskalizacija, KPD) potvrđuje knjigovođa prije koraka.
@@ -79,8 +85,10 @@ Dodatno:
 | `npm run test:seed` | nova privremena prazna baza → migracije → demo podaci → ukloni privremenu bazu |
 | `npm run check:use-server` | provjera `'use server'` datoteka |
 | `npm run typecheck` / `lint` / `build` | TypeScript, ESLint, izgradnja |
+| `npm run test:e2e` | testovi u pregledniku (Playwright, računalo 1440 px i mobitel 390 px) nad buildom i testnom bazom |
 | `npm run verify` | **sve gore redom — obavezno prije svakog commita** |
-| `npm run db:migrate` | nova migracija u razvoju (`prisma migrate dev`) |
+| `npm run db:migrate` | nova migracija u razvoju + `prisma generate` |
+| `npm run admin:prvi` | prva firma i administrator (`--ako-nema`: samo ako nema korisnika) |
 
 Git kukice (husky): prije commita typecheck + lint + `use server` + jedinični testovi; prije pusha build.
 CI (GitHub Actions) pokreće sve provjere s PostgreSQL-om na svaki push.
@@ -92,5 +100,7 @@ Na Windowsu sve pokreće `pokreni.bat`.
 
 - Nazivi u kodu domene i poruke korisniku na hrvatskom (`procitajIznos`, `danas`); tehnički pojmovi okvira ostaju engleski.
 - Rezultat provjere korisničkog upisa: `{ ok: true, vrijednost } | { ok: false, greska }` — greška je rečenica za korisnika.
-- Test uz datoteku: `novac.ts` → `novac.test.ts`; test nad bazom → `*.db.test.ts`.
+- Test uz datoteku: `novac.ts` → `novac.test.ts`; test nad bazom → `*.db.test.ts` (pomoć: `src/test/baza.ts`);
+  test u pregledniku → `e2e/*.spec.ts` (podaci u `e2e/priprema-baze.ts`).
+- Prisma 7: klijent se generira u `src/generated/prisma` — nakon promjene sheme `npm run db:migrate`.
 - `src/generated/` se generira (`prisma generate` pri `npm install`) i ne ide u git.

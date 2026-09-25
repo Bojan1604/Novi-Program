@@ -13,15 +13,18 @@
     "test:db": "vitest run --config vitest.db.config.mts",
     "test:seed": "tsx scripts/demo-podaci-test.ts",
     "check:use-server": "tsx scripts/provjera-use-server.ts",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "prisma migrate dev && prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "verify": "npm run typecheck && npm run lint && npm run check:use-server && npm test && npm run test:db && npm run test:seed && npm run build",
+    "verify": "npm run typecheck && npm run lint && npm run check:use-server && npm test && npm run test:db && npm run test:seed && npm run build && npm run test:e2e",
     "postinstall": "prisma generate",
-    "prepare": "husky"
+    "prepare": "husky",
+    "admin:prvi": "tsx scripts/prvi-admin.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
     "next": "16.3.6",
     "pg": "^8.23.0",
     "react": "19.2.8",
@@ -30,6 +33,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.4",
     "@types/pg": "^8.23.1",

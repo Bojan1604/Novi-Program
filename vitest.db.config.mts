@@ -11,5 +11,6 @@ export default defineConfig({
     environment: "node",
     // testovi dijele jednu bazu: jedan po jedan
     fileParallelism: false,
+    testTimeout: 30_000,
   },
 });

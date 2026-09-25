@@ -14,3 +14,74 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ─── 0.2 Firma, korisnici, prijava ───────────────────────────────────────────
+
+model Firma {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  naziv     String
+  oib       String   @unique @db.Char(11)
+  aktivna   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+
+  clanstva ClanstvoFirme[]
+  sesije   Sesija[]
+}
+
+/// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
+model Korisnik {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  ime           String
+  email         String    @unique
+  lozinkaHash   String
+  aktivan       Boolean   @default(true)
+  zadnjaPrijava DateTime? @db.Timestamptz(3)
+  stvoreno      DateTime  @default(now()) @db.Timestamptz(3)
+
+  clanstva ClanstvoFirme[]
+  sesije   Sesija[]
+}
+
+model ClanstvoFirme {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  korisnikId String   @db.Uuid
+  aktivno    Boolean  @default(true)
+  stvoreno   DateTime @default(now()) @db.Timestamptz(3)
+
+  firma    Firma    @relation(fields: [firmaId], references: [id])
+  korisnik Korisnik @relation(fields: [korisnikId], references: [id])
+
+  @@unique([firmaId, korisnikId])
+  @@index([korisnikId])
+}
+
+/// Prijava na uređaju. U bazi je samo SHA-256 tokena; sam token je samo u kolačiću.
+model Sesija {
+  id              String   @id @db.Char(64)
+  korisnikId      String   @db.Uuid
+  firmaId         String   @db.Uuid
+  istjece         DateTime @db.Timestamptz(3)
+  zadnjaAktivnost DateTime @default(now()) @db.Timestamptz(3)
+  ip              String?
+  preglednik      String?
+  stvoreno        DateTime @default(now()) @db.Timestamptz(3)
+
+  korisnik Korisnik @relation(fields: [korisnikId], references: [id])
+  firma    Firma    @relation(fields: [firmaId], references: [id])
+
+  @@index([korisnikId])
+  @@index([istjece])
+}
+
+/// Svaki pokušaj prijave (uspješan i neuspješan) — za ograničenje pokušaja.
+model PokusajPrijave {
+  id      String   @id @default(uuid(7)) @db.Uuid
+  email   String
+  ip      String
+  uspjeh  Boolean
+  vrijeme DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([email, vrijeme])
+  @@index([ip, vrijeme])
+}
