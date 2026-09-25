@@ -49,6 +49,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Formatiranje
+        run: npm run format:check
+
       - name: Provjera 'use server'
         run: npm run check:use-server
 

@@ -24,7 +24,7 @@ export async function ocistiBazu(prisma: PrismaClient): Promise<void> {
 let brojac = 0;
 export function testniOib(): string {
   brojac++;
-  const prvih10 = String(1_000_000_000 + ((Date.now() % 1_000_000) * 1000 + brojac) % 8_999_999_999).slice(0, 10);
+  const prvih10 = String(1_000_000_000 + (((Date.now() % 1_000_000) * 1000 + brojac) % 8_999_999_999)).slice(0, 10);
   return prvih10 + kontrolnaZnamenkaOib(prvih10);
 }
 

@@ -37,6 +37,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/zdravlje`,
     reuseExistingServer: false,
     timeout: 60_000,
-    env: { DATABASE_URL: process.env["DATABASE_URL_TEST"] ?? "" },
+    env: { DATABASE_URL: process.env["DATABASE_URL_TEST"] ?? "", E2E_KOMPONENTE: "1" },
   },
 });

@@ -1,5 +1,6 @@
-import Link from "next/link";
+import { GumbiIzvoza } from "@/components/ui/izvoz";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
+import { Tablica } from "@/components/ui/tablica";
 import { imaPravo } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
 import { popisClanova, popisUloga } from "@/queries/korisnici";
@@ -18,24 +19,33 @@ export default async function Korisnici() {
     <Stranica>
       <NaslovStranice naslov="Korisnici" opis={`${clanovi.length} korisnika u firmi`} />
       <Kartica>
-        <ul className="divide-y divide-neutral-200 dark:divide-neutral-800" data-testid="popis-korisnika">
-          {clanovi.map((c) => (
-            <li key={c.korisnikId}>
-              <Link href={`/korisnici/${c.korisnikId}`} className="flex flex-wrap items-center justify-between gap-2 py-3 hover:bg-neutral-50 sm:px-2 dark:hover:bg-neutral-900">
-                <div className="min-w-0">
-                  <div className="font-medium">{c.ime}</div>
-                  <div className="truncate text-sm text-neutral-600 dark:text-neutral-400">{c.email}</div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="mb-3 flex justify-end">
+          <GumbiIzvoza izvor="korisnici" parametri={{}} />
+        </div>
+        <Tablica
+          testId="popis-korisnika"
+          putanja="/korisnici"
+          parametri={{}}
+          redovi={clanovi}
+          kljucReda={(c) => c.korisnikId}
+          veza={(c) => `/korisnici/${c.korisnikId}`}
+          stupci={[
+            { kljuc: "ime", naslov: "Ime", prikaz: (c) => c.ime },
+            { kljuc: "email", naslov: "E-pošta", prikaz: (c) => c.email },
+            {
+              kljuc: "uloga",
+              naslov: "Uloga",
+              prikaz: (c) => (
+                <span className="inline-flex flex-wrap gap-1">
                   <Znacka boja="plava">{c.uloga.naziv}</Znacka>
                   {c.imaIznimke && <Znacka boja="zuta">iznimke</Znacka>}
                   {!c.aktivan && <Znacka boja="crvena">isključen</Znacka>}
-                  <span className="text-xs text-neutral-500">{c.zadnjaPrijava ? `prijava ${datumVrijeme.format(c.zadnjaPrijava)}` : "nije se prijavljivao"}</span>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                </span>
+              ),
+            },
+            { kljuc: "prijava", naslov: "Zadnja prijava", prikaz: (c) => (c.zadnjaPrijava ? datumVrijeme.format(c.zadnjaPrijava) : "—") },
+          ]}
+        />
       </Kartica>
       {smijeDodati && (
         <Kartica naslov="Novi korisnik">

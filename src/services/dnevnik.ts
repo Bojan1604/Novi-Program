@@ -26,7 +26,8 @@ export type ZapisDnevnika = {
  * ne mogu razići (promjena bez zapisa ili zapis bez promjene).
  */
 export async function zapisiDnevnik(tx: Tx, z: ZapisDnevnika): Promise<void> {
-  const promjene = z.promjene ?? (z.staro !== undefined || z.novo !== undefined ? razlika(z.staro ?? null, z.novo ?? null, { osjetljiva: z.osjetljiva }) : []);
+  const promjene =
+    z.promjene ?? (z.staro !== undefined || z.novo !== undefined ? razlika(z.staro ?? null, z.novo ?? null, { osjetljiva: z.osjetljiva }) : []);
   let ime = "Sustav";
   if (z.korisnikId) {
     ime = (await tx.korisnik.findUnique({ where: { id: z.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";

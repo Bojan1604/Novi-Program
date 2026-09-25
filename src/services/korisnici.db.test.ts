@@ -43,7 +43,12 @@ describe("dodavanje korisnika", () => {
   it("voditelj (korisnici=pregled) ne može dodati korisnika", async () => {
     const { firma, voditelj } = await pripremi();
     await expect(
-      dodajKorisnika(prisma, await akter(firma.id, voditelj.id), { ime: "X", email: "x@x.hr", lozinka: "Dobra-lozinka-1", ulogaId: firma.uloge["Prodavač"]! }),
+      dodajKorisnika(prisma, await akter(firma.id, voditelj.id), {
+        ime: "X",
+        email: "x@x.hr",
+        lozinka: "Dobra-lozinka-1",
+        ulogaId: firma.uloge["Prodavač"]!,
+      }),
     ).rejects.toThrow(/pravo/);
   });
 
@@ -51,7 +56,12 @@ describe("dodavanje korisnika", () => {
     const { firma, A } = await pripremi();
     const b = await napraviFirmu(prisma, "Firma B");
     const iz_b = await napraviKorisnika(prisma, b.id, { email: "zajednicki@x.hr" });
-    const r = await dodajKorisnika(prisma, A, { ime: "Drugo ime", email: "zajednicki@x.hr", lozinka: "Nova-lozinka-99", ulogaId: firma.uloge["Serviser"]! });
+    const r = await dodajKorisnika(prisma, A, {
+      ime: "Drugo ime",
+      email: "zajednicki@x.hr",
+      lozinka: "Nova-lozinka-99",
+      ulogaId: firma.uloge["Serviser"]!,
+    });
     expect(r).toEqual({ korisnikId: iz_b.id, postojeci: true });
     const k = await prisma.korisnik.findUniqueOrThrow({ where: { id: iz_b.id } });
     expect(await bcrypt.compare(TESTNA_LOZINKA, k.lozinkaHash)).toBe(true);
@@ -61,9 +71,9 @@ describe("dodavanje korisnika", () => {
   it("ne može dodati korisnika s ulogom druge firme", async () => {
     const { A } = await pripremi();
     const b = await napraviFirmu(prisma, "Firma B");
-    await expect(dodajKorisnika(prisma, A, { ime: "X", email: "x@x.hr", lozinka: "Dobra-lozinka-1", ulogaId: b.uloge["Administrator"]! })).rejects.toThrow(
-      /ulogu/,
-    );
+    await expect(
+      dodajKorisnika(prisma, A, { ime: "X", email: "x@x.hr", lozinka: "Dobra-lozinka-1", ulogaId: b.uloge["Administrator"]! }),
+    ).rejects.toThrow(/ulogu/);
   });
 
   it("dva ista dodavanja istovremeno: jedan korisnik", async () => {
@@ -220,7 +230,9 @@ describe("uloge", () => {
   it("ne može mijenjati ulogu koju sam ima", async () => {
     const { firma } = await pripremi();
     const u = await upravitelj(firma.id);
-    await expect(spremiUlogu(prisma, u.akter, { id: u.ulogaId, naziv: "Upravitelj", opis: "", prava: u.akter.prava })).rejects.toThrow(/i sami imate/);
+    await expect(spremiUlogu(prisma, u.akter, { id: u.ulogaId, naziv: "Upravitelj", opis: "", prava: u.akter.prava })).rejects.toThrow(
+      /i sami imate/,
+    );
   });
 
   it("administrator firme A ne vidi i ne mijenja uloge firme B", async () => {

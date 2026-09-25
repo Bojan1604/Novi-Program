@@ -26,19 +26,18 @@ export function Polje({ oznaka, greska, opis, className, ...props }: Okvir & Omi
   const id = useId();
   return (
     <OkvirPolja id={id} oznaka={oznaka} greska={greska} opis={opis} className={className}>
-      <input id={id} aria-invalid={greska ? true : undefined} aria-describedby={greska ? `${id}-greska` : undefined} className={klaseUnosa} {...props} />
+      <input
+        id={id}
+        aria-invalid={greska ? true : undefined}
+        aria-describedby={greska ? `${id}-greska` : undefined}
+        className={klaseUnosa}
+        {...props}
+      />
     </OkvirPolja>
   );
 }
 
-export function Odabir({
-  oznaka,
-  greska,
-  opis,
-  className,
-  children,
-  ...props
-}: Okvir & Omit<ComponentProps<"select">, "className">) {
+export function Odabir({ oznaka, greska, opis, className, children, ...props }: Okvir & Omit<ComponentProps<"select">, "className">) {
   const id = useId();
   return (
     <OkvirPolja id={id} oznaka={oznaka} greska={greska} opis={opis} className={className}>
@@ -49,7 +48,11 @@ export function Odabir({
   );
 }
 
-export function Kvacica({ oznaka, className = "", ...props }: { oznaka: ReactNode; className?: string } & Omit<ComponentProps<"input">, "type" | "className">) {
+export function Kvacica({
+  oznaka,
+  className = "",
+  ...props
+}: { oznaka: ReactNode; className?: string } & Omit<ComponentProps<"input">, "type" | "className">) {
   return (
     <label className={`inline-flex min-h-9 items-center gap-2 text-sm ${className}`}>
       <input type="checkbox" className="size-4 accent-primarna" {...props} />

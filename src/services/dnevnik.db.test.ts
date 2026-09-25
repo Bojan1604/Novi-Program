@@ -20,7 +20,12 @@ async function pripremi() {
 describe("svaka promjena ostavlja zapis", () => {
   it("dodavanje, izmjena i lozinka korisnika; tko, kada, razlika", async () => {
     const { firma, A, db } = await pripremi();
-    const { korisnikId } = await dodajKorisnika(prisma, A, { ime: "Iva", email: "iva@a.hr", lozinka: "Dobra-lozinka-1", ulogaId: firma.uloge["Prodavač"]! });
+    const { korisnikId } = await dodajKorisnika(prisma, A, {
+      ime: "Iva",
+      email: "iva@a.hr",
+      lozinka: "Dobra-lozinka-1",
+      ulogaId: firma.uloge["Prodavač"]!,
+    });
     await urediKorisnika(prisma, A, korisnikId, { ime: "Iva Ivić", ulogaId: firma.uloge["Serviser"]! });
     await postaviLozinku(prisma, A, korisnikId, "Druga-lozinka-2");
 
@@ -46,7 +51,12 @@ describe("svaka promjena ostavlja zapis", () => {
     const { firma, A, db } = await pripremi();
     const id = firma.uloge["Prodavač"]!;
     const prava = (await pravaClana(prisma, firma.id, A.korisnikId))!;
-    await spremiUlogu(prisma, A, { id, naziv: "Prodavač", opis: "", prava: { ...prava, moduli: { ...prava.moduli, korisnici: "nema" }, posebna: { costs: false, log: false, opasnaZona: false } } });
+    await spremiUlogu(prisma, A, {
+      id,
+      naziv: "Prodavač",
+      opis: "",
+      prava: { ...prava, moduli: { ...prava.moduli, korisnici: "nema" }, posebna: { costs: false, log: false, opasnaZona: false } },
+    });
     const { zapisi } = await stranicaDnevnika(db, firma.id, { stranica: 1, entitet: "Uloga" }, true);
     expect(zapisi[0]?.promjene.find((p) => p.polje === "Prodaja")).toEqual({ polje: "Prodaja", staro: "operativno", novo: "puno" });
   });
@@ -99,7 +109,9 @@ describe("filtri i stranice", () => {
   it("od–do po datumu u Zagrebu, stranice", async () => {
     const { firma, admin, db } = await pripremi();
     const z = (vrijeme: string, opis: string) =>
-      prisma.dnevnik.create({ data: { firmaId: firma.id, korisnikId: admin.id, korisnik: "Ana", radnja: "x", entitet: "X", opis, vrijeme: new Date(vrijeme) } });
+      prisma.dnevnik.create({
+        data: { firmaId: firma.id, korisnikId: admin.id, korisnik: "Ana", radnja: "x", entitet: "X", opis, vrijeme: new Date(vrijeme) },
+      });
     await z("2026-03-31T21:59:00Z", "31. ožujka 23:59"); // Zagreb ljeto +2
     await z("2026-03-31T22:00:00Z", "1. travnja 00:00");
     await z("2026-04-30T21:59:00Z", "30. travnja 23:59");

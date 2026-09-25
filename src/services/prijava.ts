@@ -36,9 +36,7 @@ export async function hashLozinke(lozinka: string): Promise<string> {
 
 export type UlazPrijave = { email: string; lozinka: string; ip: string; preglednik?: string | null };
 
-export type RezultatPrijave =
-  | { ok: true; token: string; istjece: Date; korisnikId: string; firmaId: string }
-  | { ok: false; greska: string };
+export type RezultatPrijave = { ok: true; token: string; istjece: Date; korisnikId: string; firmaId: string } | { ok: false; greska: string };
 
 /**
  * Prijava e-poštom i lozinkom. Pokušaji iste e-pošte izvode se jedan po jedan
@@ -173,7 +171,11 @@ export async function napraviPrvogAdmina(db: PrismaClient, ulaz: UlazPrvogAdmina
     const korisnik = await tx.korisnik.create({ data: { ime: ulaz.ime.trim(), email, lozinkaHash } });
     await tx.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[ULOGA_ADMINISTRATOR]! } });
     await zapisiDnevnik(tx, {
-      firmaId: firma.id, korisnikId: null, radnja: "sustav.prvi-admin", entitet: "Firma", entitetId: firma.id,
+      firmaId: firma.id,
+      korisnikId: null,
+      radnja: "sustav.prvi-admin",
+      entitet: "Firma",
+      entitetId: firma.id,
       opis: `Napravljena firma ${firma.naziv} i administrator ${korisnik.ime} (${email})`,
       novo: { naziv: firma.naziv, oib: firma.oib, administrator: email },
     });

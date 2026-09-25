@@ -21,7 +21,13 @@ export function DodajKorisnika({ uloge }: { uloge: Uloga[] }) {
     <form action={akcija} className="grid gap-3 sm:grid-cols-2" key={stanje?.ok ? "novi" : "isti"}>
       <Polje oznaka="Ime i prezime" name="ime" required autoComplete="off" />
       <Polje oznaka="E-pošta" name="email" type="email" required autoComplete="off" />
-      <Polje oznaka="Početna lozinka" name="lozinka" type="password" autoComplete="new-password" opis="Najmanje 10 znakova. Ne treba ako korisnik već radi u drugoj firmi." />
+      <Polje
+        oznaka="Početna lozinka"
+        name="lozinka"
+        type="password"
+        autoComplete="new-password"
+        opis="Najmanje 10 znakova. Ne treba ako korisnik već radi u drugoj firmi."
+      />
       <Odabir oznaka="Uloga" name="ulogaId" required defaultValue="">
         <option value="" disabled>
           Odaberite…

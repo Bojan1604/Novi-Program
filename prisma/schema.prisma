@@ -22,6 +22,8 @@ model Firma {
   naziv     String
   oib       String   @unique @db.Char(11)
   aktivna   Boolean  @default(true)
+  /// boja firme u sučelju (#rrggbb); tekst na njoj bira se po kontrastu
+  boja      String?  @db.Char(7)
   stvoreno  DateTime @default(now()) @db.Timestamptz(3)
 
   clanstva ClanstvoFirme[]

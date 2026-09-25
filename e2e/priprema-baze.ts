@@ -15,7 +15,7 @@ async function priprema(): Promise<void> {
   const prisma = napraviPrismu(url);
   try {
     await ocistiBazu(prisma);
-    const firma = await prisma.firma.create({ data: { naziv: E2E.firma, oib: "69435151530" } });
+    const firma = await prisma.firma.create({ data: { naziv: E2E.firma, oib: "69435151530", boja: E2E.boja } });
     const uloge = await napraviZadaneUloge(prisma, firma.id);
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);
     for (const k of [

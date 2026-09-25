@@ -15,13 +15,22 @@ export default async function Uloge() {
       <NaslovStranice
         naslov="Uloge i prava"
         opis="Uloga određuje što korisnik smije u svakom modulu. Pojedinom korisniku mogu se dati iznimke."
-        akcije={imaPravo(k.prava, "korisnici", "puno") && <GumbVeza href="/uloge/nova" varijanta="primarni">Nova uloga</GumbVeza>}
+        akcije={
+          imaPravo(k.prava, "korisnici", "puno") && (
+            <GumbVeza href="/uloge/nova" varijanta="primarni">
+              Nova uloga
+            </GumbVeza>
+          )
+        }
       />
       <Kartica>
         <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
           {uloge.map((u) => (
             <li key={u.id}>
-              <Link href={`/uloge/${u.id}`} className="flex flex-wrap items-center justify-between gap-2 py-3 hover:bg-neutral-50 sm:px-2 dark:hover:bg-neutral-900">
+              <Link
+                href={`/uloge/${u.id}`}
+                className="flex flex-wrap items-center justify-between gap-2 py-3 hover:bg-neutral-50 sm:px-2 dark:hover:bg-neutral-900"
+              >
                 <div className="min-w-0">
                   <div className="font-medium">
                     {u.naziv} {u.sustavna && <Znacka>sustavna</Znacka>}

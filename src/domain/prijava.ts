@@ -47,7 +47,11 @@ export type OdlukaOPrijavi = { dopusteno: true } | { dopusteno: false; zakljucan
  */
 export function odluciOPrijavi(poEmailu: readonly Pokusaj[], poIp: readonly Pokusaj[], sada: Date): OdlukaOPrijavi {
   const emailDo = zakljucanoDo(pogresniOdZadnjegUspjeha(poEmailu), NAJVISE_POGRESNIH_PO_EMAILU, sada);
-  const ipDo = zakljucanoDo(poIp.filter((p) => !p.uspjeh).map((p) => p.vrijeme), NAJVISE_POGRESNIH_PO_IP, sada);
+  const ipDo = zakljucanoDo(
+    poIp.filter((p) => !p.uspjeh).map((p) => p.vrijeme),
+    NAJVISE_POGRESNIH_PO_IP,
+    sada,
+  );
   if (emailDo && (!ipDo || emailDo >= ipDo)) return { dopusteno: false, zakljucanoDo: emailDo, razlog: "email" };
   if (ipDo) return { dopusteno: false, zakljucanoDo: ipDo, razlog: "ip" };
   return { dopusteno: true };
@@ -60,7 +64,10 @@ function pogresniOdZadnjegUspjeha(pokusaji: readonly Pokusaj[]): Date[] {
 
 function zakljucanoDo(pogresni: Date[], najvise: number, sada: Date): Date | null {
   const od = sada.getTime() - PROZOR_POKUSAJA_MS;
-  const uProzoru = pogresni.map((d) => d.getTime()).filter((t) => t > od && t <= sada.getTime()).sort((a, b) => a - b);
+  const uProzoru = pogresni
+    .map((d) => d.getTime())
+    .filter((t) => t > od && t <= sada.getTime())
+    .sort((a, b) => a - b);
   if (uProzoru.length < najvise) return null;
   // zaključano dok najstariji od zadnjih `najvise` pogrešnih ne izađe iz prozora
   const kljucni = uProzoru[uProzoru.length - najvise]!;

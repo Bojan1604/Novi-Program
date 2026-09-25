@@ -77,9 +77,7 @@ describe("prijava", () => {
   it("10 istovremenih pogrešnih pokušaja ne prelazi ograničenje (zapiše se najviše 5)", async () => {
     await pripremi();
     await Promise.all(
-      Array.from({ length: 10 }, (_, i) =>
-        prijavi(prisma, { email: "ana@firma.hr", lozinka: "kriva-lozinka", ip: `4.4.4.${i}` }, SADA),
-      ),
+      Array.from({ length: 10 }, (_, i) => prijavi(prisma, { email: "ana@firma.hr", lozinka: "kriva-lozinka", ip: `4.4.4.${i}` }, SADA)),
     );
     expect(await prisma.pokusajPrijave.count({ where: { email: "ana@firma.hr", uspjeh: false } })).toBe(5);
   });

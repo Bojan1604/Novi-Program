@@ -26,7 +26,11 @@ export type OpcijeUpisa = {
  *   „abc“, „1.5“, „1,505“, „1.50.000“, „“ → greška.
  */
 export function procitajIznos(upis: string, opcije: OpcijeUpisa = {}): Rezultat<Centi> {
-  let tekst = upis.trim().replace(/\s*€$/, "").replace(/\s*EUR$/i, "").trim();
+  let tekst = upis
+    .trim()
+    .replace(/\s*€$/, "")
+    .replace(/\s*EUR$/i, "")
+    .trim();
 
   if (tekst === "") return { ok: false, greska: "Upišite iznos." };
 

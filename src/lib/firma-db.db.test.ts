@@ -44,7 +44,9 @@ describe("izolacija firmi: firma A ne vidi i ne mijenja firmu B", () => {
     const { a, b, kb, dbA } = await dvijeFirme();
     const novi = await dbA.clanstvoFirme.create({ data: { korisnikId: kb.id, firmaId: a.id, ulogaId: a.uloge["Prodavač"]! } });
     expect(novi.firmaId).toBe(a.id);
-    await expect(dbA.clanstvoFirme.create({ data: { korisnikId: kb.id, firmaId: b.id, ulogaId: b.uloge["Prodavač"]! } })).rejects.toThrow(/drugoj firmi/);
+    await expect(dbA.clanstvoFirme.create({ data: { korisnikId: kb.id, firmaId: b.id, ulogaId: b.uloge["Prodavač"]! } })).rejects.toThrow(
+      /drugoj firmi/,
+    );
   });
 
   it("zbrojevi i grupiranje vide samo vlastitu firmu", async () => {

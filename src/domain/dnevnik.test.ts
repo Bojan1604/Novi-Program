@@ -3,7 +3,12 @@ import { MASKA, maskiraj, procitajPromjene, razlika, tekstZaPretragu, uTekst } f
 
 describe("razlika", () => {
   it("samo promijenjena polja, abecedno; id i firmaId se zanemaruju", () => {
-    expect(razlika({ id: "1", firmaId: "f", ime: "Ana", aktivan: true, grad: "Split" }, { id: "1", firmaId: "g", ime: "Ana", aktivan: false, grad: "Zagreb" })).toEqual([
+    expect(
+      razlika(
+        { id: "1", firmaId: "f", ime: "Ana", aktivan: true, grad: "Split" },
+        { id: "1", firmaId: "g", ime: "Ana", aktivan: false, grad: "Zagreb" },
+      ),
+    ).toEqual([
       { polje: "aktivan", staro: "true", novo: "false" },
       { polje: "grad", staro: "Split", novo: "Zagreb" },
     ]);
@@ -26,7 +31,9 @@ describe("razlika", () => {
   });
 
   it("lozinka se nikad ne zapisuje", () => {
-    expect(razlika({ lozinkaHash: "$2a$abc" }, { lozinkaHash: "$2a$def" })).toEqual([{ polje: "lozinkaHash", staro: "(skriveno)", novo: "(promijenjeno)" }]);
+    expect(razlika({ lozinkaHash: "$2a$abc" }, { lozinkaHash: "$2a$def" })).toEqual([
+      { polje: "lozinkaHash", staro: "(skriveno)", novo: "(promijenjeno)" },
+    ]);
   });
 
   it("datumi i JSON u tekst", () => {

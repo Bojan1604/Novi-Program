@@ -14,7 +14,10 @@ test("promjena korisnika vidi se u dnevniku s razlikom", async ({ page }) => {
 
   await page.goto("/dnevnik");
   await bezVodoravnogPomicanja(page);
-  const zapis = page.getByTestId("dnevnik").getByRole("listitem").filter({ hasText: `Izmijenjen korisnik ${novoIme}` });
+  const zapis = page
+    .getByTestId("dnevnik")
+    .getByRole("listitem")
+    .filter({ hasText: `Izmijenjen korisnik ${novoIme}` });
   await expect(zapis).toBeVisible();
   await expect(zapis).toContainText(E2E.admin.ime);
   await zapis.getByText("promjena").click();

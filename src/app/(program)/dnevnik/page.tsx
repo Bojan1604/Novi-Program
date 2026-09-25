@@ -1,4 +1,5 @@
 import { klaseGumba } from "@/components/ui/gumb";
+import { GumbiIzvoza } from "@/components/ui/izvoz";
 import { klaseUnosa } from "@/components/ui/polje";
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { Stranicenje } from "@/components/ui/stranicenje";
@@ -26,14 +27,20 @@ export default async function Dnevnik({ searchParams }: PageProps<"/dnevnik">) {
     do: jedan(sp["do"]),
     trazi: jedan(sp["trazi"]),
   };
-  const [rezultat, filtri] = await Promise.all([
-    stranicaDnevnika(k.db, k.firmaId, f, imaPosebno(k.prava, "costs")),
-    filtriDnevnika(k.db, k.firmaId),
-  ]);
+  const [rezultat, filtri] = await Promise.all([stranicaDnevnika(k.db, k.firmaId, f, imaPosebno(k.prava, "costs")), filtriDnevnika(k.db, k.firmaId)]);
 
   return (
     <Stranica sirina="7xl">
-      <NaslovStranice naslov="Dnevnik promjena" opis="Tko je što promijenio i kada." />
+      <NaslovStranice
+        naslov="Dnevnik promjena"
+        opis="Tko je što promijenio i kada."
+        akcije={
+          <GumbiIzvoza
+            izvor="dnevnik"
+            parametri={{ korisnik: f.korisnikId, entitet: f.entitet, id: f.entitetId, od: f.od, do: f.do, trazi: f.trazi }}
+          />
+        }
+      />
       <Kartica>
         <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6" role="search">
           <label className="flex flex-col gap-1 text-sm lg:col-span-2">
@@ -81,7 +88,13 @@ export default async function Dnevnik({ searchParams }: PageProps<"/dnevnik">) {
         </form>
       </Kartica>
       <Kartica>
-        <Stranicenje putanja="/dnevnik" parametri={{ ...f, korisnik: f.korisnikId, id: f.entitetId, korisnikId: undefined, entitetId: undefined, stranica: undefined }} stranica={rezultat.stranica} velicina={rezultat.velicina} ukupno={rezultat.ukupno} />
+        <Stranicenje
+          putanja="/dnevnik"
+          parametri={{ ...f, korisnik: f.korisnikId, id: f.entitetId, korisnikId: undefined, entitetId: undefined, stranica: undefined }}
+          stranica={rezultat.stranica}
+          velicina={rezultat.velicina}
+          ukupno={rezultat.ukupno}
+        />
         <ul className="mt-3 divide-y divide-neutral-200 dark:divide-neutral-800" data-testid="dnevnik">
           {rezultat.zapisi.map((z) => (
             <li key={z.id} className="py-3">

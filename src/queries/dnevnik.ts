@@ -15,7 +15,7 @@ export type FilterDnevnika = {
   trazi?: string;
 };
 
-function uvjet(firmaId: string, f: FilterDnevnika): Prisma.DnevnikWhereInput {
+export function uvjetDnevnika(firmaId: string, f: FilterDnevnika): Prisma.DnevnikWhereInput {
   const w: Prisma.DnevnikWhereInput = { firmaId };
   if (f.korisnikId) w.korisnikId = f.korisnikId;
   if (f.entitet) w.entitet = f.entitet;
@@ -26,7 +26,11 @@ function uvjet(firmaId: string, f: FilterDnevnika): Prisma.DnevnikWhereInput {
     if (jeDatum(f.do)) w.vrijeme.lt = pocetakDana(dodajDane(f.do, 1));
   }
   const t = f.trazi?.trim().toLowerCase();
-  if (t) w.AND = t.split(/\s+/).slice(0, 5).map((rijec) => ({ pretraga: { contains: rijec } }));
+  if (t)
+    w.AND = t
+      .split(/\s+/)
+      .slice(0, 5)
+      .map((rijec) => ({ pretraga: { contains: rijec } }));
   return w;
 }
 
@@ -37,7 +41,7 @@ function uvjet(firmaId: string, f: FilterDnevnika): Prisma.DnevnikWhereInput {
 export async function stranicaDnevnika(db: DbFirme, firmaId: string, f: FilterDnevnika, vidiNabavne: boolean) {
   const velicina = Math.min(Math.max(f.velicina ?? 50, 10), 200);
   const stranica = Math.max(1, Math.floor(f.stranica) || 1);
-  const where = uvjet(firmaId, f);
+  const where = uvjetDnevnika(firmaId, f);
   const [ukupno, zapisi] = await Promise.all([
     db.dnevnik.count({ where }),
     db.dnevnik.findMany({
@@ -65,4 +69,15 @@ export async function filtriDnevnika(db: DbFirme, firmaId: string) {
     korisnici: korisnici.map((k) => ({ id: k.korisnikId!, ime: k.korisnik })).sort((a, b) => a.ime.localeCompare(b.ime, "hr")),
     entiteti: entiteti.map((e) => e.entitet).sort(),
   };
+}
+
+/** Svi zapisi prema filtru (za izvoz), najviše `najvise`; osjetljive vrijednosti maskirane kao i na ekranu. */
+export async function dnevnikZaIzvoz(db: DbFirme, firmaId: string, f: Omit<FilterDnevnika, "stranica">, vidiNabavne: boolean, najvise: number) {
+  const zapisi = await db.dnevnik.findMany({
+    where: uvjetDnevnika(firmaId, { ...f, stranica: 1 }),
+    orderBy: [{ vrijeme: "desc" }, { id: "desc" }],
+    take: najvise,
+    select: { vrijeme: true, korisnik: true, radnja: true, entitet: true, entitetId: true, opis: true, promjene: true },
+  });
+  return zapisi.map((z) => ({ ...z, promjene: maskiraj(procitajPromjene(z.promjene), vidiNabavne) }));
 }

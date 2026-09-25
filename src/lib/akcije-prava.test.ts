@@ -13,19 +13,19 @@ const pravaUloge = (naziv: string) => ZADANE_ULOGE.find((u) => u.naziv === naziv
 const DOPUSTENE_AKCIJE: Record<string, KljucAkcije[]> = {
   Administrator: ["korisnici.dodaj", "korisnici.uredi", "korisnici.lozinka", "uloge.spremi", "uloge.obrisi"],
   Voditelj: [],
-  "Prodavač": [],
-  "Skladištar": [],
+  Prodavač: [],
+  Skladištar: [],
   Serviser: [],
-  "Knjigovođa": [],
+  Knjigovođa: [],
 };
 
 const DOPUSTENE_STRANICE: Record<string, PutanjaStranice[]> = {
   Administrator: ["/", "/korisnici", "/uloge", "/dnevnik"],
   Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik"],
-  "Prodavač": ["/"],
-  "Skladištar": ["/"],
+  Prodavač: ["/"],
+  Skladištar: ["/"],
   Serviser: ["/"],
-  "Knjigovođa": [],
+  Knjigovođa: [],
 };
 
 describe("svaka uloga × svaka akcija", () => {

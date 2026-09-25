@@ -79,6 +79,12 @@ Dodatno:
   transakciji, sa `staro`/`novo` (razlika se računa sama). Nabavne cijene i marže (`OSJETLJIVA_POLJA` u
   `src/domain/dnevnik.ts`) maskiraju se na poslužitelju za korisnike bez prava „costs“; lozinke se nikad ne zapisuju.
 - Poslovna greška za korisnika: `throw new GreskaKorisniku("…")` u servisu → `akcija` je vraća kao `{ ok: false, greska }`.
+- **Zajedničke komponente** (`src/components/ui`): `Tablica` (na mobitelu kartice; sortiranje su veze, radi u bazi),
+  `Stranicenje`, `PoljePretrage`, `FilterVise` (više vrijednosti: `?status=a&status=b`), `Pretrazivac` (odabir s
+  pretragom — logika u `pretrazivac-stanje.ts`), `Dijalog`, `usePoruke()`, `GumbiIzvoza` (+ izvor u `src/lib/izvoz/izvori.ts`).
+  Parametri popisa uvijek kroz `src/domain/popis.ts` (sortiranje samo po dopuštenim ključevima). Nova ili promijenjena
+  zajednička komponenta dobiva test u `e2e/komponente.spec.ts` (testna stranica `/razvoj/komponente`, samo uz `E2E_KOMPONENTE=1`).
+- Izvoz: stupci s `osjetljivo: true` izbacuju se na poslužitelju bez prava „costs“; svaki izvoz se zapisuje u dnevnik.
 - Mobitel: nijedna stranica ne smije biti šira od 390 px (`bezVodoravnogPomicanja` u e2e); `fieldset` uvijek s `min-w-0`.
 - Datoteka s `'use server'` izvozi **samo async funkcije** (i tipove) — provjerava `npm run check:use-server`.
 - Testovi nad bazom i demo podaci rade samo nad bazom kojoj ime sadrži „test“ (`DATABASE_URL_TEST`).

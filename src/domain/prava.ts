@@ -128,10 +128,7 @@ export function zadovoljava(prava: Prava, pravo: PotrebnoPravo): boolean {
 
 /** Ima li `a` sva prava koja ima `b` (i možda više). */
 export function jeNadskup(a: Prava, b: Prava): boolean {
-  return (
-    POPIS_MODULA.every((m) => razinaBroj(a.moduli[m]) >= razinaBroj(b.moduli[m])) &&
-    POPIS_POSEBNIH.every((x) => a.posebna[x] || !b.posebna[x])
-  );
+  return POPIS_MODULA.every((m) => razinaBroj(a.moduli[m]) >= razinaBroj(b.moduli[m])) && POPIS_POSEBNIH.every((x) => a.posebna[x] || !b.posebna[x]);
 }
 
 export function jeAdministrator(prava: Prava): boolean {
@@ -147,11 +144,7 @@ export type OdlukaUpravljanja = { dopusteno: true } | { dopusteno: false; razlog
  * - ne-administrator ne upravlja korisnikom koji ima prava koja on nema
  * - nitko ne dodjeljuje prava koja sam nema
  */
-export function smijeUpravljati(
-  akter: { id: string; prava: Prava },
-  cilj: { id: string; prava: Prava },
-  novaPrava?: Prava,
-): OdlukaUpravljanja {
+export function smijeUpravljati(akter: { id: string; prava: Prava }, cilj: { id: string; prava: Prava }, novaPrava?: Prava): OdlukaUpravljanja {
   if (!imaPravo(akter.prava, "korisnici", "puno")) {
     return { dopusteno: false, razlog: "Nemate pravo upravljati korisnicima." };
   }
@@ -190,9 +183,21 @@ export const ZADANE_ULOGE: { naziv: string; opis: string; prava: Prava; sustavna
     opis: "Svakodnevni rad u svim modulima, izvještaji i nabavne cijene.",
     prava: pravaIz(
       {
-        nadzorna: "pregled", uredaji: "puno", sifrarnici: "operativno", partneri: "puno", prodaja: "puno",
-        najam: "puno", nabava: "puno", troskovi: "operativno", knjigovodja: "operativno", servis: "puno",
-        portal: "operativno", mdm: "operativno", izvjestaji: "pregled", postavke: "pregled", korisnici: "pregled",
+        nadzorna: "pregled",
+        uredaji: "puno",
+        sifrarnici: "operativno",
+        partneri: "puno",
+        prodaja: "puno",
+        najam: "puno",
+        nabava: "puno",
+        troskovi: "operativno",
+        knjigovodja: "operativno",
+        servis: "puno",
+        portal: "operativno",
+        mdm: "operativno",
+        izvjestaji: "pregled",
+        postavke: "pregled",
+        korisnici: "pregled",
       },
       { costs: true, log: true },
     ),
@@ -201,15 +206,25 @@ export const ZADANE_ULOGE: { naziv: string; opis: string; prava: Prava; sustavna
     naziv: "Prodavač",
     opis: "Partneri, ponude, računi i ugovori o najmu.",
     prava: pravaIz({
-      nadzorna: "pregled", uredaji: "pregled", sifrarnici: "pregled", partneri: "operativno", prodaja: "operativno",
-      najam: "operativno", servis: "pregled", izvjestaji: "pregled",
+      nadzorna: "pregled",
+      uredaji: "pregled",
+      sifrarnici: "pregled",
+      partneri: "operativno",
+      prodaja: "operativno",
+      najam: "operativno",
+      servis: "pregled",
+      izvjestaji: "pregled",
     }),
   },
   {
     naziv: "Skladištar",
     opis: "Zaprimanje, uređaji, međuskladišnice, inventura i narudžbe.",
     prava: pravaIz({
-      nadzorna: "pregled", uredaji: "operativno", sifrarnici: "pregled", partneri: "pregled", nabava: "operativno",
+      nadzorna: "pregled",
+      uredaji: "operativno",
+      sifrarnici: "pregled",
+      partneri: "pregled",
+      nabava: "operativno",
       servis: "pregled",
     }),
   },
@@ -217,7 +232,12 @@ export const ZADANE_ULOGE: { naziv: string; opis: string; prava: Prava; sustavna
     naziv: "Serviser",
     opis: "Servisni nalozi, portal i MDM.",
     prava: pravaIz({
-      nadzorna: "pregled", uredaji: "pregled", partneri: "pregled", servis: "operativno", portal: "pregled", mdm: "operativno",
+      nadzorna: "pregled",
+      uredaji: "pregled",
+      partneri: "pregled",
+      servis: "operativno",
+      portal: "pregled",
+      mdm: "operativno",
     }),
   },
   {
@@ -225,8 +245,13 @@ export const ZADANE_ULOGE: { naziv: string; opis: string; prava: Prava; sustavna
     opis: "Pregled računa i troškova, paketi za knjigovođu.",
     prava: pravaIz(
       {
-        partneri: "pregled", prodaja: "pregled", najam: "pregled", nabava: "pregled", troskovi: "pregled",
-        knjigovodja: "operativno", izvjestaji: "pregled",
+        partneri: "pregled",
+        prodaja: "pregled",
+        najam: "pregled",
+        nabava: "pregled",
+        troskovi: "pregled",
+        knjigovodja: "operativno",
+        izvjestaji: "pregled",
       },
       { costs: true },
     ),

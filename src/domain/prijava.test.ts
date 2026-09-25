@@ -91,7 +91,13 @@ describe("e-pošta", () => {
   it("normalizira", () => {
     expect(normalizirajEmail("  Ana.Horvat@Firma.HR ")).toBe("ana.horvat@firma.hr");
   });
-  it.each([["a@b.hr", true], ["a@b", false], ["a b@c.hr", false], ["", false], ["@b.hr", false]])("%s → %s", (e, ok) => {
+  it.each([
+    ["a@b.hr", true],
+    ["a@b", false],
+    ["a b@c.hr", false],
+    ["", false],
+    ["@b.hr", false],
+  ])("%s → %s", (e, ok) => {
     expect(jeEmail(e)).toBe(ok);
   });
 });

@@ -4,7 +4,10 @@ import type { DbFirme } from "@/lib/firma-db";
 export async function popisClanova(db: DbFirme, firmaId: string) {
   const clanovi = await db.clanstvoFirme.findMany({
     where: { firmaId },
-    include: { korisnik: { select: { id: true, ime: true, email: true, aktivan: true, zadnjaPrijava: true } }, uloga: { select: { id: true, naziv: true } } },
+    include: {
+      korisnik: { select: { id: true, ime: true, email: true, aktivan: true, zadnjaPrijava: true } },
+      uloga: { select: { id: true, naziv: true } },
+    },
     orderBy: [{ aktivno: "desc" }, { korisnik: { ime: "asc" } }],
   });
   return clanovi.map((c) => ({
@@ -35,7 +38,14 @@ export async function popisUloga(db: DbFirme, firmaId: string) {
     include: { _count: { select: { clanstva: true } } },
     orderBy: [{ sustavna: "desc" }, { naziv: "asc" }],
   });
-  return uloge.map((u) => ({ id: u.id, naziv: u.naziv, opis: u.opis, sustavna: u.sustavna, brojKorisnika: u._count.clanstva, prava: procitajPrava(u.prava) }));
+  return uloge.map((u) => ({
+    id: u.id,
+    naziv: u.naziv,
+    opis: u.opis,
+    sustavna: u.sustavna,
+    brojKorisnika: u._count.clanstva,
+    prava: procitajPrava(u.prava),
+  }));
 }
 
 export async function uloga(db: DbFirme, firmaId: string, id: string) {

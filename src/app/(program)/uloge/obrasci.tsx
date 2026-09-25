@@ -38,7 +38,14 @@ export function ObrazacUloge({
                     key={r}
                     className="cursor-pointer border-l border-neutral-300 px-1 py-1.5 text-center first:border-l-0 has-checked:bg-primarna has-checked:text-primarna-tekst has-focus-visible:outline-2 has-focus-visible:outline-primarna dark:border-neutral-700"
                   >
-                    <input type="radio" name={`modul.${m}`} value={r} defaultChecked={prava.moduli[m] === r} aria-label={`${MODULI[m]}: ${NAZIVI_RAZINA[r]}`} className="sr-only" />
+                    <input
+                      type="radio"
+                      name={`modul.${m}`}
+                      value={r}
+                      defaultChecked={prava.moduli[m] === r}
+                      aria-label={`${MODULI[m]}: ${NAZIVI_RAZINA[r]}`}
+                      className="sr-only"
+                    />
                     {NAZIVI_RAZINA[r]}
                   </label>
                 ))}
