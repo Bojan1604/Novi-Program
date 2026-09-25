@@ -1,0 +1,24 @@
+# Baza za razvoj i lokalni rad: docker compose up -d --wait baza
+services:
+  baza:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp
+      POSTGRES_DB: erp_wms
+      TZ: Europe/Zagreb
+      PGTZ: Europe/Zagreb
+    ports:
+      - "5432:5432"
+    volumes:
+      - baza-podaci:/var/lib/postgresql/data
+      - ./docker/baza-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp_wms"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  baza-podaci:

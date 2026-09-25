@@ -1,0 +1,16 @@
+// Shema baze ERP-WMS.
+//
+// Pravila (vidi CLAUDE.md):
+// - iznosi: Decimal @db.Decimal(14, 2), nikad Float
+// - poslovni datumi: DateTime @db.Date (YYYY-MM-DD po Europe/Zagreb)
+// - svaki poslovni model ima firmaId (izolacija firmi, od koraka 0.2)
+// - migracije samo dodaju; nikad ne brišu stupce ni podatke
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

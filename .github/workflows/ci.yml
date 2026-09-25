@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provjere:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      baza:
+        image: postgres:17
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp_wms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp -d erp_wms_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_wms_test
+      DATABASE_URL_TEST: postgresql://erp:erp@localhost:5432/erp_wms_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalacija paketa
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Provjera 'use server'
+        run: npm run check:use-server
+
+      - name: Jedinični testovi
+        run: npm test
+
+      - name: Testovi nad bazom
+        run: npm run test:db
+
+      - name: Demo podaci u praznu bazu
+        run: npm run test:seed
+
+      - name: Build
+        run: npm run build
