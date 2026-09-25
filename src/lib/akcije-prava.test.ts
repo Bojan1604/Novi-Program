@@ -45,6 +45,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/partneri": SVI,
   "/cjenici": SVI,
   "/primke": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
+  "/uredaji": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -82,11 +83,12 @@ describe("posebna prava u akcijama", () => {
 describe("izbornik", () => {
   it("prikazuje samo dopušteno; prva stranica je prva dopuštena", () => {
     const putanje = (uloga: string) => izbornikZa(pravaUloge(uloga), IZBORNIK).map((s) => s.putanja);
-    expect(putanje("Prodavač")).toEqual(["/", "/partneri", "/cjenici", "/primke", "/sifrarnici", "/moj-racun"]);
+    expect(putanje("Prodavač")).toEqual(["/", "/partneri", "/cjenici", "/uredaji", "/primke", "/sifrarnici", "/moj-racun"]);
     expect(putanje("Administrator")).toEqual([
       "/",
       "/partneri",
       "/cjenici",
+      "/uredaji",
       "/primke",
       "/sifrarnici",
       "/korisnici",

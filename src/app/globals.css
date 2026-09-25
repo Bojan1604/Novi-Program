@@ -46,3 +46,26 @@ body {
   color: var(--tekst);
   font-family: var(--font-sans);
 }
+
+/* Tablica popisa (components/ui/tablica.tsx): na mobitelu kartice.
+   Klase su ovdje, a ne u svakoj ćeliji — stranica s 200 redaka mora ostati ispod 1 MB. */
+@layer components {
+  .tbl {
+    @apply w-full text-sm max-md:block;
+  }
+  .tbl-red {
+    @apply border-b border-neutral-100 align-top hover:bg-neutral-50 max-md:relative max-md:flex max-md:flex-col max-md:rounded-lg max-md:border max-md:border-neutral-200 max-md:p-3 dark:border-neutral-900 dark:hover:bg-neutral-900 max-md:dark:border-neutral-800;
+  }
+  .tbl-c {
+    @apply px-2 py-2 max-md:flex max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-0.5 max-md:before:shrink-0 max-md:before:text-neutral-500 max-md:before:content-[attr(data-oznaka)];
+  }
+  .tbl-c-naslov {
+    @apply px-2 py-2 max-md:order-first max-md:px-0 max-md:py-0 max-md:pb-1 max-md:text-base max-md:font-medium;
+  }
+  .tbl-desno {
+    @apply md:text-right md:tabular-nums;
+  }
+  .tbl-veza {
+    @apply font-medium text-primarna hover:underline max-md:after:absolute max-md:after:inset-0;
+  }
+}

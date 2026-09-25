@@ -6,6 +6,8 @@ import { dnevnikZaIzvoz } from "@/queries/dnevnik";
 import { popisClanova } from "@/queries/korisnici";
 import { uvjetPartnera } from "@/queries/partneri";
 import { uvjetPrimki } from "@/queries/primke";
+import { modeliZaPretragu, uvjetUredaja } from "@/queries/uredaji";
+import { STANJA, type Stanje } from "@/domain/stanja-uredaja";
 import { centiIzDecimala } from "@/domain/novac";
 import type { StupacIzvoza } from "./stupci";
 
@@ -115,6 +117,74 @@ export const IZVORI: Record<string, Izvor<unknown>> = {
     brojUredaja: number;
     nabavnaVrijednost: { toString(): string } | null;
     status: string;
+  }>),
+
+  uredaji: izvor({
+    naslov: "Uređaji",
+    pravo: { modul: "uredaji", razina: "pregled" },
+    stupci: [
+      { naslov: "Serijski", vrijednost: (u) => u.serijski, sirina: 16 },
+      { naslov: "Proizvođač", vrijednost: (u) => u.model.proizvodjac.naziv, sirina: 12 },
+      { naslov: "Model", vrijednost: (u) => u.model.naziv },
+      { naslov: "Kategorija", vrijednost: (u) => u.model.kategorija.naziv, sirina: 14 },
+      { naslov: "Stanje", vrijednost: (u) => STANJA[u.stanje as Stanje], sirina: 12 },
+      { naslov: "Skladište", vrijednost: (u) => u.skladiste?.naziv ?? "", sirina: 14 },
+      { naslov: "Kupac", vrijednost: (u) => u.partner?.naziv ?? "" },
+      {
+        naslov: "Nabavna cijena",
+        vrsta: "iznos",
+        osjetljivo: true,
+        vrijednost: (u) => (u.nabavnaCijena ? centiIzDecimala(u.nabavnaCijena.toString()) : null),
+      },
+      { naslov: "Zaprimljen", vrsta: "datum", vrijednost: (u) => u.nabavniDatum?.toISOString().slice(0, 10) ?? null },
+      { naslov: "Jamstvo do", vrsta: "datum", vrijednost: (u) => u.jamstvoDo?.toISOString().slice(0, 10) ?? null },
+      { naslov: "Primka", vrijednost: (u) => u.primka?.broj ?? "", sirina: 12 },
+      { naslov: "Procesor", vrijednost: (u) => u.cpu, sirina: 14 },
+      { naslov: "RAM", vrijednost: (u) => u.ram, sirina: 8 },
+      { naslov: "Disk", vrijednost: (u) => u.disk, sirina: 10 },
+      { naslov: "OS", vrijednost: (u) => u.os, sirina: 12 },
+    ],
+    dohvati: async (k, sp, najvise) =>
+      k.db.uredaj.findMany({
+        where: uvjetUredaja(
+          k.firmaId,
+          {
+            trazi: jedan(sp["trazi"]),
+            stanje: vise(sp["stanje"]),
+            skladiste: vise(sp["skladiste"]),
+            kategorija: vise(sp["kategorija"]),
+            proizvodjac: vise(sp["proizvodjac"]),
+            partnerId: jedan(sp["partner"]),
+            primkaId: jedan(sp["primka"]),
+            od: jedan(sp["od"]),
+            do: jedan(sp["do"]),
+            jamstvoDo: jedan(sp["jamstvoDo"]),
+          },
+          await modeliZaPretragu(k.db, k.firmaId, jedan(sp["trazi"])),
+        ),
+        orderBy: { serijski: "asc" },
+        take: najvise,
+        include: {
+          model: { select: { naziv: true, proizvodjac: { select: { naziv: true } }, kategorija: { select: { naziv: true } } } },
+          skladiste: { select: { naziv: true } },
+          partner: { select: { naziv: true } },
+          primka: { select: { broj: true } },
+        },
+      }),
+  } satisfies Izvor<{
+    serijski: string;
+    stanje: string;
+    model: { naziv: string; proizvodjac: { naziv: string }; kategorija: { naziv: string } };
+    skladiste: { naziv: string } | null;
+    partner: { naziv: string } | null;
+    primka: { broj: string } | null;
+    nabavnaCijena: { toString(): string } | null;
+    nabavniDatum: Date | null;
+    jamstvoDo: Date | null;
+    cpu: string | null;
+    ram: string | null;
+    disk: string | null;
+    os: string | null;
   }>),
 
   korisnici: izvor({

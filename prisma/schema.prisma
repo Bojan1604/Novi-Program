@@ -453,6 +453,10 @@ model Uredaj {
   @@index([firmaId, partnerId])
   @@index([firmaId, stvoreno(sort: Desc)])
   @@index([primkaId])
+  /// pretraga po dijelu serijskog broja (LIKE '%…%') — pg_trgm
+  @@index([serijski(ops: raw("gin_trgm_ops"))], type: Gin, map: "Uredaj_serijski_trgm")
+  @@index([firmaId, nabavniDatum(sort: Desc)])
+  @@index([firmaId, jamstvoDo])
 }
 
 /// Povijest uređaja: svaka promjena stanja ili lokacije.

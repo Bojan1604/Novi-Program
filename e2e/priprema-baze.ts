@@ -21,7 +21,7 @@ async function priprema(): Promise<void> {
     await napraviZadaneSifrarnike(prisma, firma.id);
     const proizvodjac = await prisma.proizvodjac.create({ data: { firmaId: firma.id, naziv: "E2E Proizvođač" } });
     const kategorija = await prisma.kategorija.findFirstOrThrow({ where: { firmaId: firma.id, naziv: "Prijenosno računalo" } });
-    await prisma.modelUredaja.create({
+    const model = await prisma.modelUredaja.create({
       data: {
         firmaId: firma.id,
         naziv: "E2E Laptop 14",
@@ -31,6 +31,25 @@ async function priprema(): Promise<void> {
         kpdProdaja: "26.20.11",
       },
     });
+    const skladiste = await prisma.skladiste.findFirstOrThrow({ where: { firmaId: firma.id } });
+    for (const [serijski, stanje, cpu] of [
+      ["E2E-UR-001", "NA_SKLADISTU", "Intel i5"],
+      ["E2E-UR-002", "NA_SKLADISTU", "Intel i7"],
+      ["E2E-UR-003", "OTPISAN", "AMD Ryzen 5"],
+    ] as const) {
+      await prisma.uredaj.create({
+        data: {
+          firmaId: firma.id,
+          serijski,
+          modelId: model.id,
+          stanje,
+          skladisteId: stanje === "OTPISAN" ? null : skladiste.id,
+          cpu,
+          nabavnaCijena: "700.00",
+          nabavniDatum: new Date("2026-09-01"),
+        },
+      });
+    }
     await prisma.usluga.create({ data: { firmaId: firma.id, naziv: "E2E Instalacija", jedinica: "h", cijena: "40.00" } });
     await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Distributer d.o.o.", kupac: false, dobavljac: true } });
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);

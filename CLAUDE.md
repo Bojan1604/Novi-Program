@@ -139,6 +139,9 @@ Na Windowsu sve pokreće `pokreni.bat`.
 - **Stanje uređaja** mijenja se SAMO kroz `promijeniStanje(tx, …)` (`src/services/uredaji.ts`), unutar transakcije:
   zaključava retke (FOR UPDATE, redom po id-u), provjerava `prijelaz` (`src/domain/stanja-uredaja.ts`), mijenja
   lokaciju/kupca i zapisuje `DogadajUredaja` s dokumentom. Nova radnja = novi redak u `RADNJE` + redak u matrici testa.
+- **Brzina:** popis s 1.000+ redaka mjeri se na velikoj bazi (`npm run db:velika` u `erp_wms_velika`, zatim
+  `npm run mjerenje`): ispod 0,3 s i 1 MB i s `?velicina=200`. Pretraga ne spaja velike tablice — prvo nađi id-eve u
+  maloj tablici (npr. `modeliZaPretragu`). Stil ćelija tablice je u `globals.css` (`.tbl-*`), ne u svakoj ćeliji.
 - Svaki upit popisa ima test nad bazom koji ga vrti kroz SVA sortiranja i filtre (greška u `orderBy` se inače vidi tek u pregledniku).
 - Partner: kad novi modul počne koristiti partnera (računi, ugovori, uređaji), dodati ga u `REFERENCE_PARTNERA`
   (`src/services/partneri.ts`); cijena za kupca uvijek kroz `cijenaZaKupca` (cjenik → popust → preporučena).

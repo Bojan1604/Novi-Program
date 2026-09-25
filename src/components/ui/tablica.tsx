@@ -43,7 +43,7 @@ export function Tablica<R>({
 }) {
   return (
     <div className="max-md:-mx-1">
-      <table className="w-full text-sm max-md:block" data-testid={testId}>
+      <table className="tbl" data-testid={testId}>
         <thead className="max-md:hidden">
           <tr className="border-b border-neutral-200 text-left dark:border-neutral-800">
             {stupci.map((s) => {
@@ -76,10 +76,7 @@ export function Tablica<R>({
         </thead>
         <tbody className="max-md:flex max-md:flex-col max-md:gap-2">
           {redovi.map((r) => (
-            <tr
-              key={kljucReda(r)}
-              className="border-b border-neutral-100 align-top hover:bg-neutral-50 max-md:relative max-md:flex max-md:flex-col max-md:rounded-lg max-md:border max-md:border-neutral-200 max-md:p-3 dark:border-neutral-900 dark:hover:bg-neutral-900 max-md:dark:border-neutral-800"
-            >
+            <tr key={kljucReda(r)} className="tbl-red">
               {stupci.map((s, i) => {
                 const sadrzaj = s.prikaz(r);
                 const prvi = s.mobitel === "naslov" || (i === 0 && !stupci.some((x) => x.mobitel === "naslov"));
@@ -87,17 +84,12 @@ export function Tablica<R>({
                   <td
                     key={s.kljuc}
                     data-oznaka={s.naslov}
-                    className={[
-                      "px-2 py-2",
-                      s.desno ? "md:text-right md:tabular-nums" : "",
-                      s.mobitel === "skriveno" ? "max-md:hidden" : "",
-                      prvi
-                        ? "max-md:order-first max-md:px-0 max-md:py-0 max-md:pb-1 max-md:text-base max-md:font-medium"
-                        : "max-md:flex max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-0.5 max-md:before:shrink-0 max-md:before:text-neutral-500 max-md:before:content-[attr(data-oznaka)]",
-                    ].join(" ")}
+                    className={[prvi ? "tbl-c-naslov" : "tbl-c", s.desno ? "tbl-desno" : "", s.mobitel === "skriveno" ? "max-md:hidden" : ""]
+                      .filter(Boolean)
+                      .join(" ")}
                   >
                     {veza && prvi ? (
-                      <Link href={veza(r)} className="font-medium text-primarna hover:underline max-md:after:absolute max-md:after:inset-0">
+                      <Link href={veza(r)} className="tbl-veza" prefetch={false}>
                         {sadrzaj}
                       </Link>
                     ) : (
