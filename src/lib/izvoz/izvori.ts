@@ -1,9 +1,10 @@
 import "server-only";
-import { jedan, type ParametriUrl } from "@/domain/popis";
+import { jedan, vise, type ParametriUrl } from "@/domain/popis";
 import { imaPosebno, type PotrebnoPravo } from "@/domain/prava";
 import type { Kontekst } from "@/lib/akcija";
 import { dnevnikZaIzvoz } from "@/queries/dnevnik";
 import { popisClanova } from "@/queries/korisnici";
+import { uvjetPartnera } from "@/queries/partneri";
 import type { StupacIzvoza } from "./stupci";
 
 export const NAJVISE_REDAKA = { csv: 100_000, xlsx: 100_000, pdf: 5_000 } as const;
@@ -48,6 +49,35 @@ export const IZVORI: Record<string, Izvor<unknown>> = {
         najvise,
       ),
   } satisfies Izvor<Awaited<ReturnType<typeof dnevnikZaIzvoz>>[number]>),
+
+  partneri: izvor({
+    naslov: "Partneri",
+    pravo: { modul: "partneri", razina: "pregled" },
+    stupci: [
+      { naslov: "Naziv", vrijednost: (p) => p.naziv, sirina: 28 },
+      { naslov: "OIB", vrijednost: (p) => p.oib, sirina: 12 },
+      { naslov: "PDV broj", vrijednost: (p) => p.pdvBroj, sirina: 14 },
+      { naslov: "Država", vrijednost: (p) => p.drzava, sirina: 6 },
+      { naslov: "Adresa", vrijednost: (p) => p.adresa },
+      { naslov: "Poštanski broj", vrijednost: (p) => p.postanskiBroj, sirina: 8 },
+      { naslov: "Mjesto", vrijednost: (p) => p.mjesto, sirina: 14 },
+      { naslov: "E-pošta", vrijednost: (p) => p.email },
+      { naslov: "Telefon", vrijednost: (p) => p.telefon, sirina: 12 },
+      { naslov: "Kupac", vrijednost: (p) => (p.kupac ? "da" : "ne"), sirina: 6 },
+      { naslov: "Dobavljač", vrijednost: (p) => (p.dobavljac ? "da" : "ne"), sirina: 6 },
+      { naslov: "eRačun", vrijednost: (p) => p.eRacunAdresa, sirina: 14 },
+    ],
+    dohvati: (k, sp, najvise) =>
+      k.db.partner.findMany({
+        where: uvjetPartnera(k.firmaId, {
+          trazi: jedan(sp["trazi"]),
+          vrsta: vise(sp["vrsta"]),
+          aktivnost: vise(sp["aktivnost"]).length ? vise(sp["aktivnost"]) : ["aktivni"],
+        }),
+        orderBy: { naziv: "asc" },
+        take: najvise,
+      }),
+  } satisfies Izvor<Awaited<ReturnType<Kontekst["db"]["partner"]["findMany"]>>[number]>),
 
   korisnici: izvor({
     naslov: "Korisnici",

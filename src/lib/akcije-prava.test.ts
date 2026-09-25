@@ -21,21 +21,50 @@ const DOPUSTENE_AKCIJE: Record<string, KljucAkcije[]> = {
     "sifrarnici.spremi",
     "sifrarnici.aktivnost",
     "sifrarnici.obrisi",
+    "partneri.spremi",
+    "partneri.aktivnost",
+    "partneri.dohvat",
+    "partneri.vies",
+    "poslovnice.spremi",
+    "cjenici.spremi",
+    "cjenici.stavka",
+    "partneri.obrisi",
   ],
-  Voditelj: ["racun.lozinka", "sifrarnici.spremi", "sifrarnici.aktivnost"],
-  Prodavač: ["racun.lozinka"],
+  Voditelj: [
+    "racun.lozinka",
+    "sifrarnici.spremi",
+    "sifrarnici.aktivnost",
+    "partneri.spremi",
+    "partneri.aktivnost",
+    "partneri.dohvat",
+    "partneri.vies",
+    "poslovnice.spremi",
+    "cjenici.spremi",
+    "cjenici.stavka",
+    "partneri.obrisi",
+  ],
+  Prodavač: [
+    "racun.lozinka",
+    "partneri.spremi",
+    "partneri.aktivnost",
+    "partneri.dohvat",
+    "partneri.vies",
+    "poslovnice.spremi",
+    "cjenici.spremi",
+    "cjenici.stavka",
+  ],
   Skladištar: ["racun.lozinka"],
   Serviser: ["racun.lozinka"],
   Knjigovođa: ["racun.lozinka"],
 };
 
 const DOPUSTENE_STRANICE: Record<string, PutanjaStranice[]> = {
-  Administrator: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun"],
-  Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun"],
-  Prodavač: ["/", "/sifrarnici", "/moj-racun"],
-  Skladištar: ["/", "/sifrarnici", "/moj-racun"],
-  Serviser: ["/", "/moj-racun"],
-  Knjigovođa: ["/moj-racun"],
+  Administrator: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
+  Voditelj: ["/", "/korisnici", "/uloge", "/dnevnik", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
+  Prodavač: ["/", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
+  Skladištar: ["/", "/sifrarnici", "/moj-racun", "/partneri", "/cjenici"],
+  Serviser: ["/", "/moj-racun", "/partneri", "/cjenici"],
+  Knjigovođa: ["/moj-racun", "/partneri", "/cjenici"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -71,16 +100,10 @@ describe("posebna prava u akcijama", () => {
 
 describe("izbornik", () => {
   it("prikazuje samo dopušteno; prva stranica je prva dopuštena", () => {
-    expect(izbornikZa(pravaUloge("Prodavač"), IZBORNIK).map((s) => s.putanja)).toEqual(["/", "/sifrarnici", "/moj-racun"]);
-    expect(izbornikZa(pravaUloge("Administrator"), IZBORNIK).map((s) => s.putanja)).toEqual([
-      "/",
-      "/sifrarnici",
-      "/korisnici",
-      "/uloge",
-      "/dnevnik",
-      "/moj-racun",
-    ]);
-    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/moj-racun");
+    const putanje = (uloga: string) => izbornikZa(pravaUloge(uloga), IZBORNIK).map((s) => s.putanja);
+    expect(putanje("Prodavač")).toEqual(["/", "/partneri", "/cjenici", "/sifrarnici", "/moj-racun"]);
+    expect(putanje("Administrator")).toEqual(["/", "/partneri", "/cjenici", "/sifrarnici", "/korisnici", "/uloge", "/dnevnik", "/moj-racun"]);
+    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/partneri");
   });
 
   it("svaka stranica iz popisa je u izborniku", () => {

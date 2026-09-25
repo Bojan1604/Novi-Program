@@ -136,5 +136,8 @@ Na Windowsu sve pokreće `pokreni.bat`.
   `Slucajno` (isto sjeme = isti podaci; ispravni OIB-i, kronološki datumi) i poštuje `k.kolicine` — isti kod puni
   i veliku bazu. Za velike količine `createMany` u serijama. Prijava u demo: admin@demo.hr / Demo-lozinka-2026.
 - Prisma 7: klijent se generira u `src/generated/prisma` — nakon promjene sheme `npm run db:migrate -- ime`.
+- Svaki upit popisa ima test nad bazom koji ga vrti kroz SVA sortiranja i filtre (greška u `orderBy` se inače vidi tek u pregledniku).
+- Partner: kad novi modul počne koristiti partnera (računi, ugovori, uređaji), dodati ga u `REFERENCE_PARTNERA`
+  (`src/services/partneri.ts`); cijena za kupca uvijek kroz `cijenaZaKupca` (cjenik → popust → preporučena).
 - Dnevnik: `opis` se nikad ne maskira — u opis ne pisati nabavne cijene ni marže.
 - `src/generated/` se generira (`prisma generate` pri `npm install`) i ne ide u git.

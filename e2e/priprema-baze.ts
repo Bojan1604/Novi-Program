@@ -19,6 +19,19 @@ async function priprema(): Promise<void> {
     const firma = await prisma.firma.create({ data: { naziv: E2E.firma, oib: "69435151530", boja: E2E.boja } });
     const uloge = await napraviZadaneUloge(prisma, firma.id);
     await napraviZadaneSifrarnike(prisma, firma.id);
+    const proizvodjac = await prisma.proizvodjac.create({ data: { firmaId: firma.id, naziv: "E2E Proizvođač" } });
+    const kategorija = await prisma.kategorija.findFirstOrThrow({ where: { firmaId: firma.id, naziv: "Prijenosno računalo" } });
+    await prisma.modelUredaja.create({
+      data: {
+        firmaId: firma.id,
+        naziv: "E2E Laptop 14",
+        proizvodjacId: proizvodjac.id,
+        kategorijaId: kategorija.id,
+        preporucenaCijena: "1000.00",
+        kpdProdaja: "26.20.11",
+      },
+    });
+    await prisma.usluga.create({ data: { firmaId: firma.id, naziv: "E2E Instalacija", jedinica: "h", cijena: "40.00" } });
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);
     for (const k of [
       { ime: E2E.admin.ime, email: E2E.admin.email, uloga: "Administrator" },

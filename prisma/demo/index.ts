@@ -6,6 +6,7 @@
 import type { PrismaClient } from "../../src/generated/prisma/client";
 import { Slucajno } from "./slucajno";
 import { demoFirmeIKorisnici } from "./firme";
+import { demoPartneri } from "./partneri";
 import { demoSifrarnici } from "./sifrarnici";
 
 export type Kolicine = {
@@ -34,7 +35,10 @@ export type DemoKontekst = {
 type Korak = { naziv: string; izvedi: (k: DemoKontekst) => Promise<void> };
 
 /** Koraci nakon firmi i korisnika — svaki modul dodaje svoj. */
-export const KORACI: Korak[] = [{ naziv: "Šifrarnici", izvedi: demoSifrarnici }];
+export const KORACI: Korak[] = [
+  { naziv: "Šifrarnici", izvedi: demoSifrarnici },
+  { naziv: "Partneri", izvedi: demoPartneri },
+];
 
 export async function napuniDemo(
   prisma: PrismaClient,

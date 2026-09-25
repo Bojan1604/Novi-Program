@@ -37,6 +37,10 @@ model Firma {
   skladista     Skladiste[]
   stanjaRobe    StanjeRobe[]
   usluge        Usluga[]
+  partneri      Partner[]
+  poslovnice    Poslovnica[]
+  cjenici       Cjenik[]
+  stavkeCjenika StavkaCjenika[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -209,6 +213,7 @@ model ModelUredaja {
   firma       Firma       @relation(fields: [firmaId], references: [id])
   proizvodjac Proizvodjac @relation(fields: [firmaId, proizvodjacId], references: [firmaId, id])
   kategorija  Kategorija  @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
+  cijene      StavkaCjenika[]
 
   @@index([firmaId, naziv])
   @@index([proizvodjacId])
@@ -261,8 +266,116 @@ model Usluga {
   stvoreno  DateTime @default(now()) @db.Timestamptz(3)
   azurirano DateTime @updatedAt @db.Timestamptz(3)
 
-  firma Firma @relation(fields: [firmaId], references: [id])
+  firma  Firma           @relation(fields: [firmaId], references: [id])
+  cijene StavkaCjenika[]
 
   @@index([firmaId, naziv])
   @@unique([firmaId, id])
+}
+
+// ─── 1.2 Partneri i cjenici ────────────────────────────────────────────────────
+
+/// Kupac i/ili dobavljač. OIB jedinstven u firmi (provjerava servis pod zaključavanjem).
+model Partner {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  firmaId          String    @db.Uuid
+  naziv            String
+  kupac            Boolean   @default(true)
+  dobavljac        Boolean   @default(false)
+  /// ISO 3166-1 alpha-2
+  drzava           String    @default("HR") @db.Char(2)
+  oib              String?   @db.Char(11)
+  /// PDV broj s prefiksom države (DE123456789); za HR = HR + OIB
+  pdvBroj          String?
+  adresa           String?
+  postanskiBroj    String?
+  mjesto           String?
+  email            String?
+  telefon          String?
+  /// adresa za eRačun (9934:OIB) i je li partner u sustavu eRačuna (AMS)
+  eRacunAdresa     String?
+  eRacunAktivan    Boolean?
+  eRacunProvjereno DateTime? @db.Timestamptz(3)
+  /// ručni porezni status (DOMACI, EU_OBVEZNIK, EU_NEOBVEZNIK, TRECA_ZEMLJA); null = prema državi i PDV broju
+  pdvStatus        String?
+  /// VIES provjera PDV broja
+  viesValjan       Boolean?
+  viesProvjereno   DateTime? @db.Timestamptz(3)
+  rokPlacanjaDana  Int       @default(15)
+  cjenikId         String?   @db.Uuid
+  napomena         String?
+  aktivan          Boolean   @default(true)
+  stvoreno         DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano        DateTime  @updatedAt @db.Timestamptz(3)
+
+  firma      Firma        @relation(fields: [firmaId], references: [id])
+  cjenik     Cjenik?      @relation(fields: [firmaId, cjenikId], references: [firmaId, id])
+  poslovnice Poslovnica[]
+
+  @@unique([firmaId, id])
+  @@index([firmaId, naziv])
+  @@index([firmaId, oib])
+}
+
+/// Poslovnica / adresa isporuke partnera (uređaji u najmu stoje na poslovnici).
+model Poslovnica {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  firmaId       String   @db.Uuid
+  partnerId     String   @db.Uuid
+  naziv         String
+  adresa        String?
+  postanskiBroj String?
+  mjesto        String?
+  kontakt       String?
+  telefon       String?
+  aktivan       Boolean  @default(true)
+  stvoreno      DateTime @default(now()) @db.Timestamptz(3)
+  azurirano     DateTime @updatedAt @db.Timestamptz(3)
+
+  firma   Firma   @relation(fields: [firmaId], references: [id])
+  partner Partner @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([partnerId])
+}
+
+/// Cjenik kupca: posebne cijene modela i usluga (bez PDV-a); za ostalo vrijedi preporučena cijena.
+model Cjenik {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  naziv     String
+  opis      String?
+  /// popust na preporučenu cijenu za stavke koje nisu u cjeniku (stotinke %: 500 = 5 %)
+  popust    Decimal? @db.Decimal(7, 2)
+  aktivan   Boolean  @default(true)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma    Firma           @relation(fields: [firmaId], references: [id])
+  stavke   StavkaCjenika[]
+  partneri Partner[]
+
+  @@unique([firmaId, id])
+  @@index([firmaId, naziv])
+}
+
+model StavkaCjenika {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  firmaId   String   @db.Uuid
+  cjenikId  String   @db.Uuid
+  modelId   String?  @db.Uuid
+  uslugaId  String?  @db.Uuid
+  cijena    Decimal  @db.Decimal(14, 2)
+  stvoreno  DateTime @default(now()) @db.Timestamptz(3)
+  azurirano DateTime @updatedAt @db.Timestamptz(3)
+
+  firma  Firma         @relation(fields: [firmaId], references: [id])
+  cjenik Cjenik        @relation(fields: [firmaId, cjenikId], references: [firmaId, id])
+  model  ModelUredaja? @relation(fields: [firmaId, modelId], references: [firmaId, id])
+  usluga Usluga?       @relation(fields: [firmaId, uslugaId], references: [firmaId, id])
+
+  @@unique([cjenikId, modelId])
+  @@unique([cjenikId, uslugaId])
+  @@index([modelId])
+  @@index([uslugaId])
 }

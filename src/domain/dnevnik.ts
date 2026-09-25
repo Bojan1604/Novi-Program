@@ -36,6 +36,8 @@ export const NAZIVI_ENTITETA: Record<string, string> = {
   Skladiste: "Skladište",
   StanjeRobe: "Stanje robe",
   Usluga: "Usluga",
+  Partner: "Partner",
+  Cjenik: "Cjenik",
 };
 
 const OSJETLJIVA_MALA = new Set([...OSJETLJIVA_POLJA].map((p) => p.toLowerCase()));

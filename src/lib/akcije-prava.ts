@@ -16,6 +16,14 @@ export const AKCIJE = {
   "sifrarnici.spremi": { modul: "sifrarnici", razina: "operativno" },
   "sifrarnici.aktivnost": { modul: "sifrarnici", razina: "operativno" },
   "sifrarnici.obrisi": { modul: "sifrarnici", razina: "puno" },
+  "partneri.spremi": { modul: "partneri", razina: "operativno" },
+  "partneri.aktivnost": { modul: "partneri", razina: "operativno" },
+  "partneri.obrisi": { modul: "partneri", razina: "puno" },
+  "partneri.dohvat": { modul: "partneri", razina: "operativno" },
+  "partneri.vies": { modul: "partneri", razina: "operativno" },
+  "poslovnice.spremi": { modul: "partneri", razina: "operativno" },
+  "cjenici.spremi": { modul: "partneri", razina: "operativno" },
+  "cjenici.stavka": { modul: "partneri", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -28,6 +36,8 @@ export const STRANICE = {
   "/dnevnik": { naziv: "Dnevnik promjena", posebno: "log" },
   "/sifrarnici": { naziv: "Šifrarnici", modul: "sifrarnici", razina: "pregled" },
   "/moj-racun": { naziv: "Moj račun", samoPrijava: true },
+  "/partneri": { naziv: "Partneri", modul: "partneri", razina: "pregled" },
+  "/cjenici": { naziv: "Cjenici", modul: "partneri", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 
 export type PutanjaStranice = keyof typeof STRANICE;

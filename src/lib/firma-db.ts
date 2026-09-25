@@ -6,14 +6,18 @@ import type { PrismaClient } from "@/generated/prisma/client";
  * Test `firma-db.test.ts` pukne ako model s `firmaId` u shemi nije na popisu.
  */
 export const MODELI_S_FIRMOM = [
+  "Cjenik",
   "ClanstvoFirme",
   "Dnevnik",
   "Kategorija",
   "ModelUredaja",
+  "Partner",
+  "Poslovnica",
   "Proizvodjac",
   "Sesija",
   "Skladiste",
   "StanjeRobe",
+  "StavkaCjenika",
   "Uloga",
   "Usluga",
 ] as const;
@@ -30,7 +34,22 @@ const S_FIRMOM = new Set<string>(MODELI_S_FIRMOM);
  */
 export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
   korisnik: ["clanstva", "sesije"],
-  firma: ["clanstva", "sesije", "uloge", "dnevnik", "kategorije", "proizvodjaci", "modeli", "skladista", "stanjaRobe", "usluge"],
+  firma: [
+    "clanstva",
+    "sesije",
+    "uloge",
+    "dnevnik",
+    "kategorije",
+    "proizvodjaci",
+    "modeli",
+    "skladista",
+    "stanjaRobe",
+    "usluge",
+    "partneri",
+    "poslovnice",
+    "cjenici",
+    "stavkeCjenika",
+  ],
 };
 
 /** Provjera include/select: ulaz u korisnika/firmu smije dohvatiti samo njihova obična polja. */

@@ -11,6 +11,7 @@ import { useTransition, type ComponentProps } from "react";
  *   <Obrazac akcija={posalji}>…</Obrazac>
  */
 export function Obrazac({ akcija, children, ...props }: { akcija: (fd: FormData) => void } & Omit<ComponentProps<"form">, "action" | "onSubmit">) {
+  // ref (React 19 prop) se prosljeđuje formi kroz ...props
   const [, zapocni] = useTransition();
   return (
     <form
