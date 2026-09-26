@@ -31,21 +31,26 @@ model Firma {
   uloge    Uloga[]
   dnevnik  Dnevnik[]
 
-  kategorije    Kategorija[]
-  proizvodjaci  Proizvodjac[]
-  modeli        ModelUredaja[]
-  skladista     Skladiste[]
-  stanjaRobe    StanjeRobe[]
-  usluge        Usluga[]
-  partneri      Partner[]
-  poslovnice    Poslovnica[]
-  cjenici       Cjenik[]
-  stavkeCjenika StavkaCjenika[]
-  uredaji       Uredaj[]
-  dogadaji      DogadajUredaja[]
-  brojaci       Brojac[]
-  primke        Primka[]
-  prilozi       Prilog[]
+  kategorije         Kategorija[]
+  proizvodjaci       Proizvodjac[]
+  modeli             ModelUredaja[]
+  skladista          Skladiste[]
+  stanjaRobe         StanjeRobe[]
+  usluge             Usluga[]
+  partneri           Partner[]
+  poslovnice         Poslovnica[]
+  cjenici            Cjenik[]
+  stavkeCjenika      StavkaCjenika[]
+  uredaji            Uredaj[]
+  dogadaji           DogadajUredaja[]
+  brojaci            Brojac[]
+  primke             Primka[]
+  prilozi            Prilog[]
+  skladisniDokumenti SkladisniDokument[]
+  stavkeDokumenata   StavkaSkladisnogDokumenta[]
+  odobrenja          Odobrenje[]
+  inventure          Inventura[]
+  stavkeInventure    StavkaInventure[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -238,9 +243,12 @@ model Skladiste {
   stvoreno  DateTime @default(now()) @db.Timestamptz(3)
   azurirano DateTime @updatedAt @db.Timestamptz(3)
 
-  firma   Firma    @relation(fields: [firmaId], references: [id])
-  uredaji Uredaj[]
-  primke  Primka[]
+  firma       Firma               @relation(fields: [firmaId], references: [id])
+  uredaji     Uredaj[]
+  primke      Primka[]
+  dokumentiIz SkladisniDokument[] @relation("DokumentIz")
+  dokumentiU  SkladisniDokument[] @relation("DokumentU")
+  inventure   Inventura[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -317,11 +325,12 @@ model Partner {
   stvoreno         DateTime  @default(now()) @db.Timestamptz(3)
   azurirano        DateTime  @updatedAt @db.Timestamptz(3)
 
-  firma      Firma        @relation(fields: [firmaId], references: [id])
-  cjenik     Cjenik?      @relation(fields: [firmaId, cjenikId], references: [firmaId, id])
-  poslovnice Poslovnica[]
-  uredaji    Uredaj[]
-  primke     Primka[]
+  firma              Firma               @relation(fields: [firmaId], references: [id])
+  cjenik             Cjenik?             @relation(fields: [firmaId, cjenikId], references: [firmaId, id])
+  poslovnice         Poslovnica[]
+  uredaji            Uredaj[]
+  primke             Primka[]
+  skladisniDokumenti SkladisniDokument[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -437,14 +446,16 @@ model Uredaj {
   stvoreno           DateTime       @default(now()) @db.Timestamptz(3)
   azurirano          DateTime       @updatedAt @db.Timestamptz(3)
 
-  firma      Firma            @relation(fields: [firmaId], references: [id])
-  model      ModelUredaja     @relation(fields: [firmaId, modelId], references: [firmaId, id])
-  skladiste  Skladiste?       @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
-  stanjeRobe StanjeRobe?      @relation(fields: [firmaId, stanjeRobeId], references: [firmaId, id])
-  partner    Partner?         @relation(fields: [firmaId, partnerId], references: [firmaId, id])
-  poslovnica Poslovnica?      @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
-  primka     Primka?          @relation(fields: [firmaId, primkaId], references: [firmaId, id])
-  dogadaji   DogadajUredaja[]
+  firma            Firma                       @relation(fields: [firmaId], references: [id])
+  model            ModelUredaja                @relation(fields: [firmaId, modelId], references: [firmaId, id])
+  skladiste        Skladiste?                  @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
+  stanjeRobe       StanjeRobe?                 @relation(fields: [firmaId, stanjeRobeId], references: [firmaId, id])
+  partner          Partner?                    @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  poslovnica       Poslovnica?                 @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
+  primka           Primka?                     @relation(fields: [firmaId, primkaId], references: [firmaId, id])
+  dogadaji         DogadajUredaja[]
+  stavkeDokumenata StavkaSkladisnogDokumenta[]
+  stavkeInventure  StavkaInventure[]
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -561,4 +572,138 @@ model Prilog {
 
   @@unique([firmaId, id])
   @@index([firmaId, entitet, entitetId])
+}
+
+/// Skladišni dokument bez prodaje: međuskladišnica (MSK), izlaz (IZL — otpis, povrat dobavljaču…), povrat na skladište (POV).
+model SkladisniDokument {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  firmaId       String   @db.Uuid
+  /// MEDJUSKLADISNICA, IZLAZ, POVRAT
+  vrsta         String
+  /// MSK-3/2026
+  broj          String
+  godina        Int
+  redni         Int
+  datum         DateTime @db.Date
+  skladisteIzId String?  @db.Uuid
+  skladisteUId  String?  @db.Uuid
+  /// od koga se vraća (najmoprimac) ili kome ide (dobavljač)
+  partnerId     String?  @db.Uuid
+  razlog        String?
+  napomena      String?
+  brojUredaja   Int
+  /// IZDAN, CEKA_ODOBRENJE, ODBIJEN
+  status        String   @default("IZDAN")
+  korisnikId    String?  @db.Uuid
+  korisnik      String   @default("Sustav")
+  stvoreno      DateTime @default(now()) @db.Timestamptz(3)
+  azurirano     DateTime @updatedAt @db.Timestamptz(3)
+
+  firma       Firma                       @relation(fields: [firmaId], references: [id])
+  skladisteIz Skladiste?                  @relation("DokumentIz", fields: [firmaId, skladisteIzId], references: [firmaId, id])
+  skladisteU  Skladiste?                  @relation("DokumentU", fields: [firmaId, skladisteUId], references: [firmaId, id])
+  partner     Partner?                    @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  stavke      StavkaSkladisnogDokumenta[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, vrsta, godina, redni])
+  @@index([firmaId, datum(sort: Desc)])
+  @@index([firmaId, status])
+}
+
+model StavkaSkladisnogDokumenta {
+  id          String @id @default(uuid(7)) @db.Uuid
+  firmaId     String @db.Uuid
+  dokumentId  String @db.Uuid
+  uredajId    String @db.Uuid
+  /// stanje uređaja u trenutku izdavanja (za ispis i povijest)
+  staroStanje String
+
+  firma    Firma             @relation(fields: [firmaId], references: [id])
+  dokument SkladisniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])
+  uredaj   Uredaj            @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+
+  @@unique([dokumentId, uredajId])
+  @@index([firmaId, uredajId])
+}
+
+/// Zahtjev koji mora odobriti DRUGI korisnik (npr. izlaz/otpis uređaja).
+model Odobrenje {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  firmaId   String    @db.Uuid
+  /// vrsta zahtjeva (izlaz…) i zapis na koji se odnosi
+  vrsta     String
+  entitet   String
+  entitetId String    @db.Uuid
+  opis      String
+  /// CEKA, ODOBRENO, ODBIJENO
+  status    String    @default("CEKA")
+  podnioId  String?   @db.Uuid
+  podnio    String
+  odlucioId String?   @db.Uuid
+  odlucio   String?
+  razlog    String?
+  stvoreno  DateTime  @default(now()) @db.Timestamptz(3)
+  odluceno  DateTime? @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, status, stvoreno(sort: Desc)])
+  @@index([firmaId, entitet, entitetId])
+}
+
+/// Inventura jednog skladišta: skenira se što je stvarno na polici, zatvaranjem se uspoređuje s programom.
+model Inventura {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  firmaId     String    @db.Uuid
+  /// INV-2/2026
+  broj        String
+  godina      Int
+  redni       Int
+  datum       DateTime  @db.Date
+  skladisteId String    @db.Uuid
+  /// OTVORENA, ZAKLJUCENA
+  status      String    @default("OTVORENA")
+  napomena    String?
+  /// zbrojevi pri zaključenju
+  ocekivano   Int?
+  pronadjeno  Int?
+  manjak      Int?
+  visak       Int?
+  korisnikId  String?   @db.Uuid
+  korisnik    String    @default("Sustav")
+  stvoreno    DateTime  @default(now()) @db.Timestamptz(3)
+  zakljuceno  DateTime? @db.Timestamptz(3)
+
+  firma     Firma             @relation(fields: [firmaId], references: [id])
+  skladiste Skladiste         @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
+  stavke    StavkaInventure[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, godina, redni])
+  @@index([firmaId, datum(sort: Desc)])
+}
+
+model StavkaInventure {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  firmaId     String   @db.Uuid
+  inventuraId String   @db.Uuid
+  serijski    String
+  /// null = serijski nije u programu
+  uredajId    String?  @db.Uuid
+  /// PRONADJEN, MANJAK (očekivan, nije skeniran), VISAK (skeniran, a nije očekivan ovdje), NEPOZNAT (nije u programu)
+  rezultat    String?
+  /// stanje i skladište u programu pri zaključenju (za izvještaj)
+  stanje      String?
+  skladiste   String?
+  skenirano   Int      @default(1)
+  vrijeme     DateTime @default(now()) @db.Timestamptz(3)
+
+  firma     Firma     @relation(fields: [firmaId], references: [id])
+  inventura Inventura @relation(fields: [firmaId, inventuraId], references: [firmaId, id])
+  uredaj    Uredaj?   @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+
+  @@unique([inventuraId, serijski])
+  @@index([firmaId, uredajId])
 }

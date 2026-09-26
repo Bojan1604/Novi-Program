@@ -38,6 +38,8 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "uredaji.prilogDodaj": ["Administrator", "Voditelj", "Skladištar"],
   "uredaji.prilogObrisi": ["Administrator", "Voditelj", "Skladištar"],
   "skeniranje.provjera": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
+  "skladisni.izdaj": ["Administrator", "Voditelj", "Skladištar"],
+  "odobrenja.odluci": ["Administrator", "Voditelj"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
@@ -52,6 +54,8 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/primke": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/uredaji": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/skeniranje": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
+  "/skladisni": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
+  "/odobrenja": ["Administrator", "Voditelj", "Skladištar"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -89,7 +93,17 @@ describe("posebna prava u akcijama", () => {
 describe("izbornik", () => {
   it("prikazuje samo dopušteno; prva stranica je prva dopuštena", () => {
     const putanje = (uloga: string) => izbornikZa(pravaUloge(uloga), IZBORNIK).map((s) => s.putanja);
-    expect(putanje("Prodavač")).toEqual(["/", "/partneri", "/cjenici", "/uredaji", "/skeniranje", "/primke", "/sifrarnici", "/moj-racun"]);
+    expect(putanje("Prodavač")).toEqual([
+      "/",
+      "/partneri",
+      "/cjenici",
+      "/uredaji",
+      "/skeniranje",
+      "/primke",
+      "/skladisni",
+      "/sifrarnici",
+      "/moj-racun",
+    ]);
     expect(putanje("Administrator")).toEqual([
       "/",
       "/partneri",
@@ -97,6 +111,8 @@ describe("izbornik", () => {
       "/uredaji",
       "/skeniranje",
       "/primke",
+      "/skladisni",
+      "/odobrenja",
       "/sifrarnici",
       "/korisnici",
       "/uloge",

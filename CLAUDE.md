@@ -156,3 +156,7 @@ Na Windowsu sve pokreće `pokreni.bat`.
   sadržaj koda → serijski uvijek kroz `serijskiIzKoda` (`src/domain/skeniranje.ts`). Čitač i OCR poslužuju se iz
   `public/skener` (kopira `scripts/kopiraj-skener.mjs` pri `npm install`) — nikad s CDN-a. Kamera traži HTTPS:
   `HTTPS=1` u `.env` → samopotpisani certifikat (`posluzitelj/https.mjs`); e2e i CI rade s `HTTPS=0`.
+- **Skladišni dokumenti** (međuskladišnica, izlaz, povrat): `izdajDokument` (`src/services/skladisni-dokumenti.ts`) —
+  uređaji na `StavkaSkladisnogDokumenta`, promjena stanja kroz `promijeniStanje` s dokumentom. Izlaz čeka odobrenje.
+- **Odobrenja:** `Odobrenje` + `odluciOZahtjevu` — nitko ne odlučuje o vlastitom zahtjevu, odbijanje traži razlog;
+  nova vrsta zahtjeva = grana u `odluciOZahtjevu` i putanja u `/odobrenja`.

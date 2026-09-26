@@ -20,7 +20,7 @@ const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "
 const vrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Zagreb" });
 
 /** Gdje se otvara dokument iz povijesti (nove vrste dodaju moduli koji ih uvode). */
-const PUTANJE_DOKUMENATA: Record<string, string> = { Primka: "/primke" };
+const PUTANJE_DOKUMENATA: Record<string, string> = { Primka: "/primke", Međuskladišnica: "/skladisni", Izlaz: "/skladisni", Povrat: "/skladisni" };
 
 const BOJE_STANJA: Record<Stanje, "siva" | "zelena" | "crvena" | "plava" | "zuta"> = {
   U_DOLASKU: "plava",

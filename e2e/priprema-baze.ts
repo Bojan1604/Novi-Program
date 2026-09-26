@@ -39,6 +39,11 @@ async function priprema(): Promise<void> {
       // kartica uređaja: po jedan za svaki projekt (ispravak, prilozi i brisanje)
       ["E2E-KARTICA-RACUNALO", "NA_SKLADISTU", "Intel i3"],
       ["E2E-KARTICA-MOBITEL", "NA_SKLADISTU", "Intel i3"],
+      // skladišni dokumenti: po jedan za svaki projekt
+      ["E2E-MSK-RACUNALO", "NA_SKLADISTU", "Intel i3"],
+      ["E2E-MSK-MOBITEL", "NA_SKLADISTU", "Intel i3"],
+      ["E2E-IZL-RACUNALO", "NA_SKLADISTU", "Intel i3"],
+      ["E2E-IZL-MOBITEL", "NA_SKLADISTU", "Intel i3"],
     ] as const) {
       await prisma.uredaj.create({
         data: {
@@ -53,6 +58,7 @@ async function priprema(): Promise<void> {
         },
       });
     }
+    await prisma.skladiste.create({ data: { firmaId: firma.id, naziv: "E2E Split" } });
     await prisma.usluga.create({ data: { firmaId: firma.id, naziv: "E2E Instalacija", jedinica: "h", cijena: "40.00" } });
     await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Distributer d.o.o.", kupac: false, dobavljac: true } });
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);
@@ -60,6 +66,7 @@ async function priprema(): Promise<void> {
       { ime: E2E.admin.ime, email: E2E.admin.email, uloga: "Administrator" },
       { ime: E2E.prodavac.ime, email: E2E.prodavac.email, uloga: "Prodavač" },
       { ime: "Zaključani", email: E2E.zakljucavanje.email, uloga: "Prodavač" },
+      { ime: E2E.voditelj.ime, email: E2E.voditelj.email, uloga: "Voditelj" },
     ]) {
       const korisnik = await prisma.korisnik.create({ data: { ime: k.ime, email: k.email, lozinkaHash } });
       await prisma.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[k.uloga]! } });

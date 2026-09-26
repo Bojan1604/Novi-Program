@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Kvacica, Odabir, Polje, klaseUnosa } from "@/components/ui/polje";
@@ -106,7 +106,7 @@ export function NovaPrimka({
         })),
       }),
     );
-    posalji(fd);
+    startTransition(() => posalji(fd));
   };
 
   const zauzeti = redovi.filter((r) => postojeci.has(r.serijski));
