@@ -64,6 +64,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/odobrenja": ["Administrator", "Voditelj", "Skladištar"],
   "/inventure": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/ponude": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
+  "/racuni": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -103,6 +104,7 @@ describe("izbornik", () => {
     const putanje = (uloga: string) => izbornikZa(pravaUloge(uloga), IZBORNIK).map((s) => s.putanja);
     expect(putanje("Prodavač")).toEqual([
       "/",
+      "/racuni",
       "/ponude",
       "/partneri",
       "/cjenici",
@@ -116,6 +118,7 @@ describe("izbornik", () => {
     ]);
     expect(putanje("Administrator")).toEqual([
       "/",
+      "/racuni",
       "/ponude",
       "/partneri",
       "/cjenici",
@@ -131,7 +134,7 @@ describe("izbornik", () => {
       "/dnevnik",
       "/moj-racun",
     ]);
-    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/ponude");
+    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/racuni");
   });
 
   it("svaka stranica iz popisa je u izborniku", () => {

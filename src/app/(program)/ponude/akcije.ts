@@ -8,7 +8,9 @@ import { normalizirajSerijski } from "@/domain/stanja-uredaja";
 import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
-import { cijenaZaKupca, izdajPonudu, obrisiNacrt, pretvori, spremiNacrt, statusKupca } from "@/services/prodaja";
+import { cijenaZaKupca, izdajPonudu, izdajRacun, obrisiNacrt, pretvori, spremiNacrt, statusKupca } from "@/services/prodaja";
+
+const putanja = (vrsta: string) => (vrsta === "RACUN" ? "/racuni" : "/ponude");
 
 const id = z.string().max(40).nullable().optional();
 const STAVKA = z.object({
@@ -38,6 +40,7 @@ const DOKUMENT = z.object({
   dospijece: z.string().max(10).nullable(),
   popust: z.number().int(),
   napomena: z.string().max(5000).nullable(),
+  nacinPlacanja: z.enum(["T", "G", "K", "O"]).optional(),
   stavke: z.array(STAVKA).max(1000),
 });
 
@@ -54,33 +57,38 @@ export async function spremiDokumentAkcija(_p: Odgovor<{ id: string; verzija: nu
     const { id: dokId, ...ulaz } = p.data;
     const s = await spremiNacrt(db, k, dokId, { ...ulaz, napomena: ulaz.napomena?.trim() || null });
     revalidatePath("/ponude");
-    return { ok: true as const, poruka: "Spremljeno.", podaci: { ...s, novi: !dokId } };
+    revalidatePath("/racuni");
+    return { ok: true as const, poruka: "Spremljeno.", podaci: { ...s, novi: !dokId, vrsta: ulaz.vrsta } };
   });
-  if (r.ok && r.podaci.novi) redirect(`/ponude/${r.podaci.id}`);
+  if (r.ok && r.podaci.novi) redirect(`${putanja(r.podaci.vrsta)}/${r.podaci.id}`);
   return r.ok ? { ok: true as const, poruka: r.poruka, podaci: { id: r.podaci.id, verzija: r.podaci.verzija } } : r;
 }
 
 export async function izdajAkcija(dokId: string) {
   return akcija("prodaja.izdaj", async (k) => {
-    const { broj } = await izdajPonudu(db, k, dokId);
-    revalidatePath(`/ponude/${dokId}`);
-    revalidatePath("/ponude");
+    const dok = jeUuid(dokId) ? await k.db.prodajniDokument.findFirst({ where: { id: dokId, firmaId: k.firmaId }, select: { vrsta: true } }) : null;
+    if (!dok) return { ok: false as const, greska: "Dokument ne postoji." };
+    const { broj } = dok.vrsta === "RACUN" ? await izdajRacun(db, k, dokId) : await izdajPonudu(db, k, dokId);
+    revalidatePath(`${putanja(dok.vrsta)}/${dokId}`);
+    revalidatePath(putanja(dok.vrsta));
+    revalidatePath("/uredaji");
     return { ok: true as const, poruka: `Izdano: ${broj}` };
   });
 }
 
 export async function pretvoriAkcija(dokId: string, u: string) {
   const r = await akcija("prodaja.pretvori", async (k) => ({ ok: true as const, podaci: await pretvori(db, k, dokId, u) }));
-  if (r.ok) redirect(`/ponude/${r.podaci.id}`);
+  if (r.ok) redirect(`${putanja(u)}/${r.podaci.id}`);
   return r;
 }
 
 export async function obrisiNacrtAkcija(dokId: string) {
   const r = await akcija("prodaja.obrisi", async (k) => {
+    const dok = jeUuid(dokId) ? await k.db.prodajniDokument.findFirst({ where: { id: dokId, firmaId: k.firmaId }, select: { vrsta: true } }) : null;
     await obrisiNacrt(db, k, dokId);
-    return { ok: true as const };
+    return { ok: true as const, podaci: { vrsta: dok?.vrsta ?? "PONUDA" } };
   });
-  if (r.ok) redirect("/ponude");
+  if (r.ok) redirect(putanja(r.podaci.vrsta));
   return r;
 }
 

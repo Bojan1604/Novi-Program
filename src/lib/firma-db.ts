@@ -31,6 +31,7 @@ export const MODELI_S_FIRMOM = [
   "StavkaCjenika",
   "Uloga",
   "Uredaj",
+  "UredajNaStavci",
   "Usluga",
 ] as const;
 
@@ -73,6 +74,7 @@ export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
     "stavkeInventure",
     "prodajniDokumenti",
     "stavkeProdaje",
+    "uredajiNaStavkama",
   ],
 };
 

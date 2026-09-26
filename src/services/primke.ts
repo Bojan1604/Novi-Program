@@ -165,12 +165,18 @@ export async function stornirajPrimku(db: PrismaClient, akter: Akter, id: string
         id: true,
         serijski: true,
         stanje: true,
-        _count: { select: { dogadaji: true, stavkeDokumenata: true, stavkeInventure: true } },
+        _count: { select: { dogadaji: true, stavkeDokumenata: true, stavkeInventure: true, stavkeProdaje: true, naStavkama: true } },
       },
     });
     // korišten = pomaknut, na bilo kojem dokumentu (i onom koji čeka odobrenje) ili skeniran u inventuri
     const pomaknuti = uredaji.filter(
-      (u) => u.stanje !== "NA_SKLADISTU" || u._count.dogadaji > 1 || u._count.stavkeDokumenata > 0 || u._count.stavkeInventure > 0,
+      (u) =>
+        u.stanje !== "NA_SKLADISTU" ||
+        u._count.dogadaji > 1 ||
+        u._count.stavkeDokumenata > 0 ||
+        u._count.stavkeInventure > 0 ||
+        u._count.stavkeProdaje > 0 ||
+        u._count.naStavkama > 0,
     );
     if (pomaknuti.length) {
       throw new GreskaKorisniku(

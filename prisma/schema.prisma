@@ -72,6 +72,7 @@ model Firma {
   inventure          Inventura[]
   stavkeInventure    StavkaInventure[]
   stavkeProdaje      StavkaProdajnogDokumenta[]
+  uredajiNaStavkama  UredajNaStavci[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -482,6 +483,7 @@ model Uredaj {
   stavkeDokumenata StavkaSkladisnogDokumenta[]
   stavkeInventure  StavkaInventure[]
   stavkeProdaje    StavkaProdajnogDokumenta[]
+  naStavkama       UredajNaStavci[]
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -739,38 +741,40 @@ model StavkaInventure {
 /// Prodajni dokument: ponuda, predračun, račun (i kasnije storno, odobrenje, predujam).
 /// Nacrt se smije mijenjati; izdani je zaključan i pamti podatke firme i kupca u trenutku izdavanja.
 model ProdajniDokument {
-  id           String    @id @default(uuid(7)) @db.Uuid
-  firmaId      String    @db.Uuid
+  id            String    @id @default(uuid(7)) @db.Uuid
+  firmaId       String    @db.Uuid
   /// PONUDA, PREDRACUN, RACUN…
-  vrsta        String
+  vrsta         String
   /// NACRT, IZDAN, STORNIRAN…
-  status       String    @default("NACRT")
+  status        String    @default("NACRT")
   /// broj tek pri izdavanju (nacrt nema broj)
-  broj         String?
-  godina       Int?
-  redni        Int?
-  datum        DateTime  @db.Date
+  broj          String?
+  godina        Int?
+  redni         Int?
+  datum         DateTime  @db.Date
   /// ponuda: vrijedi do; predračun/račun: dospijeće
-  vrijediDo    DateTime? @db.Date
-  dospijece    DateTime? @db.Date
-  partnerId    String?   @db.Uuid
-  poslovnicaId String?   @db.Uuid
+  vrijediDo     DateTime? @db.Date
+  dospijece     DateTime? @db.Date
+  partnerId     String?   @db.Uuid
+  poslovnicaId  String?   @db.Uuid
   /// popust na cijeli dokument, stotinke postotka
-  popust       Int       @default(0)
-  napomena     String?
-  osnovica     Decimal   @default(0) @db.Decimal(14, 2)
-  pdv          Decimal   @default(0) @db.Decimal(14, 2)
-  ukupno       Decimal   @default(0) @db.Decimal(14, 2)
+  popust        Int       @default(0)
+  napomena      String?
+  /// T transakcijski, G gotovina, K kartica, O ostalo (fiskalizacija)
+  nacinPlacanja String    @default("T")
+  osnovica      Decimal   @default(0) @db.Decimal(14, 2)
+  pdv           Decimal   @default(0) @db.Decimal(14, 2)
+  ukupno        Decimal   @default(0) @db.Decimal(14, 2)
   /// podaci firme, kupca i tekstovi u trenutku izdavanja (izdani dokument se ne mijenja kad se promijene postavke)
-  snimka       Json?
+  snimka        Json?
   /// dokument iz kojeg je nastao (ponuda → predračun → račun)
-  izvorId      String?   @db.Uuid
-  verzija      Int       @default(0)
-  korisnikId   String?   @db.Uuid
-  korisnik     String    @default("Sustav")
-  izdano       DateTime? @db.Timestamptz(3)
-  stvoreno     DateTime  @default(now()) @db.Timestamptz(3)
-  azurirano    DateTime  @updatedAt @db.Timestamptz(3)
+  izvorId       String?   @db.Uuid
+  verzija       Int       @default(0)
+  korisnikId    String?   @db.Uuid
+  korisnik      String    @default("Sustav")
+  izdano        DateTime? @db.Timestamptz(3)
+  stvoreno      DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano     DateTime  @updatedAt @db.Timestamptz(3)
 
   firma      Firma                      @relation(fields: [firmaId], references: [id])
   partner    Partner?                   @relation(fields: [firmaId, partnerId], references: [firmaId, id])
@@ -819,6 +823,24 @@ model StavkaProdajnogDokumenta {
   model    ModelUredaja?    @relation(fields: [firmaId, modelId], references: [firmaId, id])
   usluga   Usluga?          @relation(fields: [firmaId, uslugaId], references: [firmaId, id])
 
+  uredaji UredajNaStavci[]
+
+  @@unique([firmaId, id])
   @@index([dokumentId, redoslijed])
+  @@index([firmaId, uredajId])
+}
+
+/// Uređaji na grupiranoj stavci računa („isti model = jedna stavka s količinom“).
+model UredajNaStavci {
+  id       String @id @default(uuid(7)) @db.Uuid
+  firmaId  String @db.Uuid
+  stavkaId String @db.Uuid
+  uredajId String @db.Uuid
+
+  firma  Firma                    @relation(fields: [firmaId], references: [id])
+  stavka StavkaProdajnogDokumenta @relation(fields: [firmaId, stavkaId], references: [firmaId, id])
+  uredaj Uredaj                   @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+
+  @@unique([stavkaId, uredajId])
   @@index([firmaId, uredajId])
 }

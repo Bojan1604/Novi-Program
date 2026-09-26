@@ -9,6 +9,7 @@ import { demoFirmeIKorisnici } from "./firme";
 import { demoPartneri } from "./partneri";
 import { demoUredaji } from "./uredaji";
 import { demoSifrarnici } from "./sifrarnici";
+import { demoProdaja } from "./prodaja";
 import { demoSkladiste } from "./skladiste";
 
 export type Kolicine = {
@@ -42,6 +43,7 @@ export const KORACI: Korak[] = [
   { naziv: "Partneri", izvedi: demoPartneri },
   { naziv: "Uređaji i primke", izvedi: demoUredaji },
   { naziv: "Skladišni dokumenti i inventure", izvedi: demoSkladiste },
+  { naziv: "Prodaja", izvedi: demoProdaja },
 ];
 
 export async function napuniDemo(

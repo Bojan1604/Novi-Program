@@ -4,6 +4,7 @@ import { jeUuid } from "@/domain/id";
 import { dopustenaPolja, mozeSeObrisati, promijenjenaPolja, type PoljeIspravka, type VezeUredaja } from "@/domain/kartica-uredaja";
 import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
 import { imaPosebno } from "@/domain/prava";
+import { VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
 import { VRSTE_DOKUMENATA, type VrstaDokumenta } from "@/domain/skladisni-dokumenti";
 import { prijelaz, provjeriSerijski, type Stanje, type VrstaRadnje } from "@/domain/stanja-uredaja";
 import { GreskaKorisniku } from "@/lib/greske";
@@ -207,7 +208,7 @@ export async function stvoriUredaje(
 
 /** Veze uređaja s dokumentima (za pravila ispravka i brisanja) — iz primke i povijesti. */
 export async function vezeUredaja(tx: Tx, firmaId: string, uredajId: string, primkaId: string | null): Promise<VezeUredaja> {
-  const [primka, dokumenti, stavke, inventure] = await Promise.all([
+  const [primka, dokumenti, stavke, inventure, prodaja] = await Promise.all([
     primkaId ? tx.primka.findFirst({ where: { id: primkaId, firmaId }, select: { broj: true } }) : null,
     tx.dogadajUredaja.findMany({
       where: { firmaId, uredajId, dokumentVrsta: { not: null } },
@@ -218,6 +219,11 @@ export async function vezeUredaja(tx: Tx, firmaId: string, uredajId: string, pri
     // i dokumenti koji još čekaju odobrenje ili su odbijeni (nemaju događaj u povijesti)
     tx.stavkaSkladisnogDokumenta.findMany({ where: { firmaId, uredajId }, select: { dokument: { select: { vrsta: true, broj: true } } }, take: 100 }),
     tx.stavkaInventure.findMany({ where: { firmaId, uredajId }, select: { inventura: { select: { broj: true } } }, take: 100 }),
+    tx.prodajniDokument.findMany({
+      where: { firmaId, OR: [{ stavke: { some: { uredajId } } }, { stavke: { some: { uredaji: { some: { uredajId } } } } }] },
+      select: { vrsta: true, broj: true },
+      take: 100,
+    }),
   ]);
   return {
     primka: primka?.broj ?? null,
@@ -225,6 +231,7 @@ export async function vezeUredaja(tx: Tx, firmaId: string, uredajId: string, pri
       ...dokumenti.map((d) => ({ vrsta: d.dokumentVrsta!, broj: d.dokumentBroj })),
       ...stavke.map((x) => ({ vrsta: VRSTE_DOKUMENATA[x.dokument.vrsta as VrstaDokumenta]?.naziv ?? x.dokument.vrsta, broj: x.dokument.broj })),
       ...inventure.map((x) => ({ vrsta: "Inventura", broj: x.inventura.broj })),
+      ...prodaja.map((x) => ({ vrsta: VRSTE_PRODAJE[x.vrsta as VrstaProdaje]?.naziv ?? x.vrsta, broj: x.broj })),
     ],
   };
 }

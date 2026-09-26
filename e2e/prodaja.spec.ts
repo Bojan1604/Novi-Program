@@ -54,3 +54,31 @@ test("ponuda: kupac, model i usluga, zbrojevi uživo, izdavanje, predračun i ra
   await expect(page.getByRole("heading", { name: /Predračun PRED-/ })).toBeVisible();
   await expect(page.getByText(/iz: Ponuda PON-/)).toBeVisible();
 });
+
+test("račun: skenirani uređaj, izdavanje s brojem, uređaj prodan, izdani se ne mijenja", async ({ page }) => {
+  const serijski = `E2E-PRODAJA-${test.info().project.name.toUpperCase()}`;
+  await prijaviSe(page);
+  await page.goto("/racuni");
+  await page.getByRole("link", { name: "Novi račun" }).click();
+  await expect(page.getByRole("heading", { name: "Novi račun" })).toBeVisible();
+  await page.getByRole("combobox", { name: "Kupac" }).fill("E2E Kupac");
+  await page.getByRole("option", { name: /E2E Kupac d\.o\.o\./ }).click();
+  const polje = page.getByLabel("Serijski broj uređaja");
+  await polje.fill(serijski.toLowerCase());
+  await polje.press("Enter");
+  await expect(page.getByLabel("Naziv stavke 1")).toHaveValue("E2E Proizvođač E2E Laptop 14");
+  await expect(page.getByTestId("zbrojevi")).toContainText("1.250,00 €");
+  await page.getByLabel("Način plaćanja").selectOption("G");
+  await page.getByRole("button", { name: "Spremi nacrt" }).click();
+  await expect(page).toHaveURL(/\/racuni\/[0-9a-f-]{36}$/);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Izdaj račun" }).click();
+  await expect(page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ })).toBeVisible();
+  await expect(page.getByTestId("stavke-dokumenta")).toContainText(`S/N: ${serijski}`);
+  await expect(page.getByRole("button", { name: "Spremi nacrt" })).toHaveCount(0);
+
+  await page.goto(`/uredaji/sn/${serijski}`);
+  await expect(page.getByText("Prodan").first()).toBeVisible();
+  await expect(page.getByTestId("povijest")).toContainText(/Račun \d+\/PP1\/1/);
+  await bezVodoravnogPomicanja(page);
+});

@@ -3,13 +3,24 @@ import { danas, datum as uDatum, dodajDane, jeDatum, usporedi } from "@/domain/d
 import { jeUuid } from "@/domain/id";
 import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
 import { pdvStatus, type PdvStatus } from "@/domain/partner";
-import { izracunajDokument, jeVrstaProdaje, PRETVORBE, provjeriStavku, VRSTE_PRODAJE, type UlaznaStavka, type VrstaProdaje } from "@/domain/prodaja";
+import {
+  izracunajDokument,
+  jeVrstaProdaje,
+  PRETVORBE,
+  provjeriStavku,
+  provjeriZaIzdavanje,
+  VRSTE_PRODAJE,
+  type UlaznaStavka,
+  type VrstaProdaje,
+} from "@/domain/prodaja";
 import { oznakaDokumenta } from "@/domain/zaprimanje";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
-import { sljedeciBroj } from "./brojac";
+import { brojRacuna, vrstaBrojacaRacuna } from "@/domain/numeracija";
+import { sljedeciBroj, sljedeciBrojSDatumom } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
+import { promijeniStanje } from "./uredaji";
 
 type Tx = Prisma.TransactionClient;
 
@@ -28,6 +39,8 @@ export type UlazDokumenta = {
   dospijece: string | null;
   popust: number;
   napomena: string | null;
+  /** T, G, K, O (samo račun) */
+  nacinPlacanja?: string;
   stavke: UlaznaStavka[];
 };
 
@@ -117,6 +130,7 @@ export async function spremiNacrt(db: PrismaClient, akter: Akter, id: string | n
       dospijece: ulaz.dospijece ? d(ulaz.dospijece) : null,
       popust: ulaz.popust,
       napomena: ulaz.napomena,
+      nacinPlacanja: ["T", "G", "K", "O"].includes(ulaz.nacinPlacanja ?? "T") ? (ulaz.nacinPlacanja ?? "T") : "T",
       osnovica: centiUDecimal(r.zbrojevi.osnovica),
       pdv: centiUDecimal(r.zbrojevi.pdv),
       ukupno: centiUDecimal(r.zbrojevi.ukupno),
@@ -389,3 +403,125 @@ export async function obrisiNacrt(db: PrismaClient, akter: Akter, id: string): P
 
 /** Cijene stavki za kupca (pri promjeni kupca na nacrtu): cjenik → popust cjenika → preporučena. */
 export { cijenaZaKupca } from "./partneri";
+
+export const NACINI_PLACANJA: Record<string, string> = { T: "Transakcijski račun", G: "Gotovina", K: "Kartica", O: "Ostalo" };
+
+/**
+ * Izdavanje računa: broj redni/prostor/uređaj (bez rupa, datumi po pravilima), KPD na svakoj stavci,
+ * uređaji istog modela spojeni u jednu stavku, prodani uređaji prelaze u „Prodan“ kroz jedino pravilo prijelaza,
+ * snimka postavki firme — kasnija promjena postavki ne mijenja izdani račun.
+ */
+export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sada = new Date()): Promise<{ broj: string }> {
+  if (!jeUuid(id)) throw new GreskaKorisniku("Račun ne postoji.");
+  return db.$transaction(
+    async (tx) => {
+      const f = akter.firmaId;
+      await tx.$queryRaw`SELECT id FROM "ProdajniDokument" WHERE id = ${id}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
+      const dok = await tx.prodajniDokument.findFirst({
+        where: { id, firmaId: f },
+        include: {
+          partner: { select: { drzava: true, pdvBroj: true, pdvStatus: true, aktivan: true } },
+          stavke: { orderBy: { redoslijed: "asc" }, include: { uredaj: { select: { serijski: true } } } },
+        },
+      });
+      if (!dok) throw new GreskaKorisniku("Račun ne postoji.");
+      if (dok.vrsta !== "RACUN") throw new GreskaKorisniku("Ovo nije račun.");
+      if (dok.status !== "NACRT") throw new GreskaKorisniku("Račun je već izdan.");
+      if (dok.stavke.length === 0) throw new GreskaKorisniku("Dodajte barem jednu stavku.");
+      const prodaniUredaji = dok.stavke.filter((s) => s.uredajId && s.namjena === "PRODAJA").map((s) => s.uredajId!);
+      if (prodaniUredaji.length && !dok.partnerId) throw new GreskaKorisniku("Za prodaju uređaja odaberite kupca.");
+
+      const firma = await postavkeFirme(tx, f);
+      const r = izracunajDokument(
+        dok.stavke.map((s) => ({ ...uUlaznu(s), serijskiBroj: s.uredaj?.serijski ?? null })),
+        { firmaUSustavuPdv: firma.uSustavuPdv, pdvPoNaplacenoj: firma.pdvPoNaplacenoj, statusKupca: statusKupca(dok.partner), popust: dok.popust },
+      );
+      const kpd = provjeriZaIzdavanje(r.grupirane);
+      if (kpd) throw new GreskaKorisniku(kpd);
+
+      const datum = datumIzBaze(dok.datum);
+      const redni = await sljedeciBrojSDatumom(tx, f, vrstaBrojacaRacuna("racun", firma.oznakaProstora, firma.oznakaUredaja), {
+        datum,
+        dospijece: dok.dospijece ? datumIzBaze(dok.dospijece) : null,
+        danas: danas(sada),
+      });
+      const broj = brojRacuna(redni, firma.oznakaProstora, firma.oznakaUredaja);
+
+      if (prodaniUredaji.length) {
+        await promijeniStanje(tx, { firmaId: f, korisnikId: akter.korisnikId }, prodaniUredaji, "prodaja", {
+          partnerId: dok.partnerId,
+          poslovnicaId: dok.poslovnicaId,
+          dokument: { vrsta: "Račun", id, broj },
+        });
+      }
+
+      // stavke kakve će biti na računu (grupirane) + veza uređaja na stavku
+      await tx.stavkaProdajnogDokumenta.deleteMany({ where: { firmaId: f, dokumentId: id } });
+      for (const [i, s] of r.grupirane.entries()) {
+        const nova = await tx.stavkaProdajnogDokumenta.create({
+          data: {
+            firmaId: f,
+            dokumentId: id,
+            redoslijed: i,
+            vrsta: s.vrsta,
+            namjena: s.namjena,
+            uredajId: s.uredajIds.length === 1 ? s.uredajIds[0]! : null,
+            modelId: s.modelId ?? null,
+            uslugaId: s.uslugaId ?? null,
+            naziv: s.naziv,
+            opis: s.opis ?? null,
+            kpd: s.kpd ?? null,
+            jedinica: s.jedinica,
+            kolicina: s.kolicina,
+            cijena: centiUDecimal(s.cijena),
+            popust: s.popust,
+            vrstaIsporuke: s.vrstaIsporuke,
+            stopa: s.kategorija.stopa,
+            kategorija: s.kategorija.kod,
+            iznos: centiUDecimal(s.iznos),
+          },
+          select: { id: true },
+        });
+        if (s.uredajIds.length)
+          await tx.uredajNaStavci.createMany({ data: s.uredajIds.map((uredajId) => ({ firmaId: f, stavkaId: nova.id, uredajId })) });
+      }
+      const snimka = {
+        ...(await snimkaDokumenta(tx, f, dok.partnerId, dok.poslovnicaId, r.napomene)),
+        racun: {
+          oznakaProstora: firma.oznakaProstora,
+          oznakaUredaja: firma.oznakaUredaja,
+          nacinPlacanja: dok.nacinPlacanja,
+          pdvPoNaplacenoj: firma.pdvPoNaplacenoj,
+          operater: (await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "",
+          poKategoriji: r.zbrojevi.poKategoriji,
+        },
+      };
+      await tx.prodajniDokument.update({
+        where: { id },
+        data: {
+          status: "IZDAN",
+          broj,
+          godina: Number(datum.slice(0, 4)),
+          redni,
+          izdano: sada,
+          snimka,
+          osnovica: centiUDecimal(r.zbrojevi.osnovica),
+          pdv: centiUDecimal(r.zbrojevi.pdv),
+          ukupno: centiUDecimal(r.zbrojevi.ukupno),
+          verzija: { increment: 1 },
+        },
+      });
+      await zapisiDnevnik(tx, {
+        firmaId: f,
+        korisnikId: akter.korisnikId,
+        ip: akter.ip,
+        radnja: "prodaja.izdajRacun",
+        entitet: "ProdajniDokument",
+        entitetId: id,
+        opis: `Izdan račun ${broj} (${(r.zbrojevi.ukupno / 100).toFixed(2)} €, uređaja: ${prodaniUredaji.length})`,
+      });
+      return { broj };
+    },
+    { timeout: 60_000 },
+  );
+}

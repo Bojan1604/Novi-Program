@@ -3,6 +3,7 @@ import { dodajDane, jeDatum } from "@/domain/datum";
 import { maskiraj, procitajPromjene } from "@/domain/dnevnik";
 import { jeUuid } from "@/domain/id";
 import { dopustenaPolja, mozeSeObrisati } from "@/domain/kartica-uredaja";
+import { VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
 import { VRSTE_DOKUMENATA, type VrstaDokumenta } from "@/domain/skladisni-dokumenti";
 import { centiIzDecimala } from "@/domain/novac";
 import type { Sortiranje } from "@/domain/popis";
@@ -185,13 +186,18 @@ export async function karticaUredaja(db: DbFirme, firmaId: string, id: string, v
   const nazivSkladista = new Map(skladista.map((x) => [x.id, x.naziv]));
   const nazivPartnera = new Map(partneri.map((x) => [x.id, x.naziv]));
 
-  const [stavkeDok, stavkeInv] = await Promise.all([
+  const [stavkeDok, stavkeInv, prodaja] = await Promise.all([
     db.stavkaSkladisnogDokumenta.findMany({
       where: { firmaId, uredajId: id },
       select: { dokument: { select: { vrsta: true, broj: true } } },
       take: 100,
     }),
     db.stavkaInventure.findMany({ where: { firmaId, uredajId: id }, select: { inventura: { select: { broj: true } } }, take: 100 }),
+    db.prodajniDokument.findMany({
+      where: { firmaId, OR: [{ stavke: { some: { uredajId: id } } }, { stavke: { some: { uredaji: { some: { uredajId: id } } } } }] },
+      select: { vrsta: true, broj: true },
+      take: 100,
+    }),
   ]);
   const veze = {
     primka: u.primka?.broj ?? null,
@@ -199,6 +205,7 @@ export async function karticaUredaja(db: DbFirme, firmaId: string, id: string, v
       ...dogadaji.filter((d) => d.dokumentVrsta).map((d) => ({ vrsta: d.dokumentVrsta!, broj: d.dokumentBroj })),
       ...stavkeDok.map((x) => ({ vrsta: VRSTE_DOKUMENATA[x.dokument.vrsta as VrstaDokumenta]?.naziv ?? x.dokument.vrsta, broj: x.dokument.broj })),
       ...stavkeInv.map((x) => ({ vrsta: "Inventura", broj: x.inventura.broj })),
+      ...prodaja.map((x) => ({ vrsta: VRSTE_PRODAJE[x.vrsta as VrstaProdaje]?.naziv ?? x.vrsta, broj: x.broj })),
     ],
   };
   const { polja, zakljucano } = dopustenaPolja(veze, vidiNabavne);

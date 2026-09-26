@@ -84,3 +84,36 @@ describe("količina", () => {
     expect(formatirajKolicinu(-1000)).toBe("-1");
   });
 });
+
+describe("isti model = jedna stavka", () => {
+  it("uređaji istog modela i cijene spojeni s količinom i serijskim brojevima; različita cijena ostaje zasebno", async () => {
+    const { grupirajUredaje, izracunajDokument } = await import("./prodaja");
+    const u = (id: string, sn: string, cijena = 100000) => st({ vrsta: "UREDAJ", uredajId: id, serijskiBroj: sn, cijena, kpd: "26.20.11" } as never);
+    const g = grupirajUredaje([
+      u("a", "SN2"),
+      st({ vrsta: "USLUGA", uslugaId: "x", naziv: "Dostava", cijena: 1000 }),
+      u("b", "SN1"),
+      u("c", "SN3", 90000),
+    ]);
+    expect(g.map((x) => [x.naziv, x.kolicina, x.uredajIds, x.opis ?? null])).toEqual([
+      ["Laptop", 2000, ["a", "b"], "S/N: SN1, SN2"],
+      ["Dostava", 1000, [], null],
+      ["Laptop", 1000, ["c"], "S/N: SN3"],
+    ]);
+    // zbroj na grupiranim: 3 × 333,33 = 999,99 kao jedna stavka
+    const r = izracunajDokument([u("a", "A", 33333), u("b", "B", 33333), u("c", "C", 33333)], domaci);
+    expect(r.grupirane).toHaveLength(1);
+    expect(r.zbrojevi.osnovica).toBe(99999);
+    expect(r.stavke.map((s) => s.iznos)).toEqual([33333, 33333, 33333]);
+  });
+  it("KPD obavezan za izdavanje", async () => {
+    const { provjeriZaIzdavanje } = await import("./prodaja");
+    expect(provjeriZaIzdavanje([{ naziv: "A", kpd: "26.20.11" }])).toBeNull();
+    expect(
+      provjeriZaIzdavanje([
+        { naziv: "A", kpd: "26.20.11" },
+        { naziv: "Dostava", kpd: null },
+      ]),
+    ).toContain("2. Dostava");
+  });
+});

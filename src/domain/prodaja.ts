@@ -78,31 +78,82 @@ export type IzracunatDokument = {
   napomene: string[];
 };
 
-/** Kategorije PDV-a po stavci i zbrojevi — isti izračun u pregledniku (uživo) i na poslužitelju (spremanje). */
+export type GrupiranaStavka = UlaznaStavka & { uredajIds: string[]; serijski: string[] };
+
+/**
+ * „Isti model = jedna stavka s količinom“: uređaji istog modela, naziva, namjene, cijene, popusta, stope i KPD-a
+ * spajaju se u jednu stavku (količina = broj uređaja, opis = serijski brojevi). Ostale stavke ostaju kakve jesu.
+ * `serijski` (po uređaju, isti redoslijed kao ulaz) služi samo za opis.
+ */
+export function grupirajUredaje(stavke: readonly (UlaznaStavka & { serijskiBroj?: string | null })[]): GrupiranaStavka[] {
+  const r: GrupiranaStavka[] = [];
+  const grupe = new Map<string, GrupiranaStavka>();
+  for (const s of stavke) {
+    if (s.vrsta !== "UREDAJ" || !s.uredajId) {
+      const { serijskiBroj: _s, ...ostalo } = s;
+      r.push({ ...ostalo, uredajIds: [], serijski: [] });
+      continue;
+    }
+    const kljuc = [s.modelId, s.naziv, s.namjena, s.cijena, s.popust, s.stopa, s.kpd ?? "", Math.sign(s.kolicina)].join("|");
+    const g = grupe.get(kljuc);
+    if (g) {
+      g.kolicina += s.kolicina;
+      g.uredajIds.push(s.uredajId);
+      if (s.serijskiBroj) g.serijski.push(s.serijskiBroj);
+      continue;
+    }
+    const { serijskiBroj, ...ostalo } = s;
+    const nova: GrupiranaStavka = { ...ostalo, uredajId: null, uredajIds: [s.uredajId], serijski: serijskiBroj ? [serijskiBroj] : [] };
+    grupe.set(kljuc, nova);
+    r.push(nova);
+  }
+  for (const g of r) if (g.serijski.length) g.opis = `S/N: ${[...g.serijski].sort().join(", ")}`;
+  return r;
+}
+
+/**
+ * Kategorije PDV-a i zbrojevi — isti izračun u pregledniku (uživo) i na poslužitelju.
+ * Zbrojevi se računaju na GRUPIRANIM stavkama (kako će biti na izdanom računu); `stavke` nose iznos
+ * svake upisane stavke za prikaz u uređivaču.
+ */
 export function izracunajDokument(
-  stavke: readonly UlaznaStavka[],
+  stavke: readonly (UlaznaStavka & { serijskiBroj?: string | null })[],
   p: { firmaUSustavuPdv: boolean; pdvPoNaplacenoj: boolean; statusKupca: PdvStatus; popust: number },
-): IzracunatDokument {
-  const pripremljene = stavke.map((s) => {
+): IzracunatDokument & { grupirane: (GrupiranaStavka & { vrstaIsporuke: VrstaIsporuke; kategorija: KategorijaPdv; iznos: number })[] } {
+  const pripremi = <T extends UlaznaStavka>(s: T) => {
     const v = vrstaIsporuke(s);
     return {
       ...s,
       vrstaIsporuke: v,
       kategorija: kategorijaPdv({ firmaUSustavuPdv: p.firmaUSustavuPdv, statusKupca: p.statusKupca, vrsta: v, stopa: s.stopa }),
     };
-  });
-  const zbrojevi = izracunaj(
-    pripremljene.map((s) => ({ kolicina: s.kolicina, cijena: s.cijena, popust: s.popust, kategorija: s.kategorija })),
-    p.popust,
-  );
+  };
+  const zaZbroj = <T extends ReturnType<typeof pripremi>>(l: T[]) =>
+    izracunaj(
+      l.map((s) => ({ kolicina: s.kolicina, cijena: s.cijena, popust: s.popust, kategorija: s.kategorija })),
+      p.popust,
+    );
+  const pojedinacne = stavke.map(pripremi);
+  const grupirane = grupirajUredaje(stavke).map(pripremi);
+  const poStavci = zaZbroj(pojedinacne);
+  const zbrojevi = zaZbroj(grupirane);
   return {
-    stavke: pripremljene.map((s, i) => ({ ...s, iznos: zbrojevi.stavke[i]!.iznos })),
+    stavke: pojedinacne.map((s, i) => ({ ...s, iznos: poStavci.stavke[i]!.iznos })),
+    grupirane: grupirane.map((s, i) => ({ ...s, iznos: zbrojevi.stavke[i]!.iznos })),
     zbrojevi,
     napomene: napomenePdv(
-      pripremljene.map((s) => s.kategorija),
+      pojedinacne.map((s) => s.kategorija),
       p.pdvPoNaplacenoj,
     ),
   };
+}
+
+/** Provjera prije izdavanja računa (KPD obavezan na eRačunu za svaku stavku). */
+export function provjeriZaIzdavanje(stavke: readonly Pick<UlaznaStavka, "naziv" | "kpd">[]): string | null {
+  const bez = stavke.map((s, i) => (!s.kpd || !/^\d{2}\.\d{2}\.\d{2}$/.test(s.kpd) ? `${i + 1}. ${s.naziv}` : null)).filter(Boolean);
+  if (bez.length)
+    return `Stavke bez ispravne KPD oznake (upišite je na modelu ili usluzi, ili na ručnoj stavci): ${bez.slice(0, 5).join("; ")}${bez.length > 5 ? " …" : ""}.`;
+  return null;
 }
 
 /** Količina iz upisa („2“, „1,5“, „0,333“) → tisućinke; strogo: tekst ili više od 3 decimale = greška. */

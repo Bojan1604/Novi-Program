@@ -61,6 +61,7 @@ export const STRANICE = {
   "/odobrenja": { naziv: "Odobrenja", modul: "uredaji", razina: "operativno" },
   "/inventure": { naziv: "Inventure", modul: "uredaji", razina: "pregled" },
   "/ponude": { naziv: "Ponude i predračuni", modul: "prodaja", razina: "pregled" },
+  "/racuni": { naziv: "Računi", modul: "prodaja", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 
 export type PutanjaStranice = keyof typeof STRANICE;

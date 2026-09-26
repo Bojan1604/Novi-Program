@@ -57,6 +57,7 @@ export type PocetniDokument = {
   dospijece: string | null;
   popust: number;
   napomena: string;
+  nacinPlacanja: string;
   stavke: (Omit<UlaznaStavka, "opis" | "kpd"> & { opis: string | null; kpd: string | null })[];
 };
 
@@ -131,6 +132,8 @@ export function UredjivacDokumenta({
   const [dospijece, setDospijece] = useState(uUpis(pocetno.dospijece));
   const [popust, setPopust] = useState(pocetno.popust ? iznosUpis(pocetno.popust) : "");
   const [napomena, setNapomena] = useState(pocetno.napomena);
+  const [nacinPlacanja, setNacinPlacanja] = useState(pocetno.nacinPlacanja);
+  const jeRacun = pocetno.vrsta === "RACUN";
   const [redovi, setRedovi] = useState<Red[]>(() => pocetno.stavke.map(uRed));
   const [verzija, setVerzija] = useState(pocetno.verzija);
   const [greska, setGreska] = useState<string | null>(null);
@@ -253,6 +256,7 @@ export function UredjivacDokumenta({
         dospijece: jePonuda ? null : datumi["dospijece"],
         popust: popustDok.vrijednost,
         napomena,
+        nacinPlacanja,
         stavke: procitani.map((x) => x.stavka),
       }),
     );
@@ -282,6 +286,14 @@ export function UredjivacDokumenta({
           <Polje oznaka="Dospijeće" value={dospijece} onChange={(e) => setDospijece(e.target.value)} />
         )}
         <Polje oznaka="Popust na dokument (%)" value={popust} onChange={(e) => setPopust(e.target.value)} inputMode="decimal" />
+        {jeRacun && (
+          <Odabir oznaka="Način plaćanja" value={nacinPlacanja} onChange={(e) => setNacinPlacanja(e.target.value)}>
+            <option value="T">Transakcijski račun</option>
+            <option value="G">Gotovina</option>
+            <option value="K">Kartica</option>
+            <option value="O">Ostalo</option>
+          </Odabir>
+        )}
       </div>
       {statusKupca !== "DOMACI" && (
         <Obavijest vrsta="info">
@@ -387,6 +399,17 @@ export function UredjivacDokumenta({
                       onChange={(e) => promijeni(r.kljuc, { opis: e.target.value })}
                       placeholder="Opis"
                       aria-label={`Opis stavke ${i + 1}`}
+                    />
+                  )}
+                  {(r.vrsta === "RUCNA" || !(r.namjena === "NAJAM" ? r.kpdNajam : r.kpdProdaja)) && (
+                    <input
+                      className={`${klaseUnosa} text-xs`}
+                      value={(r.namjena === "NAJAM" ? r.kpdNajam : r.kpdProdaja) ?? ""}
+                      onChange={(e) =>
+                        promijeni(r.kljuc, r.namjena === "NAJAM" ? { kpdNajam: e.target.value || null } : { kpdProdaja: e.target.value || null })
+                      }
+                      placeholder="KPD (npr. 26.20.11) — obavezno na računu"
+                      aria-label={`KPD stavke ${i + 1}`}
                     />
                   )}
                   {r.upozorenje && <span className="text-xs text-amber-700 dark:text-amber-400">{r.upozorenje}</span>}

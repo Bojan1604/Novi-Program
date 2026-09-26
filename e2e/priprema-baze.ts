@@ -44,6 +44,9 @@ async function priprema(): Promise<void> {
       ["E2E-MSK-MOBITEL", "NA_SKLADISTU", "Intel i3"],
       ["E2E-IZL-RACUNALO", "NA_SKLADISTU", "Intel i3"],
       ["E2E-IZL-MOBITEL", "NA_SKLADISTU", "Intel i3"],
+      // prodaja: račun za skenirani uređaj
+      ["E2E-PRODAJA-RACUNALO", "NA_SKLADISTU", "Intel i5"],
+      ["E2E-PRODAJA-MOBITEL", "NA_SKLADISTU", "Intel i5"],
     ] as const) {
       await prisma.uredaj.create({
         data: {
