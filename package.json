@@ -25,6 +25,7 @@
     "db:velika": "tsx scripts/velika-baza.ts",
     "mjerenje": "tsx scripts/mjerenje.ts",
     "snimke": "tsx scripts/snimke.ts",
+    "eposlovanje:provjera": "tsx scripts/eposlovanje-provjera.ts",
     "mdm:agent": "tsx scripts/mdm-agent.ts"
   },
   "dependencies": {
