@@ -9,6 +9,7 @@ import "dotenv/config";
 import { createInterface } from "node:readline";
 import { Writable } from "node:stream";
 import { procitajOib } from "../src/domain/oib";
+import { ZADANO } from "../src/domain/pocetak";
 import { napraviPrismu } from "../src/lib/prisma";
 import { napraviPrvogAdmina } from "../src/services/prijava";
 
@@ -40,9 +41,30 @@ async function vrijednost(env: string, pitanje: string, skrij = false): Promise<
 async function glavno(): Promise<void> {
   if (process.argv.includes("--ako-nema")) {
     const prisma = napraviPrismu();
-    const broj = await prisma.korisnik.count().finally(() => prisma.$disconnect());
-    if (broj > 0) return;
-    console.log("U bazi još nema korisnika — napravimo prvu firmu i administratora.");
+    try {
+      if ((await prisma.korisnik.count()) > 0) return;
+      // bez pitanja: zadana firma i administrator (ili ADMIN_* iz okoline), sve se mijenja u programu
+      const ulaz = {
+        nazivFirme: process.env["ADMIN_FIRMA"] ?? ZADANO.firma,
+        oib: process.env["ADMIN_OIB"] ?? ZADANO.oib,
+        ime: process.env["ADMIN_IME"] ?? ZADANO.ime,
+        email: process.env["ADMIN_EMAIL"] ?? ZADANO.email,
+        lozinka: process.env["ADMIN_LOZINKA"] ?? ZADANO.lozinka,
+      };
+      await napraviPrvogAdmina(prisma, ulaz);
+      console.log("");
+      console.log("  ************************************************************");
+      console.log("  *  Prijava u program:                                      *");
+      console.log(`  *    e-pošta:  ${ulaz.email.padEnd(44)}*`);
+      console.log(`  *    lozinka:  ${(process.env["ADMIN_LOZINKA"] ? "(zadana u ADMIN_LOZINKA)" : ulaz.lozinka).padEnd(44)}*`);
+      console.log("  *  U programu: Postavke firme (naziv, OIB) i Moj račun     *");
+      console.log("  *  (svoja e-pošta i nova lozinka).                         *");
+      console.log("  ************************************************************");
+      console.log("");
+      return;
+    } finally {
+      await prisma.$disconnect();
+    }
   }
   console.log("Prvi administrator ERP-WMS\n");
   const nazivFirme = await vrijednost("ADMIN_FIRMA", "Naziv firme: ");

@@ -14,6 +14,7 @@ const SVI = ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"
  */
 const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "racun.lozinka": SVI,
+  "racun.podaci": SVI,
   "firme.prebaci": SVI,
   "firme.poziv-odgovor": SVI,
   "firme.nova": SVI,

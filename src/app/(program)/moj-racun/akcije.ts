@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import bwipjs from "bwip-js/node";
 import { iskljuciDvaKoraka, noviRezervniKodovi, potvrdiDvaKoraka, zapocniDvaKoraka } from "@/services/dva-koraka";
-import { promijeniVlastituLozinku } from "@/services/korisnici";
+import { promijeniVlastitePodatke, promijeniVlastituLozinku } from "@/services/korisnici";
 
 export async function promijeniLozinkuAkcija(_p: Odgovor | undefined, fd: FormData) {
   return akcija("racun.lozinka", async (k) => {
@@ -14,6 +14,18 @@ export async function promijeniLozinkuAkcija(_p: Odgovor | undefined, fd: FormDa
     if (nova !== String(fd.get("ponovljena") ?? "")) return { ok: false as const, greska: "Nove lozinke se ne podudaraju." };
     await promijeniVlastituLozinku(db, { ...k, sesijaId: k.sesija.sesijaId }, String(fd.get("trenutna") ?? ""), nova);
     return { ok: true as const, poruka: "Lozinka je promijenjena. Ostali uređaji su odjavljeni." };
+  });
+}
+
+export async function mojiPodaciAkcija(_p: Odgovor | undefined, fd: FormData) {
+  return akcija("racun.podaci", async (k) => {
+    await promijeniVlastitePodatke(db, k, {
+      ime: String(fd.get("ime") ?? ""),
+      email: String(fd.get("email") ?? ""),
+      lozinka: String(fd.get("lozinka") ?? ""),
+    });
+    revalidatePath("/", "layout");
+    return { ok: true as const, poruka: "Spremljeno. Ubuduće se prijavljujete novom e-poštom." };
   });
 }
 

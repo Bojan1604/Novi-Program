@@ -14,6 +14,8 @@ export async function spremiPostavkeAkcija(_p: Odgovor | undefined, fd: FormData
   return akcija("postavke.spremi", async (k): Promise<Odgovor> => {
     const broj = (ime: string) => (tekst(fd, ime) ? Number(tekst(fd, ime)) : null);
     const polja = await spremiPostavkeFirme(db, k, {
+      naziv: tekst(fd, "naziv"),
+      oib: tekst(fd, "oib"),
       adresa: ili(fd, "adresa"),
       postanskiBroj: ili(fd, "postanskiBroj"),
       mjesto: ili(fd, "mjesto"),

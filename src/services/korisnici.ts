@@ -338,3 +338,29 @@ export async function promijeniVlastituLozinku(db: PrismaClient, akter: Akter & 
     });
   });
 }
+
+/** Vlastito ime i e-pošta za prijavu (Moj račun) — traži trenutnu lozinku; e-pošta mora biti slobodna. */
+export async function promijeniVlastitePodatke(db: PrismaClient, akter: Akter, u: { ime: string; email: string; lozinka: string }): Promise<void> {
+  const ime = u.ime.trim();
+  const email = normalizirajEmail(u.email);
+  if (!ime || ime.length > 200) throw new GreskaKorisniku("Upišite ime i prezime.");
+  if (!jeEmail(email)) throw new GreskaKorisniku("E-pošta nije ispravna.");
+  const k = await potvrdiLozinku(db, akter.korisnikId, u.lozinka, akter.ip ?? null, "Trenutna lozinka nije ispravna.");
+  await db.$transaction(async (tx) => {
+    await zakljucajKljuc(tx, `korisnik:${email}`);
+    if (email !== k.email && (await tx.korisnik.findUnique({ where: { email }, select: { id: true } })))
+      throw new GreskaKorisniku("Ta e-pošta je već zauzeta.");
+    await tx.korisnik.update({ where: { id: k.id }, data: { ime, email } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "racun.podaci",
+      entitet: "Korisnik",
+      entitetId: k.id,
+      opis: "Promijenjeni vlastiti podaci (Moj račun)",
+      staro: { ime: k.ime, email: k.email },
+      novo: { ime, email },
+    });
+  });
+}

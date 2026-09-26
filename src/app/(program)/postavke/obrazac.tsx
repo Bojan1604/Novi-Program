@@ -21,6 +21,8 @@ export function ObrazacPostavki({ p, smije }: { p: Postavke; smije: boolean }) {
     <Obrazac akcija={posalji} className="flex flex-col gap-4" aria-label="Postavke firme">
       <fieldset disabled={!smije || uTijeku} className="grid min-w-0 gap-3 sm:grid-cols-2">
         {naslov("Podaci na dokumentima")}
+        <Polje oznaka="Naziv firme" name="naziv" required defaultValue={t("naziv")} greska={g("naziv")} />
+        <Polje oznaka="OIB firme" name="oib" required inputMode="numeric" maxLength={11} defaultValue={t("oib")} greska={g("oib")} />
         <Polje oznaka="Adresa" name="adresa" defaultValue={t("adresa")} />
         <div className="grid grid-cols-[7rem_1fr] gap-2">
           <Polje oznaka="Pošt. broj" name="postanskiBroj" defaultValue={t("postanskiBroj")} />

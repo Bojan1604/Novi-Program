@@ -14,6 +14,7 @@ export const AKCIJE = {
   "uloge.spremi": { modul: "korisnici", razina: "puno" },
   "uloge.obrisi": { modul: "korisnici", razina: "puno" },
   "racun.lozinka": { samoPrijava: true },
+  "racun.podaci": { samoPrijava: true },
   "racun.dva-koraka": { samoPrijava: true },
   "firme.prebaci": { samoPrijava: true },
   "firme.poziv-odgovor": { samoPrijava: true },

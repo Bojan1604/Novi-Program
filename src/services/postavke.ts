@@ -1,4 +1,5 @@
 import { procitajKpd } from "@/domain/kpd";
+import { procitajOib } from "@/domain/oib";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { procitajPrimatelje } from "@/domain/eposta";
 import { NACINI_FISKALIZACIJE, type NacinFiskalizacije } from "@/domain/fiskalizacija";
@@ -12,6 +13,9 @@ import { prijevozPoste } from "./eposta";
 import type { Akter } from "./korisnici";
 
 export type UlazPostavki = {
+  /** naziv i OIB firme (prva firma nastaje sa zadanim vrijednostima pa ih administrator upiše ovdje) */
+  naziv?: string;
+  oib?: string;
   adresa: string | null;
   postanskiBroj: string | null;
   mjesto: string | null;
@@ -46,6 +50,18 @@ export type UlazPostavki = {
 export async function spremiPostavkeFirme(db: PrismaClient, akter: Akter, ulaz: UlazPostavki): Promise<Record<string, string>> {
   let u = ulaz;
   const polja: Record<string, string> = {};
+  if (u.naziv !== undefined) {
+    const n = u.naziv.trim();
+    if (!n || n.length > 200) polja["naziv"] = "Upišite naziv firme.";
+    else u = { ...u, naziv: n };
+  }
+  if (u.oib !== undefined) {
+    const o = procitajOib(u.oib);
+    if (!o.ok) polja["oib"] = o.greska;
+    else if (await db.firma.findFirst({ where: { oib: o.vrijednost, id: { not: akter.firmaId } }, select: { id: true } }))
+      polja["oib"] = "Firma s tim OIB-om već postoji.";
+    else u = { ...u, oib: o.vrijednost };
+  }
   if (u.iban && !jeIban(u.iban)) polja["iban"] = "IBAN nije ispravan (kontrolni broj).";
   const op = provjeriOznakuProstora(u.oznakaProstora);
   if (op) polja["oznakaProstora"] = op;

@@ -17,6 +17,14 @@ if errorlevel 1 (
   goto :greska
 )
 
+rem Prisma i Next traze Node.js 22.12+ (ili 24+); stariji pada tek usred npm install s nejasnom porukom
+node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit((a===22&&b>=12)||a>=24?0:1)"
+if errorlevel 1 (
+  for /f "delims=" %%v in ('node -v') do echo Instalirani Node.js je %%v - program treba Node.js 22.12 ili noviji.
+  echo Instalirajte Node.js 22 LTS ^(najnoviji^) s https://nodejs.org, zatvorite ovaj prozor i pokrenite ponovno.
+  goto :greska
+)
+
 where docker >nul 2>nul
 if errorlevel 1 (
   echo Docker nije instaliran. Instalirajte Docker Desktop s https://www.docker.com i pokrenite ponovno.
@@ -99,6 +107,7 @@ if errorlevel 1 (
 
 echo.
 echo [6/6] Pokretanje. Program je na https://localhost:3000  (zaustavljanje: Ctrl+C)
+echo       Prva prijava: admin@firma.hr / Promijeni-me-2026 - zatim u programu upisite svoju e-postu, lozinku i podatke firme.
 echo       S mobitela u istoj mrezi: adrese su ispisane ispod (kamera za skeniranje radi samo preko https).
 echo       Preglednik ce jednom upozoriti na certifikat - odaberite Napredno, pa Nastavi.
 echo       Bez HTTPS-a: u datoteci .env promijenite HTTPS="1" u HTTPS="0".

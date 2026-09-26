@@ -5,6 +5,7 @@ import { Obavijest } from "@/components/ui/obavijest";
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { danas } from "@/domain/datum";
 import { prvaDopustena } from "@/domain/izbornik";
+import { ZADANO } from "@/domain/pocetak";
 import { sljedeciMjesec } from "@/domain/najam";
 import { formatirajIznos } from "@/domain/novac";
 import { imaPravo } from "@/domain/prava";
@@ -30,10 +31,29 @@ export default async function Pocetna() {
   }
   const dan = danas();
   const p = await podaciNadzorne(db, k.firmaId, k.prava, dan);
+  // zadana prva firma i administrator (pokreni.bat): podsjetnik dok se ne upišu pravi podaci
+  const firma = await db.firma.findUniqueOrThrow({ where: { id: k.firmaId }, select: { oib: true } });
+  const podsjetnici = [
+    ...(firma.oib === ZADANO.oib && imaPravo(k.prava, "postavke", "puno")
+      ? [{ kljuc: "firma", tekst: "Upišite naziv i OIB svoje firme (sada su zadani)", veza: "/postavke" }]
+      : []),
+    ...(k.sesija.korisnik.email === ZADANO.email
+      ? [{ kljuc: "racun", tekst: "Prijavljeni ste zadanim računom — upišite svoju e-poštu i novu lozinku", veza: "/moj-racun" }]
+      : []),
+  ];
   const mjeseci = Array.from({ length: 12 }, (_, i) => sljedeciMjesec(dan.slice(0, 7), i - 11));
   return (
     <Stranica sirina="7xl">
       <NaslovStranice naslov={`Dobro došli, ${k.sesija.korisnik.ime}`} opis={`${k.sesija.korisnik.email} · ${k.sesija.firma.naziv}`} />
+      {podsjetnici.length > 0 && (
+        <div className="flex flex-col gap-2" data-testid="podsjetnici">
+          {podsjetnici.map((u) => (
+            <Link key={u.kljuc} href={u.veza} className="block">
+              <Obavijest vrsta="upozorenje">{u.tekst} →</Obavijest>
+            </Link>
+          ))}
+        </div>
+      )}
       {p.upozorenja.length > 0 && (
         <div className="flex flex-col gap-2" data-testid="upozorenja">
           {p.upozorenja.map((u) => (

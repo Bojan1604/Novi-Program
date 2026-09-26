@@ -29,9 +29,10 @@ Potrebno: Linux (Ubuntu 24.04 ili Debian 12), 2 CPU, 4 GB RAM, 40 GB diska; za j
    - napravi `.env` sa slučajnom lozinkom baze i ključem za šifriranje tajni (**spremite kopiju `.env` na
      sigurno mjesto** — bez `TAJNI_KLJUC` se ne mogu pročitati SMTP lozinka ni fiskalni certifikat),
    - izgradi i pokrene bazu, program, HTTPS i kopije,
-   - pita podatke prve firme i administratora.
-4. Otvorite `https://<domena>` i prijavite se. Zatim u programu:
-   - **Sustav → Postavke firme**: podaci za dokumente, IBAN, logo, boja, SMTP za e-poštu,
+   - napravi zadanu firmu i administratora (ništa ne pita).
+4. Otvorite `https://<domena>` i prijavite se s **`admin@firma.hr` / `Promijeni-me-2026`**. Zatim u programu:
+   - **Moj račun**: svoje ime, e-pošta (za prijavu) i nova lozinka,
+   - **Sustav → Postavke firme**: naziv i OIB firme, podaci za dokumente, IBAN, logo, boja, SMTP za e-poštu,
    - **Fiskalizacija**: učitajte certifikat (.p12) i prvo odaberite **TEST**, pa tek onda **PRODUKCIJA**,
    - **Sustav → Korisnici**: dodajte korisnike (ili ih pozovite ako već imaju račun u drugoj firmi),
    - **Sustav → Uvoz iz starog programa** ako prenosite podatke (docs/UVOZ.md).
@@ -82,8 +83,9 @@ docker compose -f docker-compose.produkcija.yml logs -f program
 
 1. Instalirajte [Node.js 22 LTS](https://nodejs.org) i [Docker Desktop](https://www.docker.com/products/docker-desktop/), pokrenite Docker Desktop.
 2. Preuzmite program (zip s GitHuba ili `git clone`) i dvaput kliknite **`pokreni.bat`**.
-3. Prvi put napravi `.env` (slučajna lozinka baze i ključ tajni), pita podatke firme i administratora,
-   izgradi i pokrene program na `https://localhost:3000`. S mobitela u istoj mreži: adresa se ispiše u prozoru.
+3. Prvi put napravi `.env` (slučajna lozinka baze i ključ tajni), zadanu firmu i administratora
+   (`admin@firma.hr` / `Promijeni-me-2026`), izgradi i pokrene program na `https://localhost:3000`.
+   U programu upišite naziv i OIB firme (Postavke firme) te svoju e-poštu i lozinku (Moj račun). S mobitela u istoj mreži: adresa se ispiše u prozoru.
 4. Ažuriranje: preuzmite novu verziju u istu mapu (datoteku `.env` ostavite) i ponovno pokrenite `pokreni.bat`.
 5. Kopije: **Sustav → Sigurnosne kopije** — dnevne kopije rade same; povremeno preuzmite kopiju na
    drugo mjesto (USB, oblak).
