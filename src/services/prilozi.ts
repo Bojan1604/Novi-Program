@@ -32,6 +32,12 @@ const VLASNICI: Record<string, (tx: Tx, firmaId: string, id: string) => Promise<
     >`SELECT broj FROM "UgovorNajma" WHERE id = ${id}::uuid AND "firmaId" = ${firmaId}::uuid FOR UPDATE`;
     return r[0] ? `ugovor ${r[0].broj}` : null;
   },
+  ServisniNalog: async (tx, firmaId, id) => {
+    const r = await tx.$queryRaw<
+      { broj: string }[]
+    >`SELECT broj FROM "ServisniNalog" WHERE id = ${id}::uuid AND "firmaId" = ${firmaId}::uuid FOR UPDATE`;
+    return r[0] ? `servisni nalog ${r[0].broj}` : null;
+  },
 };
 
 export type Datoteka = { naziv: string; velicina: number; sadrzaj: Uint8Array };

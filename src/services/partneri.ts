@@ -20,6 +20,9 @@ export const REFERENCE_PARTNERA: { model: string; polje: string; naziv: string }
   { model: "skladisniDokument", polje: "partnerId", naziv: "skladišnih dokumenata" },
   { model: "prodajniDokument", polje: "partnerId", naziv: "prodajnih dokumenata" },
   { model: "ugovorNajma", polje: "partnerId", naziv: "ugovora o najmu" },
+  { model: "narudzbenica", polje: "dobavljacId", naziv: "narudžbenica" },
+  { model: "ulazniRacun", polje: "dobavljacId", naziv: "ulaznih računa" },
+  { model: "servisniNalog", polje: "partnerId", naziv: "servisnih naloga" },
 ];
 
 function zaDnevnik(p: Record<string, unknown>) {

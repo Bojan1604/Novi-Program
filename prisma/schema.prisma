@@ -106,6 +106,8 @@ model Firma {
   ponavljajuciTroskovi PonavljajuciTrosak[]
   ulazniRacuni         UlazniRacun[]
   predajeKnjigovodji   PredajaKnjigovodji[]
+  servisniNalozi       ServisniNalog[]
+  dogadajiServisa      DogadajServisa[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -396,6 +398,7 @@ model Partner {
   narudzbenice       Narudzbenica[]
   ugovoriNajma       UgovorNajma[]
   ulazniRacuni       UlazniRacun[]
+  servisniNalozi     ServisniNalog[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -480,6 +483,8 @@ enum StanjeUredaja {
   U_NAJMU
   NA_SERVISU
   OTPISAN
+  /// zamjenski uređaj kod klijenta dok je njegov na servisu
+  ZAMJENSKI
 }
 
 /// Uređaj (serijski broj) — središnji objekt: prodaja, najam i servis mijenjaju njegovo stanje.
@@ -531,6 +536,8 @@ model Uredaj {
 
   stavkaNarudzbenice StavkaNarudzbenice? @relation(fields: [firmaId, stavkaNarudzbeniceId], references: [firmaId, id])
   naUgovorima        UredajNaUgovoru[]
+  servisniNalozi     ServisniNalog[]     @relation("NalogUredaj")
+  zamjeneNaNalozima  ServisniNalog[]     @relation("NalogZamjena")
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -1056,7 +1063,8 @@ model UgovorNajma {
   partner    Partner     @relation(fields: [firmaId, partnerId], references: [firmaId, id])
   poslovnica Poslovnica? @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
 
-  uredaji UredajNaUgovoru[]
+  uredaji        UredajNaUgovoru[]
+  servisniNalozi ServisniNalog[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, broj])
@@ -1360,4 +1368,73 @@ model PredajaKnjigovodji {
 
   @@unique([firmaId, id])
   @@index([firmaId, mjesec])
+}
+
+/// Servisni nalog (korak 5.1): uređaj na servisu, statusi, zamjenski uređaj, završetak.
+model ServisniNalog {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  firmaId           String        @db.Uuid
+  /// SRV-3/2026
+  broj              String
+  godina            Int
+  redni             Int
+  datum             DateTime      @db.Date
+  uredajId          String        @db.Uuid
+  /// kupac ili najmoprimac (null = naš uređaj sa skladišta)
+  partnerId         String?       @db.Uuid
+  /// ugovor o najmu na kojem je uređaj bio pri prijemu
+  ugovorNajmaId     String?       @db.Uuid
+  stanjePrije       StanjeUredaja
+  /// ZAPRIMLJEN, DIJAGNOZA, CEKA_DIJELOVE, POPRAVAK, GOTOV, VRACEN, OTPISAN, OTKAZAN
+  status            String        @default("ZAPRIMLJEN")
+  opisKvara         String
+  /// interna dijagnoza — nikad na portalu
+  dijagnoza         String?
+  /// napomena klijentu — vidi se na portalu
+  napomenaKlijentu  String?
+  kontakt           String?
+  /// PROGRAM ili PORTAL
+  izvor             String        @default("PROGRAM")
+  zamjenskiUredajId String?       @db.Uuid
+  zamjenaOd         DateTime?     @db.Date
+  zamjenaDo         DateTime?     @db.Date
+  imaoZamjenu       Boolean       @default(false)
+  zatvoren          DateTime?     @db.Date
+  verzija           Int           @default(0)
+  korisnikId        String?       @db.Uuid
+  korisnik          String        @default("Sustav")
+  stvoreno          DateTime      @default(now()) @db.Timestamptz(3)
+  azurirano         DateTime      @updatedAt @db.Timestamptz(3)
+
+  firma     Firma            @relation(fields: [firmaId], references: [id])
+  uredaj    Uredaj           @relation("NalogUredaj", fields: [firmaId, uredajId], references: [firmaId, id])
+  zamjenski Uredaj?          @relation("NalogZamjena", fields: [firmaId, zamjenskiUredajId], references: [firmaId, id])
+  partner   Partner?         @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  ugovor    UgovorNajma?     @relation(fields: [firmaId, ugovorNajmaId], references: [firmaId, id])
+  dogadaji  DogadajServisa[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, godina, redni])
+  @@index([firmaId, status])
+  @@index([firmaId, uredajId])
+  @@index([firmaId, partnerId])
+  @@index([firmaId, datum(sort: Desc)])
+}
+
+/// Tijek servisnog naloga; javni događaji vide se klijentu na portalu.
+model DogadajServisa {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  nalogId    String   @db.Uuid
+  vrijeme    DateTime @default(now()) @db.Timestamptz(3)
+  status     String?
+  opis       String
+  javno      Boolean  @default(true)
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+
+  firma Firma         @relation(fields: [firmaId], references: [id])
+  nalog ServisniNalog @relation(fields: [firmaId, nalogId], references: [firmaId, id], onDelete: Cascade)
+
+  @@index([firmaId, nalogId, vrijeme])
 }

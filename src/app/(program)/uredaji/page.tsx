@@ -29,6 +29,7 @@ const BOJE: Record<Stanje, "siva" | "zelena" | "crvena" | "plava" | "zuta"> = {
   U_NAJMU: "plava",
   NA_SERVISU: "zuta",
   OTPISAN: "crvena",
+  ZAMJENSKI: "plava",
 };
 
 export default async function Uredaji({ searchParams }: PageProps<"/uredaji">) {

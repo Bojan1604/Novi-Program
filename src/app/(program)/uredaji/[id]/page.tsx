@@ -21,7 +21,13 @@ const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "
 const vrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Zagreb" });
 
 /** Gdje se otvara dokument iz povijesti (nove vrste dodaju moduli koji ih uvode). */
-const PUTANJE_DOKUMENATA: Record<string, string> = { Primka: "/primke", Međuskladišnica: "/skladisni", Izlaz: "/skladisni", Povrat: "/skladisni" };
+const PUTANJE_DOKUMENATA: Record<string, string> = {
+  "Servisni nalog": "/servis",
+  Primka: "/primke",
+  Međuskladišnica: "/skladisni",
+  Izlaz: "/skladisni",
+  Povrat: "/skladisni",
+};
 
 const BOJE_STANJA: Record<Stanje, "siva" | "zelena" | "crvena" | "plava" | "zuta"> = {
   U_DOLASKU: "plava",
@@ -31,6 +37,7 @@ const BOJE_STANJA: Record<Stanje, "siva" | "zelena" | "crvena" | "plava" | "zuta
   U_NAJMU: "plava",
   NA_SERVISU: "zuta",
   OTPISAN: "crvena",
+  ZAMJENSKI: "plava",
 };
 
 function Podatak({ naziv, children }: { naziv: string; children: ReactNode }) {
@@ -67,6 +74,9 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
         akcije={
           <>
             <GumbNaljepnice parametri={{ uredaj: u.id }} oznaka="Naljepnica" />
+            {imaPravo(k.prava, "servis", "operativno") && ["NA_SKLADISTU", "REZERVIRAN", "PRODAN", "U_NAJMU"].includes(u.stanje) && (
+              <GumbVeza href={`/servis/novi?serijski=${encodeURIComponent(u.serijski)}`}>Na servis</GumbVeza>
+            )}
             <GumbVeza href="/uredaji">Natrag</GumbVeza>
           </>
         }

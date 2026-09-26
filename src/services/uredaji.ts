@@ -81,21 +81,23 @@ export async function promijeniStanje(
             ? podaci.skladisteId
             : u.skladisteId;
     if (r.naSkladistu === true && !skladisteId) throw new GreskaKorisniku(`Za uređaj ${u.serijski} odaberite skladište.`);
-    const partner = ["prodaja", "najam", "najamKodKlijenta"].includes(radnja)
+    const partner = ["prodaja", "najam", "najamKodKlijenta", "izdavanjeZamjene"].includes(radnja)
       ? { partnerId: podaci.partnerId ?? null, poslovnicaId: podaci.poslovnicaId ?? null }
-      : ["stornoProdaje", "povratIzNajma", "otpis", "zaprimanje"].includes(radnja)
+      : ["stornoProdaje", "povratIzNajma", "otpis", "zaprimanje", "povratZamjene"].includes(radnja)
         ? { partnerId: null, poslovnicaId: null }
         : r.novo === "PRODAN" || r.novo === "U_NAJMU"
           ? { partnerId: u.partnerId, poslovnicaId: u.poslovnicaId }
           : { partnerId: podaci.partnerId !== undefined ? podaci.partnerId : u.partnerId, poslovnicaId: u.poslovnicaId };
-    if ((radnja === "prodaja" || radnja === "najam" || radnja === "najamKodKlijenta") && !partner.partnerId)
-      throw new GreskaKorisniku(`Za ${radnja === "prodaja" ? "prodaju" : "najam"} odaberite kupca.`);
+    if ((radnja === "prodaja" || radnja === "najam" || radnja === "najamKodKlijenta" || radnja === "izdavanjeZamjene") && !partner.partnerId)
+      throw new GreskaKorisniku(
+        `Za ${radnja === "prodaja" ? "prodaju" : radnja === "izdavanjeZamjene" ? "zamjenski uređaj" : "najam"} odaberite kupca.`,
+      );
 
     await tx.uredaj.update({
       where: { id: u.id },
       data: {
         stanje: r.novo,
-        stanjePrijeServisa: radnja === "ulazNaServis" ? u.stanje : radnja === "izlazSaServisa" ? null : undefined,
+        stanjePrijeServisa: radnja === "ulazNaServis" ? u.stanje : radnja === "izlazSaServisa" || radnja === "otpis" ? null : undefined,
         skladisteId,
         ...partner,
         verzija: { increment: 1 },

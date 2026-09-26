@@ -73,6 +73,13 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "troskovi.prilozi": ["Administrator", "Voditelj"],
   "knjigovodja.predaja": ["Administrator", "Voditelj", "Knjigovođa"],
   "dosljednost.popravi": ["Administrator"],
+  "servis.zaprimi": ["Administrator", "Voditelj", "Serviser"],
+  "servis.uredi": ["Administrator", "Voditelj", "Serviser"],
+  "servis.zamjena": ["Administrator", "Voditelj", "Serviser"],
+  "servis.zavrsi": ["Administrator", "Voditelj", "Serviser"],
+  "servis.otpis": ["Administrator", "Voditelj"],
+  "servis.obrisi": ["Administrator", "Voditelj"],
+  "servis.prilozi": ["Administrator", "Voditelj", "Serviser"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
@@ -96,6 +103,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/marze": ["Administrator", "Voditelj", "Knjigovođa"],
   "/najam": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
   "/najam/rate": ["Administrator", "Voditelj", "Prodavač"],
+  "/servis": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/nabava": ["Administrator", "Voditelj", "Skladištar", "Knjigovođa"],
   "/ulazni": ["Administrator", "Voditelj", "Skladištar", "Knjigovođa"],
   "/troskovi": ["Administrator", "Voditelj", "Knjigovođa"],
@@ -146,6 +154,7 @@ describe("izbornik", () => {
       "/eracuni",
       "/najam",
       "/najam/rate",
+      "/servis",
       "/partneri",
       "/cjenici",
       "/uredaji",
@@ -164,6 +173,7 @@ describe("izbornik", () => {
       "/marze",
       "/najam",
       "/najam/rate",
+      "/servis",
       "/nabava",
       "/ulazni",
       "/troskovi",

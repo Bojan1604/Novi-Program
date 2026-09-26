@@ -11,6 +11,7 @@ export const STANJA = {
   U_NAJMU: "U najmu",
   NA_SERVISU: "Na servisu",
   OTPISAN: "Otpisan",
+  ZAMJENSKI: "Zamjenski kod klijenta",
 } as const;
 export type Stanje = keyof typeof STANJA;
 export const POPIS_STANJA = Object.keys(STANJA) as Stanje[];
@@ -42,6 +43,10 @@ export const RADNJE = {
   otpis: { naziv: "otpis", iz: ["NA_SKLADISTU", "NA_SERVISU", "U_DOLASKU", "REZERVIRAN"], u: "OTPISAN", naSkladistu: false },
   ponistenjeOtpisa: { naziv: "poništenje otpisa", iz: ["OTPISAN"], u: "NA_SKLADISTU", naSkladistu: true },
   medjuskladisnica: { naziv: "premještaj u drugo skladište", iz: ["NA_SKLADISTU", "REZERVIRAN"], u: "isto", naSkladistu: true },
+  // servis (5.1): zamjenski uređaj klijentu dok je njegov na servisu; kod otpisa originala iz najma ostaje u najmu
+  izdavanjeZamjene: { naziv: "izdavanje zamjenskog uređaja", iz: ["NA_SKLADISTU"], u: "ZAMJENSKI", naSkladistu: false },
+  povratZamjene: { naziv: "povrat zamjenskog uređaja", iz: ["ZAMJENSKI"], u: "NA_SKLADISTU", naSkladistu: true },
+  zamjenaUNajam: { naziv: "zamjenski uređaj ostaje u najmu", iz: ["ZAMJENSKI"], u: "U_NAJMU", naSkladistu: false },
 } as const satisfies Record<string, Radnja>;
 export type VrstaRadnje = keyof typeof RADNJE;
 export const POPIS_RADNJI = Object.keys(RADNJE) as VrstaRadnje[];

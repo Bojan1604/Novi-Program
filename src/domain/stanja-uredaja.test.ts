@@ -7,23 +7,25 @@ import { POPIS_RADNJI, POPIS_STANJA, prijelaz, provjeriSerijski, type Stanje, ty
  */
 // prettier-ignore
 const MATRICA: Record<VrstaRadnje, Record<Stanje | "novi", Stanje | "—">> = {
-  //                 novi            U_DOLASKU        NA_SKLADISTU     REZERVIRAN       PRODAN           U_NAJMU          NA_SERVISU       OTPISAN
-  najava:           { novi: "U_DOLASKU",    U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
-  zaprimanje:       { novi: "NA_SKLADISTU", U_DOLASKU: "NA_SKLADISTU", NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
-  rezervacija:      { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "REZERVIRAN", REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
-  otkazRezervacije: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "NA_SKLADISTU", PRODAN: "—",          U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
-  prodaja:          { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "PRODAN",     REZERVIRAN: "PRODAN",      PRODAN: "—",           U_NAJMU: "PRODAN",     NA_SERVISU: "—",   OTPISAN: "—" },
-  stornoProdaje:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "NA_SKLADISTU", U_NAJMU: "—",         NA_SERVISU: "—",   OTPISAN: "—" },
-  najam:            { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "U_NAJMU",    REZERVIRAN: "U_NAJMU",     PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
-  povratIzNajma:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "NA_SKLADISTU", NA_SERVISU: "—", OTPISAN: "—" },
-  najamKodKlijenta: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "U_NAJMU",     U_NAJMU: "U_NAJMU",    NA_SERVISU: "—",   OTPISAN: "—" },
-  ulazNaServis:     { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "NA_SERVISU", REZERVIRAN: "NA_SERVISU",  PRODAN: "NA_SERVISU",  U_NAJMU: "NA_SERVISU", NA_SERVISU: "—",   OTPISAN: "—" },
-  izlazSaServisa:   { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "NA_SKLADISTU", OTPISAN: "—" },
-  otpis:            { novi: "—",            U_DOLASKU: "OTPISAN",      NA_SKLADISTU: "OTPISAN",    REZERVIRAN: "OTPISAN",     PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "OTPISAN", OTPISAN: "—" },
-  ponistenjeOtpisa: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "NA_SKLADISTU" },
-  medjuskladisnica: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "NA_SKLADISTU", REZERVIRAN: "REZERVIRAN", PRODAN: "—",          U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
+  //                 novi            U_DOLASKU        NA_SKLADISTU     REZERVIRAN       PRODAN           U_NAJMU          NA_SERVISU       OTPISAN    ZAMJENSKI
+  najava:           { novi: "U_DOLASKU",    U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  zaprimanje:       { novi: "NA_SKLADISTU", U_DOLASKU: "NA_SKLADISTU", NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  rezervacija:      { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "REZERVIRAN", REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  otkazRezervacije: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "NA_SKLADISTU", PRODAN: "—",          U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  prodaja:          { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "PRODAN",     REZERVIRAN: "PRODAN",      PRODAN: "—",           U_NAJMU: "PRODAN",     NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  stornoProdaje:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "NA_SKLADISTU", U_NAJMU: "—",         NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  najam:            { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "U_NAJMU",    REZERVIRAN: "U_NAJMU",     PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  povratIzNajma:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "NA_SKLADISTU", NA_SERVISU: "—", OTPISAN: "—", ZAMJENSKI: "—" },
+  najamKodKlijenta: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "U_NAJMU",     U_NAJMU: "U_NAJMU",    NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  ulazNaServis:     { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "NA_SERVISU", REZERVIRAN: "NA_SERVISU",  PRODAN: "NA_SERVISU",  U_NAJMU: "NA_SERVISU", NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  izlazSaServisa:   { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "NA_SKLADISTU", OTPISAN: "—", ZAMJENSKI: "—" },
+  otpis:            { novi: "—",            U_DOLASKU: "OTPISAN",      NA_SKLADISTU: "OTPISAN",    REZERVIRAN: "OTPISAN",     PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "OTPISAN", OTPISAN: "—", ZAMJENSKI: "—" },
+  ponistenjeOtpisa: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "NA_SKLADISTU", ZAMJENSKI: "—" },
+  medjuskladisnica: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "NA_SKLADISTU", REZERVIRAN: "REZERVIRAN", PRODAN: "—",          U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  izdavanjeZamjene: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "ZAMJENSKI",  REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "—" },
+  povratZamjene:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "NA_SKLADISTU" },
+  zamjenaUNajam:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—", ZAMJENSKI: "U_NAJMU" },
 };
-
 describe("matrica svih prijelaza (svaka radnja × svako stanje)", () => {
   it("matrica pokriva sve radnje i sva stanja", () => {
     expect(Object.keys(MATRICA).sort()).toEqual([...POPIS_RADNJI].sort());

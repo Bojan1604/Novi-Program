@@ -49,6 +49,7 @@ export const NAZIVI_ENTITETA: Record<string, string> = {
   Trosak: "Trošak",
   PonavljajuciTrosak: "Ponavljajući trošak",
   KategorijaTroska: "Kategorija troška",
+  ServisniNalog: "Servisni nalog",
   Inventura: "Inventura",
   ProdajniDokument: "Prodajni dokument",
   Uplata: "Uplata",

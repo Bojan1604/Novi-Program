@@ -19,6 +19,7 @@ export const VRSTE_NALAZA = {
   STANJE_SKLADISTE: "Uređaj na skladištu bez skladišta (ili s kupcem)",
   STANJE_KUPAC: "Prodan ili u najmu bez kupca",
   NAJAM_BEZ_UGOVORA: "U najmu bez aktivnog ugovora",
+  SERVIS_BEZ_NALOGA: "Na servisu (ili zamjenski kod klijenta) bez otvorenog servisnog naloga",
 } as const;
 export type VrstaNalaza = keyof typeof VRSTE_NALAZA;
 
@@ -26,7 +27,7 @@ type Tx = Prisma.TransactionClient;
 
 /** `vidiNabavne`: iznosi primki (nabavne vrijednosti) u opisu samo uz pravo „costs“. */
 export async function provjeriDosljednost(db: PrismaClient | Tx, firmaId: string, opcije: { vidiNabavne?: boolean } = {}): Promise<Nalaz[]> {
-  const [zaprimljeno, primkeV, primkeB, placeno, skladiste, kupac, najam, narudzbe] = await Promise.all([
+  const [zaprimljeno, primkeV, primkeB, placeno, skladiste, kupac, najam, narudzbe, servis] = await Promise.all([
     db.$queryRaw<{ id: string; broj: string; zapisano: number; stvarno: bigint }[]>`
       SELECT s.id::text, n.broj, s.zaprimljeno AS zapisano, COALESCE(c.broj, 0) AS stvarno
       FROM "StavkaNarudzbenice" s
@@ -60,7 +61,7 @@ export async function provjeriDosljednost(db: PrismaClient | Tx, firmaId: string
       take: 1000,
     }),
     db.uredaj.findMany({
-      where: { firmaId, stanje: { in: ["PRODAN", "U_NAJMU"] }, partnerId: null },
+      where: { firmaId, stanje: { in: ["PRODAN", "U_NAJMU", "ZAMJENSKI"] }, partnerId: null },
       select: { id: true, serijski: true },
       take: 1000,
     }),
@@ -73,6 +74,13 @@ export async function provjeriDosljednost(db: PrismaClient | Tx, firmaId: string
       where: { firmaId, status: { notIn: ["ZATVORENA", "STORNIRANA"] } },
       select: { id: true, broj: true, status: true, stavke: { select: { kolicina: true, zaprimljeno: true } } },
     }),
+    db.$queryRaw<{ id: string; serijski: string }[]>`
+      SELECT u.id::text, u.serijski FROM "Uredaj" u
+      WHERE u."firmaId" = ${firmaId}::uuid AND u.stanje IN ('NA_SERVISU', 'ZAMJENSKI')
+        AND NOT EXISTS (SELECT 1 FROM "ServisniNalog" n WHERE n."firmaId" = u."firmaId"
+          AND n.status IN ('ZAPRIMLJEN', 'DIJAGNOZA', 'CEKA_DIJELOVE', 'POPRAVAK', 'GOTOV')
+          AND (n."uredajId" = u.id OR (n."zamjenskiUredajId" = u.id AND n."zamjenaDo" IS NULL)))
+      LIMIT 1000`,
   ]);
   const n: Nalaz[] = [];
   for (const x of zaprimljeno)
@@ -121,6 +129,7 @@ export async function provjeriDosljednost(db: PrismaClient | Tx, firmaId: string
   for (const x of skladiste) n.push({ vrsta: "STANJE_SKLADISTE", id: x.id, opis: x.serijski, popravljivo: false });
   for (const x of kupac) n.push({ vrsta: "STANJE_KUPAC", id: x.id, opis: x.serijski, popravljivo: false });
   for (const x of najam) n.push({ vrsta: "NAJAM_BEZ_UGOVORA", id: x.id, opis: x.serijski, popravljivo: false });
+  for (const x of servis) n.push({ vrsta: "SERVIS_BEZ_NALOGA", id: x.id, opis: x.serijski, popravljivo: false });
   return n;
 }
 
