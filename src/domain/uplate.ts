@@ -38,6 +38,7 @@ export function stanjePlacanja(ukupno: number, uplate: readonly Uplata[]): Stanj
  */
 export function provjeriUplatu(ukupno: number, uplate: readonly Uplata[], iznos: number): string | null {
   if (!Number.isSafeInteger(iznos) || iznos === 0) return "Upišite iznos.";
+  if (iznos > 0 && ukupno <= 0) return "Na ovaj dokument se ne upisuje uplata (storniran račun ili odobrenje) — samo povrat kupcu.";
   const s = stanjePlacanja(ukupno, uplate);
   if (iznos < 0 && -iznos > s.zaPovrat) {
     return s.zaPovrat === 0

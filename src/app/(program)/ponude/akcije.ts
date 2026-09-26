@@ -26,7 +26,7 @@ const putanja = (vrsta: string) => (["RACUN", "STORNO", "ODOBRENJE", "PREDUJAM"]
 
 const id = z.string().max(40).nullable().optional();
 const STAVKA = z.object({
-  vrsta: z.enum(["UREDAJ", "MODEL", "USLUGA", "RUCNA"]),
+  vrsta: z.enum(["UREDAJ", "MODEL", "USLUGA", "RUCNA", "PREDUJAM"]),
   namjena: z.enum(["PRODAJA", "NAJAM"]),
   uredajId: id,
   modelId: id,

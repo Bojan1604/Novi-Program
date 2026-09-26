@@ -11,12 +11,14 @@ import { sFirmom } from "@/lib/firma-db";
 import { GreskaKorisniku } from "@/lib/greske";
 import { pdfDokumenta } from "@/lib/pdf-dokumenta";
 import { podaciZaPdf } from "@/queries/prodaja-pdf";
+import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
 
 type Tx = Prisma.TransactionClient;
 
 export const STATUSI_ERACUNA: Record<StatusERacuna, string> = {
+  SALJE: "Šalje se",
   POSLAN: "Poslan",
   ISPORUCEN: "Isporučen",
   PRIHVACEN: "Prihvaćen",
@@ -75,6 +77,7 @@ export async function podaciZaUbl(db: PrismaClient, firmaId: string, id: string,
       cijena: c(x.cijena),
       popust: x.popust,
       kategorija: { kod: x.kategorija as KodKategorije, stopa: x.stopa },
+      bezPopustaDokumenta: x.vrsta === "PREDUJAM",
     })),
     d.popust,
   );
@@ -164,8 +167,6 @@ export async function posaljiERacun(db: PrismaClient, akter: Akter, id: string, 
   const f = akter.firmaId;
   const r = await podaciZaUbl(db, f, id);
   if (r.kupac.drzava !== "HR" || !r.kupac.oib) throw new GreskaKorisniku("eRačun se šalje hrvatskom kupcu s OIB-om; stranom kupcu pošaljite PDF.");
-  const zadnji = await db.eRacun.findFirst({ where: { firmaId: f, dokumentId: id }, orderBy: { poslano: "desc" } });
-  if (zadnji && !NEUSPJELI.includes(zadnji.status)) throw new GreskaKorisniku("eRačun je već poslan.");
   const xml = ublXml(r);
   const greske = provjeriUbl(xml);
   if (greske.length) throw new GreskaKorisniku(`eRačun nije ispravan: ${greske.slice(0, 5).join("; ")}`);
@@ -180,6 +181,20 @@ export async function posaljiERacun(db: PrismaClient, akter: Akter, id: string, 
     });
   if (!ams.aktivan) throw new GreskaKorisniku("Kupac nije u adresaru eRačuna (AMS) — pošaljite mu račun e-poštom (PDF).");
 
+  // zauzimanje prije slanja: dvije kartice / dvostruki klik ne šalju isti eRačun dvaput
+  const ime = (await db.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";
+  const zapis = await db.$transaction(async (tx) => {
+    await zakljucajKljuc(tx, `eracun:${id}`);
+    const zadnji = await tx.eRacun.findFirst({ where: { firmaId: f, dokumentId: id }, orderBy: { poslano: "desc" } });
+    const zaglavljen = zadnji?.status === "SALJE" && zadnji.poslano.getTime() < sada.getTime() - 10 * 60_000;
+    if (zadnji && !NEUSPJELI.includes(zadnji.status) && !zaglavljen)
+      throw new GreskaKorisniku(zadnji.status === "SALJE" ? "eRačun se upravo šalje." : "eRačun je već poslan.");
+    return tx.eRacun.create({
+      data: { firmaId: f, dokumentId: id, status: "SALJE", posrednik: p.naziv, xml, korisnikId: akter.korisnikId, korisnik: ime, poslano: sada },
+      select: { id: true },
+    });
+  });
+
   let status: StatusERacuna = "POSLAN";
   let posrednikId: string | null = null;
   let poruka: string | null = null;
@@ -190,21 +205,7 @@ export async function posaljiERacun(db: PrismaClient, akter: Akter, id: string, 
     poruka = e instanceof Error ? e.message.slice(0, 500) : "Slanje nije uspjelo.";
   }
   await db.$transaction(async (tx) => {
-    const ime = (await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";
-    await tx.eRacun.create({
-      data: {
-        firmaId: f,
-        dokumentId: id,
-        status,
-        posrednik: p.naziv,
-        posrednikId,
-        poruka,
-        xml,
-        korisnikId: akter.korisnikId,
-        korisnik: ime,
-        poslano: sada,
-      },
-    });
+    await tx.eRacun.update({ where: { id: zapis.id }, data: { status, posrednikId, poruka } });
     // uplate upisane prije slanja također idu u eIzvještavanje
     if (status === "POSLAN") {
       const uplate = await tx.uplata.findMany({ where: { firmaId: f, dokumentId: id, ponistena: false } });
@@ -250,7 +251,7 @@ export async function osvjeziStatusERacuna(db: PrismaClient, akter: Akter, id: s
 /** Je li za dokument poslan eRačun (koji nije odbijen) — tada se naplata prijavljuje (eIzvještavanje). */
 async function imaERacun(tx: Tx, firmaId: string, dokumentId: string) {
   const e = await tx.eRacun.findFirst({ where: { firmaId, dokumentId }, orderBy: { poslano: "desc" }, select: { status: true } });
-  return !!e && !NEUSPJELI.includes(e.status);
+  return !!e && !NEUSPJELI.includes(e.status) && e.status !== "SALJE";
 }
 
 /** Uplata na eRačun → izvještaj o naplati (čeka slanje). Zove se u transakciji upisa uplate. */
@@ -267,7 +268,8 @@ export async function zabiljeziNaplatu(tx: Tx, firmaId: string, dokumentId: stri
 export async function ponistiNaplatu(tx: Tx, firmaId: string, u: { id: string; dokumentId: string; iznos: Prisma.Decimal; datum: Date }) {
   const iz = await tx.eIzvjestaj.findUnique({ where: { firmaId_uplataId: { firmaId, uplataId: u.id } } });
   if (!iz) return;
-  if (iz.status === "CEKA") await tx.eIzvjestaj.delete({ where: { id: iz.id } });
+  // neposlan (čeka ili greška) se briše; poslan ili u slanju ispravlja se izvještajem s minusom
+  if (iz.status === "CEKA" || iz.status === "GRESKA") await tx.eIzvjestaj.delete({ where: { id: iz.id } });
   else
     await tx.eIzvjestaj.create({
       data: { firmaId, dokumentId: u.dokumentId, vrsta: "NAPLATA", iznos: u.iznos.negated(), datum: u.datum, razlog: "Ispravak: poništena uplata" },
@@ -277,7 +279,10 @@ export async function ponistiNaplatu(tx: Tx, firmaId: string, u: { id: string; d
 /** Slanje izvještaja koji čekaju (jedna firma ili sve). Greška ostaje zapisana; pokušava se ponovno. */
 export async function posaljiIzvjestaje(db: PrismaClient, firmaId: string | null, sada = new Date()): Promise<{ poslano: number; greske: number }> {
   const cekaju = await db.eIzvjestaj.findMany({
-    where: { ...(firmaId ? { firmaId } : {}), status: { in: ["CEKA", "GRESKA"] } },
+    where: {
+      ...(firmaId ? { firmaId } : {}),
+      OR: [{ status: { in: ["CEKA", "GRESKA"] } }, { status: "SALJE", poslano: { lt: new Date(sada.getTime() - 10 * 60_000) } }],
+    },
     include: { dokument: { select: { broj: true } }, firma: { select: { oib: true } } },
     orderBy: { stvoreno: "asc" },
     take: 200,
@@ -285,6 +290,12 @@ export async function posaljiIzvjestaje(db: PrismaClient, firmaId: string | null
   let poslano = 0;
   let greske = 0;
   for (const i of cekaju) {
+    // zauzimanje: pozadinski posao i gumb ne šalju isti izvještaj dvaput
+    const z = await db.eIzvjestaj.updateMany({
+      where: { id: i.id, status: i.status, poslano: i.poslano },
+      data: { status: "SALJE", poslano: sada },
+    });
+    if (z.count === 0) continue;
     try {
       const r = await posrednik().izvijesti({
         vrsta: i.vrsta as "NAPLATA" | "ODBIJANJE",

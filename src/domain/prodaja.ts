@@ -3,7 +3,17 @@
  * pretvaranje ponuda → predračun → račun.
  */
 import type { PdvStatus } from "./partner";
-import { izracunaj, kategorijaPdv, napomenePdv, STOPE_PDV, type KategorijaPdv, type VrstaIsporuke, type Zbrojevi } from "./pdv";
+import {
+  izracunaj,
+  kategorijaPdv,
+  kategorijaPoKodu,
+  napomenePdv,
+  STOPE_PDV,
+  type KategorijaPdv,
+  type KodKategorije,
+  type VrstaIsporuke,
+  type Zbrojevi,
+} from "./pdv";
 
 export const VRSTE_PRODAJE = {
   PONUDA: { naziv: "Ponuda", prefiks: "PON", brojac: "ponuda" },
@@ -57,6 +67,8 @@ export type UlaznaStavka = {
   vrstaIsporuke?: VrstaIsporuke;
   /** odobrenje: stavka izvornog računa */
   izvornaStavkaId?: string | null;
+  /** odobrenje: kategorija PDV-a izvorne stavke (postavlja poslužitelj, ne preglednik) */
+  kategorijaIzvora?: { kod: KodKategorije; stopa: number } | null;
 };
 
 /** Roba ili usluga: prodaja uređaja/modela je roba, najam i usluge su usluga, ručna po izboru. */
@@ -139,12 +151,21 @@ export function izracunajDokument(
     return {
       ...s,
       vrstaIsporuke: v,
-      kategorija: kategorijaPdv({ firmaUSustavuPdv: p.firmaUSustavuPdv, statusKupca: p.statusKupca, vrsta: v, stopa: s.stopa }),
+      // odobrenje/storno: kategorija i stopa s izvornog računa (ne prema današnjem statusu kupca i firme)
+      kategorija: s.kategorijaIzvora
+        ? kategorijaPoKodu(s.kategorijaIzvora.kod, s.kategorijaIzvora.stopa)
+        : kategorijaPdv({ firmaUSustavuPdv: p.firmaUSustavuPdv, statusKupca: p.statusKupca, vrsta: v, stopa: s.stopa }),
     };
   };
   const zaZbroj = <T extends ReturnType<typeof pripremi>>(l: T[]) =>
     izracunaj(
-      l.map((s) => ({ kolicina: s.kolicina, cijena: s.cijena, popust: s.popust, kategorija: s.kategorija })),
+      l.map((s) => ({
+        kolicina: s.kolicina,
+        cijena: s.cijena,
+        popust: s.vrsta === "PREDUJAM" ? 0 : s.popust,
+        kategorija: s.kategorija,
+        bezPopustaDokumenta: s.vrsta === "PREDUJAM",
+      })),
       p.popust,
     );
   const pojedinacne = stavke.map(pripremi);

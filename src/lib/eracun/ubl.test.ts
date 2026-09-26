@@ -140,6 +140,8 @@ describe("UBL eRačun (HR CIUS) i provjera", () => {
     );
     expect(provjeriUbl(xml)).toEqual([]);
     expect(xml).not.toContain("HR94577403194");
+    expect(xml).toContain("<cbc:ID>O</cbc:ID><cbc:TaxExemptionReason>");
+    expect(xml).not.toMatch(/<cbc:ID>O<\/cbc:ID><cbc:Percent>/);
   });
 
   it("provjera hvata greške: bez KPD-a, krivi zbroj, krivi PDV, krivi OIB, bez IBAN-a, bez razloga oslobođenja", () => {

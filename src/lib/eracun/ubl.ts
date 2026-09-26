@@ -128,7 +128,8 @@ function stranka(s: StrankaUbl, pdv: boolean): string {
 
 function kategorija(ublKod: string, stopa: number, oslobodjenje?: { vatex: string | null; tekst: string | null }) {
   return (
-    `<cbc:ID>${ublKod}</cbc:ID><cbc:Percent>${(stopa / 100).toFixed(2)}</cbc:Percent>` +
+    // BR-O-05: kategorija „nije predmet PDV-a“ nema stopu
+    `<cbc:ID>${ublKod}</cbc:ID>${ublKod === "O" ? "" : `<cbc:Percent>${(stopa / 100).toFixed(2)}</cbc:Percent>`}` +
     (oslobodjenje ? `${tx("cbc:TaxExemptionReasonCode", oslobodjenje.vatex)}${tx("cbc:TaxExemptionReason", oslobodjenje.tekst)}` : "") +
     `<cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>`
   );

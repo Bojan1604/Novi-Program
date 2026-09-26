@@ -50,6 +50,8 @@ describe("storno", () => {
     expect(provjeriStorno({ vrsta: "RACUN", status: "NACRT", brojOdobrenja: 0 })).toContain("izdani");
     expect(provjeriStorno({ vrsta: "RACUN", status: "IZDAN", brojOdobrenja: 1 })).toContain("odobrenja");
     expect(provjeriStorno({ vrsta: "PONUDA", status: "IZDAN", brojOdobrenja: 0 })).toContain("samo račun");
+    expect(provjeriStorno({ vrsta: "PREDUJAM", status: "IZDAN", brojOdobrenja: 0 })).toBeNull();
+    expect(provjeriStorno({ vrsta: "PREDUJAM", status: "IZDAN", brojOdobrenja: 0, predujamIskoristen: true })).toContain("već odbijen");
   });
   it("storniran račun i storno se ne naplaćuju", () => {
     expect(ukupnoZaPlacanje("RACUN", "STORNIRAN", 1000)).toBe(0);

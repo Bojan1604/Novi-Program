@@ -184,7 +184,7 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
   const zaVrstu: VrstaPoruke[] = d.vrsta === "RACUN" ? ["RACUN", "PLACEN"] : [vrstaPoruke(d.vrsta, false)];
   const predlosci = Object.fromEntries(zaVrstu.map((v) => [v, predlozak(v, podaciPoruke)]));
   const skladista =
-    d.vrsta === "RACUN" && d.status === "IZDAN"
+    (d.vrsta === "RACUN" || d.vrsta === "PREDUJAM") && d.status === "IZDAN"
       ? await k.db.skladiste.findMany({
           where: { firmaId: k.firmaId, aktivan: true },
           orderBy: [{ zadano: "desc" }, { naziv: "asc" }],
@@ -201,9 +201,9 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
             {smije &&
               !nacrt &&
               PRETVORBE[vrsta]?.map((u) => <Pretvori key={u} id={d.id} u={u} oznaka={`Napravi ${VRSTE_PRODAJE[u].naziv.toLowerCase()}`} />)}
-            {d.vrsta === "RACUN" && d.status === "IZDAN" && imaPravo(k.prava, "prodaja", "puno") && (
+            {(d.vrsta === "RACUN" || d.vrsta === "PREDUJAM") && d.status === "IZDAN" && imaPravo(k.prava, "prodaja", "puno") && (
               <>
-                <Odobrenje id={d.id} />
+                {d.vrsta === "RACUN" && <Odobrenje id={d.id} />}
                 {skladista.length > 0 && <Storniraj id={d.id} skladista={skladista} />}
               </>
             )}

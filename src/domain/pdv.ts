@@ -115,6 +115,8 @@ export type StavkaZaZbroj = {
   /** popust stavke, stotinke postotka (0–10000) */
   popust: number;
   kategorija: Pick<KategorijaPdv, "kod" | "stopa">;
+  /** odbitak predujma: popust dokumenta se ne primjenjuje (odbija se točno uplaćeni iznos) */
+  bezPopustaDokumenta?: boolean;
 };
 
 export type ZbrojKategorije = { kod: KodKategorije; stopa: number; osnovica: Centi; pdv: Centi };
@@ -144,7 +146,7 @@ export function izracunaj(stavke: readonly StavkaZaZbroj[], popustDokumenta = 0)
     provjeriPostotak(s.popust, "Popust stavke");
     const kc = BigInt(s.kolicina) * BigInt(s.cijena);
     const bruto = podijeliZaokruzi(kc, 1000n);
-    const iznos = podijeliZaokruzi(kc * BigInt(10000 - s.popust) * pd, 1000n * 10000n * 10000n);
+    const iznos = podijeliZaokruzi(kc * BigInt(10000 - s.popust) * (s.bezPopustaDokumenta ? 10000n : pd), 1000n * 10000n * 10000n);
     return { bruto: uBroj(bruto), popust: uBroj(bruto - iznos), iznos: uBroj(iznos) };
   });
   const grupe = new Map<string, ZbrojKategorije>();

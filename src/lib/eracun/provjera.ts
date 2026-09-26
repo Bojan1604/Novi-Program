@@ -130,6 +130,7 @@ export function provjeriUbl(xml: string): string[] {
       g(`BR-${kod}-10`, `kategorija ${kod} mora imati razlog oslobođenja.`);
     if (kod === "O" && prodavatelj && put(prodavatelj, "PartyTaxScheme").length)
       g("BR-O-02", "račun izvan sustava PDV-a ne smije imati PDV broj prodavatelja.");
+    if (kod === "O" && kat && put(kat, "Percent").length) g("BR-O-05", "kategorija O ne smije imati stopu PDV-a.");
   }
   if (poKategoriji.size) g("BR-CO-18", "neka kategorija PDV-a sa stavki nema razradu.");
   if (zbrojPdv !== pdvUkupno) g("BR-CO-14", "ukupni PDV ne odgovara zbroju po kategorijama.");

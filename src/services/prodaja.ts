@@ -3,6 +3,8 @@ import { danas, datum as uDatum, dodajDane, jeDatum, usporedi } from "@/domain/d
 import { jeUuid } from "@/domain/id";
 import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
 import { pdvStatus, type PdvStatus } from "@/domain/partner";
+import { imaPravo } from "@/domain/prava";
+import type { KodKategorije } from "@/domain/pdv";
 import {
   izracunajDokument,
   jeVrstaProdaje,
@@ -76,6 +78,8 @@ async function provjeriReference(tx: Tx, firmaId: string, stavke: readonly Ulazn
  */
 export async function spremiNacrt(db: PrismaClient, akter: Akter, id: string | null, ulaz: UlazDokumenta): Promise<{ id: string; verzija: number }> {
   if (!jeVrstaProdaje(ulaz.vrsta)) throw new GreskaKorisniku("Nepoznata vrsta dokumenta.");
+  if (ulaz.vrsta === "ODOBRENJE" && !imaPravo(akter.prava, "prodaja", "puno"))
+    throw new GreskaKorisniku("Odobrenje smije mijenjati samo korisnik s punim pravom prodaje.");
   if (id !== null && !jeUuid(id)) throw new GreskaKorisniku("Dokument ne postoji.");
   for (const x of [ulaz.partnerId, ulaz.poslovnicaId]) if (x !== null && !jeUuid(x)) throw new GreskaKorisniku("Neispravan odabir.");
   if (!jeDatum(ulaz.datum)) throw new GreskaKorisniku("Datum nije ispravan.");
@@ -108,10 +112,9 @@ export async function spremiNacrt(db: PrismaClient, akter: Akter, id: string | n
       if (dok.vrsta === "ODOBRENJE") {
         // odobrenje: isti kupac kao račun, samo stavke izvornog računa
         if (ulaz.partnerId !== dok.partnerId) throw new GreskaKorisniku("Kupac na odobrenju mora biti isti kao na računu.");
+        if (!dok.izvorId) throw new GreskaKorisniku("Odobrenje nema izvorni račun.");
         const izvorne = new Set(
-          (await tx.stavkaProdajnogDokumenta.findMany({ where: { firmaId: f, dokumentId: dok.izvorId ?? undefined }, select: { id: true } })).map(
-            (x) => x.id,
-          ),
+          (await tx.stavkaProdajnogDokumenta.findMany({ where: { firmaId: f, dokumentId: dok.izvorId }, select: { id: true } })).map((x) => x.id),
         );
         if (ulaz.stavke.some((x) => !x.izvornaStavkaId || !izvorne.has(x.izvornaStavkaId)))
           throw new GreskaKorisniku("Na odobrenju mogu biti samo stavke izvornog računa.");
@@ -127,12 +130,15 @@ export async function spremiNacrt(db: PrismaClient, akter: Akter, id: string | n
         })
       : null;
     if (ulaz.partnerId && (!partner || !partner.aktivan || !partner.kupac)) throw new GreskaKorisniku("Odaberite aktivnog kupca.");
-    if (ulaz.poslovnicaId && !(await tx.poslovnica.count({ where: { id: ulaz.poslovnicaId, firmaId: f, partnerId: ulaz.partnerId ?? undefined } })))
+    if (
+      ulaz.poslovnicaId &&
+      (!ulaz.partnerId || !(await tx.poslovnica.count({ where: { id: ulaz.poslovnicaId, firmaId: f, partnerId: ulaz.partnerId } })))
+    )
       throw new GreskaKorisniku("Poslovnica ne pripada kupcu.");
     await provjeriReference(tx, f, ulaz.stavke);
 
     const firma = await postavkeFirme(tx, f);
-    const r = izracunajDokument(ulaz.stavke, {
+    const r = izracunajDokument(await saIzvornimKategorijama(tx, f, ulaz.stavke), {
       firmaUSustavuPdv: firma.uSustavuPdv,
       pdvPoNaplacenoj: firma.pdvPoNaplacenoj,
       statusKupca: statusKupca(partner),
@@ -248,11 +254,29 @@ export async function snimkaDokumenta(tx: Tx, firmaId: string, partnerId: string
   };
 }
 
+/**
+ * Stavke koje se pozivaju na izvornu stavku (odobrenje, odbitak predujma) dobivaju kategoriju i stopu PDV-a
+ * izvorne stavke — ne računaju se prema današnjem statusu kupca i firme, i preglednik ih ne može promijeniti.
+ */
+export async function saIzvornimKategorijama<T extends UlaznaStavka>(tx: Tx | PrismaClient, firmaId: string, stavke: readonly T[]): Promise<T[]> {
+  const ids = [...new Set(stavke.map((x) => x.izvornaStavkaId).filter((x): x is string => !!x && jeUuid(x)))];
+  if (!ids.length) return [...stavke];
+  const izvorne = new Map(
+    (await tx.stavkaProdajnogDokumenta.findMany({ where: { firmaId, id: { in: ids } }, select: { id: true, kategorija: true, stopa: true } })).map(
+      (x) => [x.id, x],
+    ),
+  );
+  return stavke.map((x) => {
+    const i = x.izvornaStavkaId ? izvorne.get(x.izvornaStavkaId) : undefined;
+    return i ? { ...x, stopa: i.stopa, kategorijaIzvora: { kod: i.kategorija as KodKategorije, stopa: i.stopa } } : x;
+  });
+}
+
 /** Napomene o PDV-u za spremljene stavke (iz kategorija). */
 async function napomeneDokumenta(tx: Tx, firmaId: string, dokumentId: string, partner: Parameters<typeof statusKupca>[0], popust: number) {
   const firma = await postavkeFirme(tx, firmaId);
   const stavke = await tx.stavkaProdajnogDokumenta.findMany({ where: { firmaId, dokumentId }, orderBy: { redoslijed: "asc" } });
-  return izracunajDokument(stavke.map(uUlaznu), {
+  return izracunajDokument(await saIzvornimKategorijama(tx, firmaId, stavke.map(uUlaznu)), {
     firmaUSustavuPdv: firma.uSustavuPdv,
     pdvPoNaplacenoj: firma.pdvPoNaplacenoj,
     statusKupca: statusKupca(partner),
@@ -457,6 +481,8 @@ async function izdajRacunUBazi(db: PrismaClient, akter: Akter, id: string, sada:
       });
       if (!dok) throw new GreskaKorisniku("Račun ne postoji.");
       if (!["RACUN", "ODOBRENJE", "PREDUJAM"].includes(dok.vrsta)) throw new GreskaKorisniku("Ovo nije račun.");
+      if (dok.vrsta === "ODOBRENJE" && !imaPravo(akter.prava, "prodaja", "puno"))
+        throw new GreskaKorisniku("Odobrenje smije izdati samo korisnik s punim pravom prodaje.");
       if (dok.vrsta === "PREDUJAM" && dok.stavke.some((s) => s.uredajId || s.vrsta === "PREDUJAM"))
         throw new GreskaKorisniku("Račun za predujam ne sadrži uređaje ni odbitke predujma.");
       if (dok.status !== "NACRT") throw new GreskaKorisniku("Račun je već izdan.");
@@ -468,7 +494,11 @@ async function izdajRacunUBazi(db: PrismaClient, akter: Akter, id: string, sada:
 
       const firma = await postavkeFirme(tx, f);
       const r = izracunajDokument(
-        dok.stavke.map((s) => ({ ...uUlaznu(s), serijskiBroj: s.uredaj?.serijski ?? null })),
+        await saIzvornimKategorijama(
+          tx,
+          f,
+          dok.stavke.map((s) => ({ ...uUlaznu(s), serijskiBroj: s.uredaj?.serijski ?? null })),
+        ),
         { firmaUSustavuPdv: firma.uSustavuPdv, pdvPoNaplacenoj: firma.pdvPoNaplacenoj, statusKupca: statusKupca(dok.partner), popust: dok.popust },
       );
       const kpd = provjeriZaIzdavanje(r.grupirane);
@@ -492,6 +522,26 @@ async function izdajRacunUBazi(db: PrismaClient, akter: Akter, id: string, sada:
           include: { stavke: { select: { id: true, naziv: true, kolicina: true, iznos: true } } },
         });
         if (izvor.status !== "IZDAN") throw new GreskaKorisniku("Izvorni račun je storniran — odobrenje nije moguće.");
+        // vraćeni uređaj mora biti prodan baš na toj stavci izvornog računa i ne smije biti već vraćen
+        if (vraceniUredaji.length) {
+          const naIzvoru = await tx.uredajNaStavci.findMany({
+            where: { firmaId: f, stavka: { dokumentId: izvor.id } },
+            select: { uredajId: true, stavkaId: true },
+          });
+          const stavkaUredaja = new Map(naIzvoru.map((x) => [x.uredajId, x.stavkaId]));
+          for (const s of dok.stavke.filter((x) => x.uredajId && x.namjena === "PRODAJA")) {
+            if (stavkaUredaja.get(s.uredajId!) !== s.izvornaStavkaId)
+              throw new GreskaKorisniku(`Uređaj ${s.uredaj?.serijski ?? ""} nije prodan na toj stavci izvornog računa.`);
+          }
+          const vecVraceno = await tx.uredajNaStavci.count({
+            where: {
+              firmaId: f,
+              uredajId: { in: vraceniUredaji },
+              stavka: { dokument: { izvorId: izvor.id, vrsta: "ODOBRENJE", status: "IZDAN" } },
+            },
+          });
+          if (vecVraceno) throw new GreskaKorisniku("Neki od uređaja već su vraćeni ranijim odobrenjem.");
+        }
         const ranija = await tx.prodajniDokument.findMany({
           where: { firmaId: f, izvorId: izvor.id, vrsta: "ODOBRENJE", status: "IZDAN" },
           select: { ukupno: true, stavke: { select: { izvornaStavkaId: true, kolicina: true, iznos: true } } },
@@ -635,21 +685,24 @@ export async function napraviOdobrenje(db: PrismaClient, akter: Akter, racunId: 
     });
     if (!r || r.vrsta !== "RACUN") throw new GreskaKorisniku("Račun ne postoji.");
     if (r.status !== "IZDAN") throw new GreskaKorisniku("Odobrenje se radi samo za izdani račun.");
-    const stavke: UlaznaStavka[] = r.stavke.flatMap((s) => {
-      const osnova = { ...uUlaznu(s), izvornaStavkaId: s.id, uredajId: null as string | null };
-      if (s.uredaji.length) {
-        return s.uredaji
-          .map((x) => x.uredaj)
-          .sort((a, b) => a.serijski.localeCompare(b.serijski))
-          .map((u) => ({ ...osnova, uredajId: u.id, kolicina: -1000, opis: `S/N: ${u.serijski}` }));
-      }
-      return [{ ...osnova, uredajId: s.uredajId, kolicina: -s.kolicina }];
-    });
+    // odbitak predujma se ne odobrava (predujam ostaje iskorišten; za cijeli račun koristite storno)
+    const stavke: UlaznaStavka[] = r.stavke
+      .filter((s) => s.vrsta !== "PREDUJAM")
+      .flatMap((s) => {
+        const osnova = { ...uUlaznu(s), izvornaStavkaId: s.id, uredajId: null as string | null };
+        if (s.uredaji.length) {
+          return s.uredaji
+            .map((x) => x.uredaj)
+            .sort((a, b) => a.serijski.localeCompare(b.serijski))
+            .map((u) => ({ ...osnova, uredajId: u.id, kolicina: -1000, opis: `S/N: ${u.serijski}` }));
+        }
+        return [{ ...osnova, uredajId: s.uredajId, kolicina: -s.kolicina }];
+      });
     const firma = await postavkeFirme(tx, f);
     const partner = r.partnerId
       ? await tx.partner.findFirst({ where: { id: r.partnerId, firmaId: f }, select: { drzava: true, pdvBroj: true, pdvStatus: true } })
       : null;
-    const izr = izracunajDokument(stavke, {
+    const izr = izracunajDokument(await saIzvornimKategorijama(tx, f, stavke), {
       firmaUSustavuPdv: firma.uSustavuPdv,
       pdvPoNaplacenoj: firma.pdvPoNaplacenoj,
       statusKupca: statusKupca(partner),
@@ -744,7 +797,12 @@ async function stornirajUBazi(db: PrismaClient, akter: Akter, racunId: string, s
       });
       if (!r) throw new GreskaKorisniku("Račun ne postoji.");
       const brojOdobrenja = await tx.prodajniDokument.count({ where: { firmaId: f, izvorId: r.id, vrsta: "ODOBRENJE", status: "IZDAN" } });
-      const g = provjeriStorno({ vrsta: r.vrsta, status: r.status, brojOdobrenja });
+      const predujamIskoristen =
+        r.vrsta === "PREDUJAM" &&
+        (await tx.stavkaProdajnogDokumenta.count({
+          where: { firmaId: f, vrsta: "PREDUJAM", izvornaStavkaId: { in: r.stavke.map((x) => x.id) }, dokument: { vrsta: "RACUN", status: "IZDAN" } },
+        })) > 0;
+      const g = provjeriStorno({ vrsta: r.vrsta, status: r.status, brojOdobrenja, predujamIskoristen });
       if (g) throw new GreskaKorisniku(g);
       const skl = await tx.skladiste.findFirst({ where: { id: skladisteId, firmaId: f, aktivan: true } });
       if (!skl) throw new GreskaKorisniku("Odaberite aktivno skladište.");
@@ -909,14 +967,14 @@ export async function dodajPredujam(db: PrismaClient, akter: Akter, racunId: str
         kolicina: -1000,
         cijena: preostalo(x),
         popust: 0,
-        stopa: x.stopa || 2500,
+        stopa: x.stopa,
         vrstaIsporuke: x.vrstaIsporuke as UlaznaStavka["vrstaIsporuke"],
         izvornaStavkaId: x.stavkaId,
       }));
     if (!nove.length) throw new GreskaKorisniku("Taj predujam je već iskorišten ili dodan na račun.");
     const firma = await postavkeFirme(tx, f);
     const sve = [...r.stavke.map(uUlaznu), ...nove];
-    const izr = izracunajDokument(sve, {
+    const izr = izracunajDokument(await saIzvornimKategorijama(tx, f, sve), {
       firmaUSustavuPdv: firma.uSustavuPdv,
       pdvPoNaplacenoj: firma.pdvPoNaplacenoj,
       statusKupca: statusKupca(r.partner),

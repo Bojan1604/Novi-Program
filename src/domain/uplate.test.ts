@@ -39,5 +39,7 @@ describe("provjera uplate", () => {
     expect(provjeriUplatu(10000, [u(12000)], -2000)).toBeNull();
     // preplata je dopuštena (kupac platio više) — vidi se kao „za povrat“
     expect(provjeriUplatu(10000, [u(10000)], 500)).toBeNull();
+    expect(provjeriUplatu(0, [], 500)).toContain("ne upisuje uplata");
+    expect(provjeriUplatu(-5000, [], 500)).toContain("ne upisuje uplata");
   });
 });

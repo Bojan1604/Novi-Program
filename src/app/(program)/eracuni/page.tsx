@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const vrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Zagreb" });
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
-const STATUSI_IZVJESTAJA: Record<string, string> = { CEKA: "čeka slanje", POSLAN: "poslan", GRESKA: "greška" };
+const STATUSI_IZVJESTAJA: Record<string, string> = { CEKA: "čeka slanje", SALJE: "šalje se", POSLAN: "poslan", GRESKA: "greška" };
 
 export default async function ERacuni({ searchParams }: PageProps<"/eracuni">) {
   const k = await pristupStranici("/eracuni");

@@ -10,6 +10,7 @@ import { OsvjeziStatus, PosaljiERacun } from "./eracun";
 
 const vrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Zagreb" });
 const BOJE: Record<StatusERacuna, "siva" | "zelena" | "crvena" | "plava" | "zuta"> = {
+  SALJE: "zuta",
   POSLAN: "plava",
   ISPORUCEN: "plava",
   PRIHVACEN: "zelena",

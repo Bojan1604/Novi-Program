@@ -90,6 +90,7 @@ export async function podaciZaPdf(db: DbFirme, firmaId: string, id: string): Pro
       cijena: centiIzDecimala(x.cijena.toFixed(2)),
       popust: x.popust,
       kategorija: { kod: x.kategorija as KodKategorije, stopa: x.stopa },
+      bezPopustaDokumenta: x.vrsta === "PREDUJAM",
     })),
     d.popust,
   );

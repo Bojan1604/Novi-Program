@@ -803,6 +803,8 @@ model ProdajniDokument {
   fiskalPokusaja Int       @default(0)
   fiskalGreska   String?
   fiskalSljedeci DateTime? @db.Timestamptz(3)
+  /// slanje u tijeku do (zauzimanje: isti račun ne šalju istovremeno dva procesa)
+  fiskalSaljeDo  DateTime? @db.Timestamptz(3)
   stvoreno       DateTime  @default(now()) @db.Timestamptz(3)
   azurirano      DateTime  @updatedAt @db.Timestamptz(3)
 
@@ -816,7 +818,8 @@ model ProdajniDokument {
   eIzvjestaji EIzvjestaj[]
 
   @@unique([firmaId, id])
-  @@unique([firmaId, vrsta, godina, redni])
+  /// broj uključuje oznaku prostora i uređaja (redni kreće od 1 za svaki novi prostor/uređaj)
+  @@unique([firmaId, vrsta, godina, broj])
   @@index([firmaId, vrsta, datum(sort: Desc)])
   @@index([firmaId, partnerId])
   @@index([firmaId, izvorId])

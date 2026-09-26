@@ -12,9 +12,11 @@ import type { Tx } from "./prodaja";
 /** Certifikat za potpis: demo način koristi samopotpisani, test i produkcija FINA certifikat firme. */
 export function certifikatFirme(f: Pick<Firma, "fiskalNacin" | "fiskalCertifikat" | "fiskalLozinka">): Certifikat {
   if (f.fiskalNacin === "DEMO") return demoCertifikat();
+  if (!f.fiskalCertifikat) throw new GreskaKorisniku("Za fiskalizaciju učitajte certifikat u Postavkama (ili uključite demo način).");
   const p12 = desifriraj(f.fiskalCertifikat);
   const lozinka = desifriraj(f.fiskalLozinka);
-  if (!p12 || lozinka === null) throw new GreskaKorisniku("Za fiskalizaciju učitajte certifikat u Postavkama (ili uključite demo način).");
+  if (!p12 || lozinka === null)
+    throw new GreskaKorisniku("Spremljeni certifikat ne može se pročitati (promijenjen TAJNI_KLJUC?) — učitajte ga ponovno u Postavkama.");
   return ucitajP12(Buffer.from(p12, "base64"), lozinka);
 }
 
@@ -41,7 +43,8 @@ export async function pripremiFiskalizaciju(
     }),
     cert.kljucPem,
   );
-  return { fiskalStatus: "CEKA", zki, oibOperatera, fiskalSljedeci: p.vrijeme };
+  // prvi pokušaj šalje izdavanje odmah; pozadinski posao tek nakon minute
+  return { fiskalStatus: "CEKA", zki, oibOperatera, fiskalSljedeci: new Date(p.vrijeme.getTime() + 60_000) };
 }
 
 type SnimkaRacuna = { racun?: { oznakaProstora: string; oznakaUredaja: string; nacinPlacanja: string; poKategoriji?: ZbrojKategorije[] } };
@@ -50,7 +53,26 @@ type SnimkaRacuna = { racun?: { oznakaProstora: string; oznakaUredaja: string; n
  * Slanje računa CIS-u (demo: izmišljeni JIR bez slanja). Uspjeh → JIR; greška → sljedeći pokušaj (naknadna dostava).
  * Nikad ne baca iznimku: račun je već izdan, greška se pamti na računu.
  */
-export async function fiskaliziraj(db: PrismaClient, firmaId: string, id: string, sada = new Date()): Promise<{ jir: string } | { greska: string }> {
+export async function fiskaliziraj(
+  db: PrismaClient,
+  firmaId: string,
+  id: string,
+  sada = new Date(),
+  /** false = samo ako je došlo vrijeme sljedećeg pokušaja (pozadinski posao) */
+  odmah = true,
+): Promise<{ jir: string } | { greska: string }> {
+  // zauzimanje: dok jedan proces šalje (najviše 30 s), drugi ne šalje isti račun
+  const zauzeto = await db.prodajniDokument.updateMany({
+    where: {
+      id,
+      firmaId,
+      fiskalStatus: "CEKA",
+      OR: [{ fiskalSaljeDo: null }, { fiskalSaljeDo: { lt: sada } }],
+      ...(odmah ? {} : { fiskalSljedeci: { lte: sada } }),
+    },
+    data: { fiskalSaljeDo: new Date(sada.getTime() + 30_000) },
+  });
+  if (zauzeto.count === 0) return { greska: "Račun ne čeka fiskalizaciju ili se upravo šalje." };
   const d = await db.prodajniDokument.findFirst({ where: { id, firmaId }, include: { firma: true } });
   if (!d || d.fiskalStatus !== "CEKA" || !d.zki || !d.izdano || !d.redni) return { greska: "Račun ne čeka fiskalizaciju." };
   const f = d.firma;
@@ -89,12 +111,24 @@ export async function fiskaliziraj(db: PrismaClient, firmaId: string, id: string
   if ("jir" in ishod) {
     await db.prodajniDokument.updateMany({
       where: { id, firmaId, fiskalStatus: "CEKA" },
-      data: { fiskalStatus: "FISKALIZIRAN", jir: ishod.jir, fiskalGreska: null, fiskalSljedeci: null, fiskalPokusaja: { increment: 1 } },
+      data: {
+        fiskalStatus: "FISKALIZIRAN",
+        jir: ishod.jir,
+        fiskalGreska: null,
+        fiskalSljedeci: null,
+        fiskalSaljeDo: null,
+        fiskalPokusaja: { increment: 1 },
+      },
     });
   } else {
     await db.prodajniDokument.updateMany({
       where: { id, firmaId, fiskalStatus: "CEKA" },
-      data: { fiskalGreska: ishod.greska.slice(0, 500), fiskalSljedeci: sljedeciPokusaj(d.fiskalPokusaja, sada), fiskalPokusaja: { increment: 1 } },
+      data: {
+        fiskalGreska: ishod.greska.slice(0, 500),
+        fiskalSljedeci: sljedeciPokusaj(d.fiskalPokusaja, sada),
+        fiskalSaljeDo: null,
+        fiskalPokusaja: { increment: 1 },
+      },
     });
   }
   return ishod;
@@ -108,6 +142,6 @@ export async function dostaviNaknadno(db: PrismaClient, sada = new Date(), najvi
     take: najvise,
     select: { id: true, firmaId: true },
   });
-  for (const r of cekaju) await fiskaliziraj(db, r.firmaId, r.id, sada);
+  for (const r of cekaju) await fiskaliziraj(db, r.firmaId, r.id, sada, false);
   return cekaju.length;
 }

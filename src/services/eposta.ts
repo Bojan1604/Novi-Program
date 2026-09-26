@@ -22,12 +22,15 @@ export function prijevozPoste(firma: {
 }) {
   if (process.env["EPOSTA_NACIN"] === "test") return nodemailer.createTransport({ jsonTransport: true });
   if (!firma.smtpHost) return null;
+  const lozinka = firma.smtpLozinka ? desifriraj(firma.smtpLozinka) : "";
+  if (lozinka === null)
+    throw new GreskaKorisniku("Spremljena lozinka pošte ne može se pročitati (promijenjen TAJNI_KLJUC?) — upišite je ponovno u Postavkama.");
   return nodemailer.createTransport({
     host: firma.smtpHost,
     port: firma.smtpPort ?? (firma.smtpSigurno ? 465 : 587),
     secure: firma.smtpSigurno && (firma.smtpPort ?? 465) === 465,
     requireTLS: firma.smtpSigurno,
-    auth: firma.smtpKorisnik ? { user: firma.smtpKorisnik, pass: desifriraj(firma.smtpLozinka) ?? "" } : undefined,
+    auth: firma.smtpKorisnik ? { user: firma.smtpKorisnik, pass: lozinka } : undefined,
     connectionTimeout: 15_000,
   });
 }

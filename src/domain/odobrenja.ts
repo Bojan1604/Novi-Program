@@ -39,9 +39,13 @@ export function provjeriOdobrenje(p: {
   return null;
 }
 
-/** Storno je moguć samo za izdani račun bez odobrenja (inače se ostatak odobrava odobrenjem). */
-export function provjeriStorno(p: { vrsta: string; status: string; brojOdobrenja: number }): string | null {
-  if (p.vrsta !== "RACUN") return "Stornirati se može samo račun.";
+/**
+ * Storno je moguć za izdani račun bez odobrenja (inače se ostatak odobrava odobrenjem)
+ * i za račun za predujam koji još nije odbijen na konačnom računu.
+ */
+export function provjeriStorno(p: { vrsta: string; status: string; brojOdobrenja: number; predujamIskoristen?: boolean }): string | null {
+  if (p.vrsta !== "RACUN" && p.vrsta !== "PREDUJAM") return "Stornirati se može samo račun.";
+  if (p.vrsta === "PREDUJAM" && p.predujamIskoristen) return "Predujam je već odbijen na konačnom računu — prvo stornirajte konačni račun.";
   if (p.status === "STORNIRAN") return "Račun je već storniran.";
   if (p.status !== "IZDAN") return "Stornirati se može samo izdani račun.";
   if (p.brojOdobrenja > 0) return "Za račun postoje odobrenja — ostatak odobrite novim odobrenjem umjesto storna.";
