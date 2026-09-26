@@ -60,6 +60,9 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "najam.izdaj": ["Administrator", "Voditelj", "Prodavač"],
   "najam.izvan": ["Administrator", "Voditelj", "Prodavač"],
   "najam.povrat": ["Administrator", "Voditelj", "Prodavač"],
+  "nabava.narudzbenica": ["Administrator", "Voditelj", "Skladištar"],
+  "nabava.zaprimi": ["Administrator", "Voditelj", "Skladištar"],
+  "nabava.status": ["Administrator", "Voditelj"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
@@ -83,6 +86,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/marze": ["Administrator", "Voditelj", "Knjigovođa"],
   "/najam": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
   "/najam/rate": ["Administrator", "Voditelj", "Prodavač"],
+  "/nabava": ["Administrator", "Voditelj", "Skladištar", "Knjigovođa"],
   "/postavke": ["Administrator", "Voditelj"],
 };
 
@@ -146,6 +150,7 @@ describe("izbornik", () => {
       "/marze",
       "/najam",
       "/najam/rate",
+      "/nabava",
       "/partneri",
       "/cjenici",
       "/uredaji",

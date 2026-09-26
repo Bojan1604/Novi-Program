@@ -1,6 +1,7 @@
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { danas, datum as uDatum, dodajMjesece, jeDatum, usporedi, type Datum } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
+import { statusNarudzbe } from "@/domain/nabava";
 import { centiUDecimal, zbroji } from "@/domain/novac";
 import { imaPosebno } from "@/domain/prava";
 import { provjeriSerijski } from "@/domain/stanja-uredaja";
@@ -24,6 +25,8 @@ export type StavkaZaprimanja = {
   ekran?: string | null;
   os?: string | null;
   napomena?: string | null;
+  /** stavka narudžbenice (zaprimanje po narudžbenici) */
+  stavkaNarudzbeniceId?: string | null;
 };
 
 export type UlazPrimke = {
@@ -35,11 +38,15 @@ export type UlazPrimke = {
   napomena: string | null;
   knjiziUTroskove: boolean;
   stavke: StavkaZaprimanja[];
+  /** zaprimanje po narudžbenici (poziva services/nabava.ts u svojoj transakciji) */
+  narudzbenicaId?: string | null;
 };
+
+type Tx = Prisma.TransactionClient;
 
 const d = (x: Datum) => new Date(`${x}T00:00:00Z`);
 
-export async function zaprimi(db: PrismaClient, akter: Akter, ulaz: UlazPrimke, sada = new Date()): Promise<{ id: string; broj: string }> {
+export async function zaprimi(db: PrismaClient | Tx, akter: Akter, ulaz: UlazPrimke, sada = new Date()): Promise<{ id: string; broj: string }> {
   if (!jeDatum(ulaz.datum)) throw new GreskaKorisniku("Datum primke nije ispravan.");
   const datum = uDatum(ulaz.datum);
   if (usporedi(datum, danas(sada)) > 0) throw new GreskaKorisniku("Datum primke ne smije biti u budućnosti.");
@@ -62,7 +69,9 @@ export async function zaprimi(db: PrismaClient, akter: Akter, ulaz: UlazPrimke, 
     return { ...s, serijski: r.vrijednost, nabavnaCijena: vidiNabavne ? s.nabavnaCijena : null };
   });
 
-  return db.$transaction(
+  const uTransakciji = <T>(fn: (tx: Tx) => Promise<T>, o: { timeout: number }) =>
+    "$transaction" in db ? (db as PrismaClient).$transaction(fn, o) : fn(db);
+  return uTransakciji(
     async (tx) => {
       const f = akter.firmaId;
       const skladiste = await tx.skladiste.findFirst({ where: { id: ulaz.skladisteId, firmaId: f } });
@@ -98,6 +107,7 @@ export async function zaprimi(db: PrismaClient, akter: Akter, ulaz: UlazPrimke, 
           dokumentDobavljaca: ulaz.dokumentDobavljaca,
           napomena: ulaz.napomena,
           knjiziUTroskove: ulaz.knjiziUTroskove,
+          narudzbenicaId: ulaz.narudzbenicaId ?? null,
           brojUredaja: stavke.length,
           nabavnaVrijednost: vidiNabavne && nabavne.length ? centiUDecimal(zbroji(nabavne)) : null,
           korisnikId: akter.korisnikId,
@@ -117,6 +127,7 @@ export async function zaprimi(db: PrismaClient, akter: Akter, ulaz: UlazPrimke, 
         ekran: s.ekran ?? null,
         os: s.os ?? null,
         napomena: s.napomena ?? null,
+        stavkaNarudzbeniceId: s.stavkaNarudzbeniceId ?? null,
       }));
       await stvoriUredaje(tx, { firmaId: f, korisnikId: akter.korisnikId }, "zaprimanje", novi, {
         skladisteId: skladiste.id,
@@ -185,6 +196,19 @@ export async function stornirajPrimku(db: PrismaClient, akter: Akter, id: string
           .map((u) => u.serijski)
           .join(", ")}${pomaknuti.length > 5 ? " …" : ""}).`,
       );
+    }
+    // primka po narudžbenici: zaprimljene količine se vraćaju
+    if (p.narudzbenicaId) {
+      await tx.$queryRaw`SELECT id FROM "Narudzbenica" WHERE id = ${p.narudzbenicaId}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
+      const po = await tx.uredaj.groupBy({
+        by: ["stavkaNarudzbeniceId"],
+        where: { firmaId: f, primkaId: id, stavkaNarudzbeniceId: { not: null } },
+        _count: true,
+      });
+      for (const x of po)
+        await tx.stavkaNarudzbenice.update({ where: { id: x.stavkaNarudzbeniceId! }, data: { zaprimljeno: { decrement: x._count } } });
+      const n = await tx.narudzbenica.findFirstOrThrow({ where: { id: p.narudzbenicaId, firmaId: f }, include: { stavke: true } });
+      await tx.narudzbenica.update({ where: { id: n.id }, data: { status: statusNarudzbe(n.status, n.stavke), verzija: { increment: 1 } } });
     }
     await tx.prilog.deleteMany({ where: { firmaId: f, entitet: "Uredaj", entitetId: { in: uredaji.map((u) => u.id) } } });
     await tx.dogadajUredaja.deleteMany({ where: { firmaId: f, uredajId: { in: uredaji.map((u) => u.id) } } });

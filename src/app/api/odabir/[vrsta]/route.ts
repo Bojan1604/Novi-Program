@@ -10,6 +10,7 @@ const IZVORI: Record<string, { prava: PotrebnoPravo[]; trazi: (k: Kontekst, upit
     prava: [
       { modul: "partneri", razina: "pregled" },
       { modul: "uredaji", razina: "operativno" },
+      { modul: "nabava", razina: "operativno" },
     ],
     trazi: (k, q, sp) => {
       const v = sp.get("vrsta");
@@ -21,6 +22,7 @@ const IZVORI: Record<string, { prava: PotrebnoPravo[]; trazi: (k: Kontekst, upit
       { modul: "sifrarnici", razina: "pregled" },
       { modul: "uredaji", razina: "operativno" },
       { modul: "partneri", razina: "operativno" },
+      { modul: "nabava", razina: "operativno" },
     ],
     trazi: (k, q) => odabirModela(k.db, k.firmaId, q),
   },

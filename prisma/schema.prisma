@@ -88,6 +88,8 @@ model Firma {
   cijeneNajma        CijenaNajma[]
   mjeseciNajma       MjesecNajma[]
   rateNajma          RataNajma[]
+  narudzbenice       Narudzbenica[]
+  stavkeNarudzbenica StavkaNarudzbenice[]
   stavkeDokumenata   StavkaSkladisnogDokumenta[]
   odobrenja          Odobrenje[]
   inventure          Inventura[]
@@ -274,6 +276,8 @@ model ModelUredaja {
   uredaji       Uredaj[]
   stavkeProdaje StavkaProdajnogDokumenta[]
 
+  stavkeNarudzbenica StavkaNarudzbenice[]
+
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
   @@index([proizvodjacId])
@@ -381,6 +385,7 @@ model Partner {
   primke             Primka[]
   skladisniDokumenti SkladisniDokument[]
   prodajniDokumenti  ProdajniDokument[]
+  narudzbenice       Narudzbenica[]
   ugovoriNajma       UgovorNajma[]
 
   @@unique([firmaId, id])
@@ -470,35 +475,37 @@ enum StanjeUredaja {
 
 /// Uređaj (serijski broj) — središnji objekt: prodaja, najam i servis mijenjaju njegovo stanje.
 model Uredaj {
-  id                 String         @id @default(uuid(7)) @db.Uuid
-  firmaId            String         @db.Uuid
+  id                   String         @id @default(uuid(7)) @db.Uuid
+  firmaId              String         @db.Uuid
   /// velika slova, bez razmaka; jedinstven u firmi
-  serijski           String
-  modelId            String         @db.Uuid
-  stanje             StanjeUredaja
-  stanjePrijeServisa StanjeUredaja?
+  serijski             String
+  modelId              String         @db.Uuid
+  stanje               StanjeUredaja
+  stanjePrijeServisa   StanjeUredaja?
   /// gdje je fizički (null = nije kod nas: kod kupca, u najmu, otpisan)
-  skladisteId        String?        @db.Uuid
-  stanjeRobeId       String?        @db.Uuid
+  skladisteId          String?        @db.Uuid
+  stanjeRobeId         String?        @db.Uuid
   /// kupac ili najmoprimac kod kojeg je uređaj
-  partnerId          String?        @db.Uuid
-  poslovnicaId       String?        @db.Uuid
+  partnerId            String?        @db.Uuid
+  poslovnicaId         String?        @db.Uuid
   /// primka kojom je zaprimljen
-  primkaId           String?        @db.Uuid
+  primkaId             String?        @db.Uuid
+  /// stavka narudžbenice po kojoj je zaprimljen
+  stavkaNarudzbeniceId String?        @db.Uuid
   /// nabavna cijena bez PDV-a — osjetljivo (pravo „costs“)
-  nabavnaCijena      Decimal?       @db.Decimal(14, 2)
-  nabavniDatum       DateTime?      @db.Date
-  jamstvoDo          DateTime?      @db.Date
-  cpu                String?
-  ram                String?
-  disk               String?
-  ekran              String?
-  os                 String?
-  napomena           String?
+  nabavnaCijena        Decimal?       @db.Decimal(14, 2)
+  nabavniDatum         DateTime?      @db.Date
+  jamstvoDo            DateTime?      @db.Date
+  cpu                  String?
+  ram                  String?
+  disk                 String?
+  ekran                String?
+  os                   String?
+  napomena             String?
   /// raste sa svakom promjenom (zaštita od istovremenih izmjena)
-  verzija            Int            @default(0)
-  stvoreno           DateTime       @default(now()) @db.Timestamptz(3)
-  azurirano          DateTime       @updatedAt @db.Timestamptz(3)
+  verzija              Int            @default(0)
+  stvoreno             DateTime       @default(now()) @db.Timestamptz(3)
+  azurirano            DateTime       @updatedAt @db.Timestamptz(3)
 
   firma            Firma                       @relation(fields: [firmaId], references: [id])
   model            ModelUredaja                @relation(fields: [firmaId, modelId], references: [firmaId, id])
@@ -513,7 +520,8 @@ model Uredaj {
   stavkeProdaje    StavkaProdajnogDokumenta[]
   naStavkama       UredajNaStavci[]
 
-  naUgovorima UredajNaUgovoru[]
+  stavkaNarudzbenice StavkaNarudzbenice? @relation(fields: [firmaId, stavkaNarudzbeniceId], references: [firmaId, id])
+  naUgovorima        UredajNaUgovoru[]
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -590,6 +598,8 @@ model Primka {
   napomena           String?
   /// knjiži nabavnu vrijednost u troškove (faza 4)
   knjiziUTroskove    Boolean  @default(false)
+  /// narudžbenica po kojoj je zaprimljeno (korak 4.2)
+  narudzbenicaId     String?  @db.Uuid
   brojUredaja        Int
   /// zbroj nabavnih cijena — osjetljivo (pravo „costs“)
   nabavnaVrijednost  Decimal? @db.Decimal(14, 2)
@@ -600,10 +610,11 @@ model Primka {
   stvoreno           DateTime @default(now()) @db.Timestamptz(3)
   azurirano          DateTime @updatedAt @db.Timestamptz(3)
 
-  firma     Firma     @relation(fields: [firmaId], references: [id])
-  dobavljac Partner?  @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
-  skladiste Skladiste @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
-  uredaji   Uredaj[]
+  firma        Firma         @relation(fields: [firmaId], references: [id])
+  dobavljac    Partner?      @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
+  skladiste    Skladiste     @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
+  narudzbenica Narudzbenica? @relation(fields: [firmaId, narudzbenicaId], references: [firmaId, id])
+  uredaji      Uredaj[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, godina, redni])
@@ -1120,4 +1131,59 @@ model RataNajma {
 
   @@unique([firmaId, planId, mjesec])
   @@index([firmaId, dokumentId])
+}
+
+/// Narudžbenica dobavljaču (korak 4.2); primke se vežu na nju (djelomično zaprimanje).
+model Narudzbenica {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  firmaId     String   @db.Uuid
+  /// NAR-3/2026
+  broj        String
+  godina      Int
+  redni       Int
+  datum       DateTime @db.Date
+  dobavljacId String   @db.Uuid
+  /// HR, EU, UVOZ, BEZ_PDV (prema državi dobavljača u trenutku narudžbe)
+  pdvRezim    String
+  /// OTVORENA, DJELOMICNO, ZAPRIMLJENA, ZATVORENA, STORNIRANA
+  status      String   @default("OTVORENA")
+  napomena    String?
+  /// zbroj stavki bez PDV-a (osjetljivo — pravo „costs“)
+  osnovica    Decimal  @default(0) @db.Decimal(14, 2)
+  verzija     Int      @default(0)
+  korisnikId  String?  @db.Uuid
+  korisnik    String   @default("Sustav")
+  stvoreno    DateTime @default(now()) @db.Timestamptz(3)
+  azurirano   DateTime @updatedAt @db.Timestamptz(3)
+
+  firma     Firma                @relation(fields: [firmaId], references: [id])
+  dobavljac Partner              @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
+  stavke    StavkaNarudzbenice[]
+  primke    Primka[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, godina, redni])
+  @@index([firmaId, datum(sort: Desc)])
+  @@index([firmaId, dobavljacId])
+}
+
+model StavkaNarudzbenice {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  firmaId        String  @db.Uuid
+  narudzbenicaId String  @db.Uuid
+  redoslijed     Int
+  modelId        String  @db.Uuid
+  kolicina       Int
+  /// nabavna cijena po komadu bez PDV-a
+  cijena         Decimal @db.Decimal(14, 2)
+  /// broj zaprimljenih uređaja (održava se u istoj transakciji kao primka)
+  zaprimljeno    Int     @default(0)
+
+  firma        Firma        @relation(fields: [firmaId], references: [id])
+  narudzbenica Narudzbenica @relation(fields: [firmaId, narudzbenicaId], references: [firmaId, id], onDelete: Cascade)
+  model        ModelUredaja @relation(fields: [firmaId, modelId], references: [firmaId, id])
+  uredaji      Uredaj[]
+
+  @@unique([firmaId, id])
+  @@index([firmaId, narudzbenicaId])
 }

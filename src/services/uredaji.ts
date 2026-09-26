@@ -135,6 +135,8 @@ export type NoviUredaj = {
   ekran?: string | null;
   os?: string | null;
   napomena?: string | null;
+  /** zaprimanje po narudžbenici */
+  stavkaNarudzbeniceId?: string | null;
 };
 
 /**
