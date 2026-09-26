@@ -9,6 +9,10 @@ import { uvjetPrimki } from "@/queries/primke";
 import { modeliZaPretragu, uvjetUredaja } from "@/queries/uredaji";
 import { STANJA, type Stanje } from "@/domain/stanja-uredaja";
 import { centiIzDecimala } from "@/domain/novac";
+import { VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
+import { db as bazaBezFirme } from "@/lib/db";
+import { marzeDokumenata } from "@/queries/marze";
+import { uvjetPopisa } from "@/queries/prodaja";
 import type { StupacIzvoza } from "./stupci";
 
 export const NAJVISE_REDAKA = { csv: 100_000, xlsx: 100_000, pdf: 5_000 } as const;
@@ -26,8 +30,96 @@ function izvor<R>(i: Izvor<R>): Izvor<unknown> {
   return i as unknown as Izvor<unknown>;
 }
 
+type RedakProdaje = {
+  id: string;
+  vrsta: string;
+  status: string;
+  broj: string | null;
+  datum: Date;
+  dospijece: Date | null;
+  osnovica: { toFixed(n: number): string };
+  pdv: { toFixed(n: number): string };
+  ukupno: { toFixed(n: number): string };
+  placeno: { toFixed(n: number): string };
+  nacinPlacanja: string;
+  korisnik: string;
+  partner: { naziv: string; oib: string | null } | null;
+  marza?: number | null;
+};
+
+const STATUSI_PRODAJE: Record<string, string> = { NACRT: "nacrt", IZDAN: "izdan", STORNIRAN: "storniran" };
+
+/** Računi ili ponude: isti filtri kao na ekranu; marža samo uz pravo „costs“ (inače se ni ne računa). */
+function izvorProdaje(naslov: string, vrste: string[], racuni: boolean) {
+  const c = (x: { toFixed(n: number): string }) => centiIzDecimala(x.toFixed(2));
+  const stupci: StupacIzvoza<RedakProdaje>[] = [
+    { naslov: "Broj", vrijednost: (d) => d.broj ?? "nacrt", sirina: 12 },
+    { naslov: "Vrsta", vrijednost: (d) => VRSTE_PRODAJE[d.vrsta as VrstaProdaje]?.naziv ?? d.vrsta, sirina: 14 },
+    { naslov: "Status", vrijednost: (d) => STATUSI_PRODAJE[d.status] ?? d.status, sirina: 10 },
+    { naslov: "Datum", vrsta: "datum", vrijednost: (d) => d.datum.toISOString().slice(0, 10) },
+    { naslov: "Dospijeće", vrsta: "datum", vrijednost: (d) => d.dospijece?.toISOString().slice(0, 10) ?? null },
+    { naslov: "Kupac", vrijednost: (d) => d.partner?.naziv ?? "", sirina: 24 },
+    { naslov: "OIB kupca", vrijednost: (d) => d.partner?.oib ?? "", sirina: 12 },
+    { naslov: "Osnovica", vrsta: "iznos", vrijednost: (d) => c(d.osnovica) },
+    { naslov: "PDV", vrsta: "iznos", vrijednost: (d) => c(d.pdv) },
+    { naslov: "Ukupno", vrsta: "iznos", vrijednost: (d) => c(d.ukupno) },
+    ...(racuni
+      ? [
+          { naslov: "Plaćeno", vrsta: "iznos", vrijednost: (d: RedakProdaje) => c(d.placeno) } as StupacIzvoza<RedakProdaje>,
+          { naslov: "Marža", vrsta: "iznos", osjetljivo: true, vrijednost: (d: RedakProdaje) => d.marza ?? null } as StupacIzvoza<RedakProdaje>,
+        ]
+      : []),
+    { naslov: "Izradio", vrijednost: (d) => d.korisnik, sirina: 14 },
+  ];
+  return izvor<RedakProdaje>({
+    naslov,
+    pravo: { modul: "prodaja", razina: "pregled" },
+    stupci,
+    dohvati: async (k, sp, najvise) => {
+      const redovi = await k.db.prodajniDokument.findMany({
+        where: uvjetPopisa(
+          k.db,
+          k.firmaId,
+          {
+            vrsta: vise(sp["vrsta"]),
+            trazi: jedan(sp["trazi"]),
+            status: vise(sp["status"]),
+            partnerId: jedan(sp["partner"]),
+            placanje: jedan(sp["placanje"]),
+            od: jedan(sp["od"]),
+            do: jedan(sp["do"]),
+          },
+          vrste,
+        ),
+        orderBy: [{ datum: "desc" }, { stvoreno: "desc" }],
+        take: najvise,
+        select: {
+          id: true,
+          vrsta: true,
+          status: true,
+          broj: true,
+          datum: true,
+          dospijece: true,
+          osnovica: true,
+          pdv: true,
+          ukupno: true,
+          placeno: true,
+          nacinPlacanja: true,
+          korisnik: true,
+          partner: { select: { naziv: true, oib: true } },
+        },
+      });
+      if (!racuni || !imaPosebno(k.prava, "costs")) return redovi;
+      const m = new Map((await marzeDokumenata(bazaBezFirme, k.firmaId, { ids: redovi.map((r) => r.id) })).map((x) => [x.id, x.marza]));
+      return redovi.map((r) => ({ ...r, marza: m.get(r.id) ?? null }));
+    },
+  });
+}
+
 /** Svi popisi koji se mogu izvesti. Novi popis = novi unos ovdje. */
 export const IZVORI: Record<string, Izvor<unknown>> = {
+  racuni: izvorProdaje("Računi", ["RACUN", "PREDUJAM", "STORNO", "ODOBRENJE"], true),
+  ponude: izvorProdaje("Ponude i predračuni", ["PONUDA", "PREDRACUN"], false),
   dnevnik: izvor({
     naslov: "Dnevnik promjena",
     pravo: { posebno: "log" },

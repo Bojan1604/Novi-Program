@@ -71,6 +71,7 @@ export const STRANICE = {
   "/ponude": { naziv: "Ponude i predračuni", modul: "prodaja", razina: "pregled" },
   "/racuni": { naziv: "Računi", modul: "prodaja", razina: "pregled" },
   "/eracuni": { naziv: "eRačuni", modul: "prodaja", razina: "pregled" },
+  "/marze": { naziv: "Marže", modul: "prodaja", razina: "pregled", posebno: "costs" },
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 

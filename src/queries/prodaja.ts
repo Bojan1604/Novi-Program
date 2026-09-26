@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { jeDatum } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
 import { centiIzDecimala } from "@/domain/novac";
 import type { Sortiranje } from "@/domain/popis";
@@ -12,6 +13,9 @@ export type FilterProdaje = {
   partnerId?: string;
   /** OTVORENI (duguje), ZA_POVRAT (preplaćeni), PLACENI */
   placanje?: string;
+  /** razdoblje po datumu dokumenta (YYYY-MM-DD) */
+  od?: string;
+  do?: string;
   sort: Sortiranje<"datum" | "broj" | "ukupno">;
   stranica: number;
   velicina: number;
@@ -31,38 +35,51 @@ export function uvjetProdaje(
         { broj: { contains: t, mode: "insensitive" } },
         { partner: { naziv: { contains: t, mode: "insensitive" } } },
         { napomena: { contains: t, mode: "insensitive" } },
+        // serijski: i na grupiranoj stavci (više uređaja istog modela u jednom retku)
         { stavke: { some: { uredaj: { serijski: t.toUpperCase().replace(/\s+/g, "") } } } },
+        { stavke: { some: { uredaji: { some: { uredaj: { serijski: t.toUpperCase().replace(/\s+/g, "") } } } } } },
       ],
     });
   }
   const statusi = f.status.filter((s) => ["NACRT", "IZDAN", "STORNIRAN"].includes(s));
   if (statusi.length) i.push({ status: { in: statusi } });
   if (f.partnerId && jeUuid(f.partnerId)) i.push({ partnerId: f.partnerId });
+  if (f.od && jeDatum(f.od)) i.push({ datum: { gte: new Date(`${f.od}T00:00:00Z`) } });
+  if (f.do && jeDatum(f.do)) i.push({ datum: { lte: new Date(`${f.do}T00:00:00Z`) } });
   return { firmaId, AND: i };
 }
 
-export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaje, zadaneVrste: string[]) {
+/** Uvjet popisa s filtrom plaćanja (isti za ekran i izvoz). */
+export function uvjetPopisa(
+  db: DbFirme,
+  firmaId: string,
+  f: Omit<FilterProdaje, "sort" | "stranica" | "velicina">,
+  zadaneVrste: string[],
+): Prisma.ProdajniDokumentWhereInput {
   const osnova = uvjetProdaje(firmaId, f, zadaneVrste);
   const placeno = db.prodajniDokument.fields.placeno;
-  const where: Prisma.ProdajniDokumentWhereInput =
-    f.placanje === "OTVORENI"
-      ? { AND: [osnova, { status: "IZDAN", ukupno: { gt: placeno } }] }
-      : f.placanje === "ZA_POVRAT"
-        ? {
-            AND: [
-              osnova,
-              { vrsta: { not: "STORNO" } },
-              {
-                OR: [
-                  { status: "IZDAN", ukupno: { lt: placeno } },
-                  { status: "STORNIRAN", placeno: { gt: 0 } },
-                ],
-              },
-            ],
-          }
-        : f.placanje === "PLACENI"
-          ? { AND: [osnova, { status: "IZDAN", ukupno: { equals: placeno } }] }
-          : osnova;
+  return f.placanje === "OTVORENI"
+    ? { AND: [osnova, { status: "IZDAN", ukupno: { gt: placeno } }] }
+    : f.placanje === "ZA_POVRAT"
+      ? {
+          AND: [
+            osnova,
+            { vrsta: { not: "STORNO" } },
+            {
+              OR: [
+                { status: "IZDAN", ukupno: { lt: placeno } },
+                { status: "STORNIRAN", placeno: { gt: 0 } },
+              ],
+            },
+          ],
+        }
+      : f.placanje === "PLACENI"
+        ? { AND: [osnova, { status: "IZDAN", ukupno: { equals: placeno } }] }
+        : osnova;
+}
+
+export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaje, zadaneVrste: string[]) {
+  const where = uvjetPopisa(db, firmaId, f, zadaneVrste);
   const s = f.sort.smjer;
   const orderBy: Prisma.ProdajniDokumentOrderByWithRelationInput[] =
     f.sort.kljuc === "broj"

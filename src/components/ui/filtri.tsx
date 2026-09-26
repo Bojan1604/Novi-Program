@@ -145,3 +145,38 @@ export function FilterVise({ oznaka, parametar, opcije }: { oznaka: string; para
     </div>
   );
 }
+
+/** Razdoblje (?od=YYYY-MM-DD&do=YYYY-MM-DD); prazno polje briše granicu. */
+export function FilterRazdoblja({ oznaka = "Razdoblje" }: { oznaka?: string }) {
+  const router = useRouter();
+  const putanja = usePathname();
+  const sp = useSearchParams();
+  const [, zapocni] = useTransition();
+  const id = useId();
+  const promijeni = (parametar: "od" | "do", v: string) =>
+    zapocni(() =>
+      router.replace(urlPopisa(putanja, trenutniParametri(sp), { [parametar]: /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null }), { scroll: false }),
+    );
+  return (
+    <fieldset className="flex min-w-0 items-center gap-1 text-sm" aria-labelledby={id}>
+      <span id={id} className="sr-only">
+        {oznaka}
+      </span>
+      <input
+        type="date"
+        aria-label="Od datuma"
+        defaultValue={sp.get("od") ?? ""}
+        onChange={(e) => promijeni("od", e.target.value)}
+        className={`${klaseUnosa} w-0 min-w-0 flex-1 sm:w-36 sm:flex-none`}
+      />
+      <span aria-hidden>–</span>
+      <input
+        type="date"
+        aria-label="Do datuma"
+        defaultValue={sp.get("do") ?? ""}
+        onChange={(e) => promijeni("do", e.target.value)}
+        className={`${klaseUnosa} w-0 min-w-0 flex-1 sm:w-36 sm:flex-none`}
+      />
+    </fieldset>
+  );
+}

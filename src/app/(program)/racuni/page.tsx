@@ -1,13 +1,16 @@
-import { FilterVise, PoljePretrage } from "@/components/ui/filtri";
+import { FilterRazdoblja, FilterVise, PoljePretrage } from "@/components/ui/filtri";
+import { GumbiIzvoza } from "@/components/ui/izvoz";
 import { GumbVeza } from "@/components/ui/gumb";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
 import { Stranicenje } from "@/components/ui/stranicenje";
 import { Tablica } from "@/components/ui/tablica";
 import { formatirajIznos } from "@/domain/novac";
 import { jedan, sortiranje, stranica, velicina, vise } from "@/domain/popis";
-import { imaPravo } from "@/domain/prava";
+import { imaPosebno, imaPravo } from "@/domain/prava";
 import { VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
 import { pristupStranici } from "@/lib/akcija";
+import { db } from "@/lib/db";
+import { marzeDokumenata } from "@/queries/marze";
 import { popisProdaje } from "@/queries/prodaja";
 
 export const metadata = { title: "Računi · ERP-WMS" };
@@ -24,6 +27,8 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
     status: vise(sp["status"]),
     partnerId: jedan(sp["partner"]),
     placanje: jedan(sp["placanje"]),
+    od: jedan(sp["od"]),
+    do: jedan(sp["do"]),
     sort: sortiranje(sp, ["datum", "broj", "ukupno"] as const, { kljuc: "datum", smjer: "desc" }),
     stranica: stranica(sp["stranica"]),
     velicina: velicina(sp["velicina"]),
@@ -31,6 +36,10 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
   const r = await popisProdaje(k.db, k.firmaId, f, VRSTE);
   const ravni = Object.fromEntries(Object.entries(sp).map(([a, b]) => [a, Array.isArray(b) ? b.join(",") : b]));
   const smije = imaPravo(k.prava, "prodaja", "operativno");
+  // marža samo uz pravo nabavnih cijena (računa se na poslužitelju, bez njega se ni ne dohvaća)
+  const marze = imaPosebno(k.prava, "costs")
+    ? new Map((await marzeDokumenata(db, k.firmaId, { ids: r.redovi.map((d) => d.id) })).map((m) => [m.id, m]))
+    : null;
   return (
     <Stranica sirina="7xl">
       <NaslovStranice
@@ -49,6 +58,7 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
       <Kartica>
         <div className="mb-3 flex flex-col gap-2 sm:flex-row">
           <PoljePretrage placeholder="Broj, kupac, napomena, serijski" />
+          <FilterRazdoblja />
           <FilterVise
             oznaka="Vrsta"
             parametar="vrsta"
@@ -116,6 +126,19 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
               desno: true,
               prikaz: (d) => (d.status === "NACRT" ? "" : d.ukupno - d.placeno === 0 ? "" : `${formatirajIznos(d.ukupno - d.placeno)} €`),
             },
+            ...(marze
+              ? [
+                  {
+                    kljuc: "marza",
+                    naslov: "Marža",
+                    desno: true,
+                    prikaz: (d: (typeof r.redovi)[number]) => {
+                      const m = marze.get(d.id);
+                      return m ? `${formatirajIznos(m.marza)} €${m.bezNabavne ? " *" : ""}` : "";
+                    },
+                  },
+                ]
+              : []),
             { kljuc: "korisnik", naslov: "Izradio", prikaz: (d) => d.korisnik },
           ]}
           podnozje={[
@@ -127,10 +150,12 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
             `${formatirajIznos(r.zbrojOsnovica)} €`,
             `${formatirajIznos(r.zbrojUkupno)} €`,
             `${formatirajIznos(r.zbrojOtvoreno)} €`,
+            ...(marze ? [""] : []),
             "",
           ]}
         />
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <GumbiIzvoza izvor="racuni" parametri={sp} />
           <Stranicenje putanja="/racuni" parametri={ravni} stranica={f.stranica} velicina={f.velicina} ukupno={r.ukupno} />
         </div>
       </Kartica>

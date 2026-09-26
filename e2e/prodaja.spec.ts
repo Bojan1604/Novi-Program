@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { bezVodoravnogPomicanja, prijaviSe } from "./pomoc";
+import { E2E } from "./podaci";
 
 test("ponuda: kupac, model i usluga, zbrojevi uživo, izdavanje, predračun i račun bez gubitka", async ({ page }) => {
   await prijaviSe(page);
@@ -237,4 +238,27 @@ test("eRačun: provjera, slanje preko (demo) posrednika, status, UBL, popis eRa�
   await page.goto("/eracuni");
   await expect(page.getByTestId("popis-eracuna")).toContainText(broj);
   await bezVodoravnogPomicanja(page);
+});
+
+test("marže i izvoz računa: samo uz pravo nabavnih cijena", async ({ page }) => {
+  await prijaviSe(page);
+  await page.goto("/marze");
+  await expect(page.getByRole("heading", { name: "Marže" })).toBeVisible();
+  await expect(page.getByTestId("marze")).toContainText("Ukupno");
+  await bezVodoravnogPomicanja(page);
+  await page.goto("/racuni");
+  // na mobitelu je zaglavlje tablice skriveno (kartice), pa se provjerava DOM
+  await expect(page.getByTestId("popis-racuna").locator("th", { hasText: "Marža" })).toHaveCount(1);
+  const csv = await page.request.get("/api/izvoz/racuni?format=csv");
+  expect(csv.status()).toBe(200);
+  expect((await csv.text()).split("\n")[0]).toContain("Marža");
+
+  await page.context().clearCookies();
+  await prijaviSe(page, E2E.prodavac.email);
+  await page.goto("/racuni");
+  await expect(page.getByTestId("popis-racuna").locator("th", { hasText: "Marža" })).toHaveCount(0);
+  const csv2 = await page.request.get("/api/izvoz/racuni?format=csv");
+  expect((await csv2.text()).split("\n")[0]).not.toContain("Marža");
+  await page.goto("/marze");
+  await expect(page).toHaveURL(/\/nema-pristupa$/);
 });

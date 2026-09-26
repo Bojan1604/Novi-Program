@@ -74,6 +74,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/ponude": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
   "/racuni": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
   "/eracuni": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
+  "/marze": ["Administrator", "Voditelj", "Knjigovođa"],
   "/postavke": ["Administrator", "Voditelj"],
 };
 
@@ -132,6 +133,7 @@ describe("izbornik", () => {
       "/racuni",
       "/ponude",
       "/eracuni",
+      "/marze",
       "/partneri",
       "/cjenici",
       "/uredaji",
