@@ -65,7 +65,7 @@ export default async function Uredaji({ searchParams }: PageProps<"/uredaji">) {
       naslov: "Skladište / kupac",
       prikaz: (u): ReactNode =>
         u.partner ? (
-          <Link href={`/partneri/${u.partner.id}`} className="relative z-10 text-primarna hover:underline">
+          <Link href={`/partneri/${u.partner.id}`} className="relative z-10 text-primarna-slova hover:underline">
             {u.partner.naziv}
           </Link>
         ) : (
@@ -134,7 +134,7 @@ export default async function Uredaji({ searchParams }: PageProps<"/uredaji">) {
         {f.serijski.length > 0 && (
           <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
             Samo skenirani uređaji ({f.serijski.length}).{" "}
-            <Link href="/uredaji" className="text-primarna hover:underline">
+            <Link href="/uredaji" className="text-primarna-slova hover:underline">
               Prikaži sve
             </Link>
           </p>

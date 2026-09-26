@@ -57,7 +57,7 @@ export default async function Ulazni({ params }: PageProps<"/ulazni/[id]">) {
         opis={
           <span className="inline-flex flex-wrap items-center gap-2">
             {r.dobavljac ? (
-              <Link href={`/partneri/${r.dobavljac.id}`} className="text-primarna hover:underline">
+              <Link href={`/partneri/${r.dobavljac.id}`} className="text-primarna-slova hover:underline">
                 {r.dobavljac.naziv}
               </Link>
             ) : (
@@ -66,7 +66,7 @@ export default async function Ulazni({ params }: PageProps<"/ulazni/[id]">) {
             <Znacka>{STATUSI_ULAZNIH[r.status] ?? r.status}</Znacka>
             {r.zaRobu && <Znacka boja="plava">račun za robu</Znacka>}
             {r.narudzbenica && (
-              <Link href={`/nabava/${r.narudzbenica.id}`} className="text-primarna hover:underline">
+              <Link href={`/nabava/${r.narudzbenica.id}`} className="text-primarna-slova hover:underline">
                 {r.narudzbenica.broj}
               </Link>
             )}
@@ -133,7 +133,7 @@ export default async function Ulazni({ params }: PageProps<"/ulazni/[id]">) {
             {prilozi.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <div className="min-w-0">
-                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna hover:underline">
+                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna-slova hover:underline">
                     {p.naziv}
                   </a>
                   <div className="text-xs text-neutral-500">

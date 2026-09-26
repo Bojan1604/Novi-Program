@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jeBoja, kontrast, tamnija, tekstNaBoji, varijableBoje, ZADANA_BOJA } from "./boje";
+import { jeBoja, kontrast, POZADINE_SVIJETLE, POZADINE_TAMNE, slovaNaPozadini, tamnija, tekstNaBoji, varijableBoje, ZADANA_BOJA } from "./boje";
 
 describe("boje firme", () => {
   it("kontrast crno/bijelo je 21", () => {
@@ -34,5 +34,15 @@ describe("boje firme", () => {
     expect(jeBoja("red; background:url(x)")).toBe(false);
     expect(varijableBoje("red; }")["--primarna"]).toBe(ZADANA_BOJA);
     expect(varijableBoje("#ABCDEF")["--primarna"]).toBe("#abcdef");
+  });
+
+  it("slova u boji firme čitljiva su u obje teme za svaku boju (WCAG AA 4,5 : 1)", () => {
+    for (const b of ["#1d4ed8", "#0f766e", "#facc15", "#000000", "#ffffff", "#ff0000", "#7c3aed", "#808080"]) {
+      const v = varijableBoje(b);
+      for (const p of POZADINE_SVIJETLE) expect(kontrast(v["--primarna-slova-svijetla"]!, p), `${b} na ${p}`).toBeGreaterThanOrEqual(4.5);
+      for (const p of POZADINE_TAMNE) expect(kontrast(v["--primarna-slova-tamna"]!, p), `${b} na ${p}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // boja koja je već čitljiva ostaje ista
+    expect(slovaNaPozadini("#1d4ed8", POZADINE_SVIJETLE)).toBe("#1d4ed8");
   });
 });

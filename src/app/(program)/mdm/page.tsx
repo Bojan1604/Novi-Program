@@ -55,7 +55,7 @@ export default async function Mdm() {
             {redovi.map((o) => (
               <li key={o.id} className={`flex flex-wrap items-center justify-between gap-2 py-2 ${o.dubina ? "pl-5" : ""}`}>
                 <div className="min-w-0">
-                  <Link href={`/mdm/${o.id}`} className="font-medium text-primarna hover:underline">
+                  <Link href={`/mdm/${o.id}`} className="font-medium text-primarna-slova hover:underline">
                     {o.naziv}
                   </Link>{" "}
                   <span className="text-neutral-500">{o.partner ? `· ${o.partner.naziv}` : ""}</span>

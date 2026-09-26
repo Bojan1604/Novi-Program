@@ -67,7 +67,7 @@ export default async function ERacuni({ searchParams }: PageProps<"/eracuni">) {
                 {eRacuni.map((e) => (
                   <tr key={e.id} className="border-b border-neutral-100 dark:border-neutral-900">
                     <td className="py-1 pr-2">
-                      <Link href={`/racuni/${e.dokument.id}`} className="text-primarna hover:underline">
+                      <Link href={`/racuni/${e.dokument.id}`} className="text-primarna-slova hover:underline">
                         {e.dokument.broj}
                       </Link>
                     </td>
@@ -107,7 +107,7 @@ export default async function ERacuni({ searchParams }: PageProps<"/eracuni">) {
               <li key={i.id} className="flex flex-wrap justify-between gap-2 py-1.5">
                 <span>
                   {i.vrsta === "NAPLATA" ? "Naplata" : "Odbijanje"} {formatirajIznos(centiIzDecimala(i.iznos.toFixed(2)))} € ·{" "}
-                  <Link href={`/racuni/${i.dokument.id}`} className="text-primarna hover:underline">
+                  <Link href={`/racuni/${i.dokument.id}`} className="text-primarna-slova hover:underline">
                     {i.dokument.broj}
                   </Link>{" "}
                   · {datum.format(i.datum)}

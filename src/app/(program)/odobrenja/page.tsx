@@ -43,7 +43,7 @@ export default async function Odobrenja({ searchParams }: PageProps<"/odobrenja"
             {r.redovi.map((o) => (
               <li key={o.id} className="flex flex-col gap-2 py-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Link href={`${PUTANJE[o.entitet] ?? ""}/${o.entitetId}`} className="font-medium text-primarna hover:underline">
+                  <Link href={`${PUTANJE[o.entitet] ?? ""}/${o.entitetId}`} className="font-medium text-primarna-slova hover:underline">
                     {o.opis}
                   </Link>
                   {o.status !== "CEKA" && (

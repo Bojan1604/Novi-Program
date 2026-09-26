@@ -72,18 +72,18 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
   const veze = (
     <span className="inline-flex flex-wrap items-center gap-2">
       {d.partner && (
-        <Link href={`/partneri/${d.partner.id}`} className="text-primarna hover:underline">
+        <Link href={`/partneri/${d.partner.id}`} className="text-primarna-slova hover:underline">
           {d.partner.naziv}
         </Link>
       )}
       {nacrt ? <Znacka>nacrt</Znacka> : d.status === "STORNIRAN" ? <Znacka boja="crvena">storniran</Znacka> : null}
       {d.izvor && (
-        <Link href={`${putanja(d.izvor.vrsta)}/${d.izvor.id}`} className="text-primarna hover:underline">
+        <Link href={`${putanja(d.izvor.vrsta)}/${d.izvor.id}`} className="text-primarna-slova hover:underline">
           iz: {VRSTE_PRODAJE[d.izvor.vrsta as VrstaProdaje]?.naziv} {d.izvor.broj ?? "(nacrt)"}
         </Link>
       )}
       {d.izvedeni.map((x) => (
-        <Link key={x.id} href={`${putanja(x.vrsta)}/${x.id}`} className="text-primarna hover:underline">
+        <Link key={x.id} href={`${putanja(x.vrsta)}/${x.id}`} className="text-primarna-slova hover:underline">
           → {VRSTE_PRODAJE[x.vrsta as VrstaProdaje]?.naziv} {x.broj ?? "(nacrt)"}
         </Link>
       ))}

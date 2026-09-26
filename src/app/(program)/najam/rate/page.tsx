@@ -58,7 +58,7 @@ export default async function RateZaIzdati({ searchParams }: PageProps<"/najam/r
           {redovi.map((r) => (
             <li key={r.id} className={`flex flex-wrap items-center justify-between gap-3 py-3 ${r.rata ? "" : "opacity-60"}`}>
               <div className="min-w-0">
-                <Link href={`/najam/${r.id}`} className="font-medium text-primarna hover:underline">
+                <Link href={`/najam/${r.id}`} className="font-medium text-primarna-slova hover:underline">
                   {r.broj}
                 </Link>{" "}
                 · {r.partner.naziv}

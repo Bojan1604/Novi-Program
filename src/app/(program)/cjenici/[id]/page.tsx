@@ -71,7 +71,7 @@ export default async function Cjenik({ params }: PageProps<"/cjenici/[id]">) {
           <ul className="flex flex-wrap gap-2 text-sm">
             {c.partneri.map((p) => (
               <li key={p.id}>
-                <Link href={`/partneri/${p.id}`} className="text-primarna hover:underline">
+                <Link href={`/partneri/${p.id}`} className="text-primarna-slova hover:underline">
                   {p.naziv}
                 </Link>
               </li>

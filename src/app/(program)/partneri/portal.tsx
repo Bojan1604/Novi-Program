@@ -34,7 +34,7 @@ function Tajna({ t }: { t: NonNullable<OdgovorPristupa["tajna"]> }) {
           Kopiraj
         </Gumb>
         <a
-          className="text-primarna hover:underline"
+          className="text-primarna-slova hover:underline"
           href={`mailto:${t.za}?subject=${encodeURIComponent("Pristup portalu klijenata")}&body=${encodeURIComponent(tijelo)}`}
         >
           Pošalji e-poštom

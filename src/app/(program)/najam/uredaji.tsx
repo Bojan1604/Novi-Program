@@ -89,7 +89,7 @@ export function UredajiUgovora({
                   </td>
                 )}
                 <td className="py-1 pr-2">
-                  <Link href={`/uredaji/${r.uredajId}`} className="font-mono text-primarna hover:underline">
+                  <Link href={`/uredaji/${r.uredajId}`} className="font-mono text-primarna-slova hover:underline">
                     {r.serijski}
                   </Link>
                   <div className="text-xs text-neutral-500">

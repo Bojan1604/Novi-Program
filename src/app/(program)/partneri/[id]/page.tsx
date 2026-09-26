@@ -110,7 +110,7 @@ export default async function Partner({ params }: PageProps<"/partneri/[id]">) {
         {p.cjenik && (
           <p className="mt-3 text-sm">
             Cjenik:{" "}
-            <Link href={`/cjenici/${p.cjenik.id}`} className="text-primarna hover:underline">
+            <Link href={`/cjenici/${p.cjenik.id}`} className="text-primarna-slova hover:underline">
               {p.cjenik.naziv}
             </Link>
           </p>

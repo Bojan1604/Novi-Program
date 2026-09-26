@@ -81,7 +81,7 @@ export default async function Organizacija({ params }: PageProps<"/mdm/[id]">) {
             {o.nadredena && (
               <span>
                 pod{" "}
-                <Link href={`/mdm/${o.nadredena.id}`} className="text-primarna hover:underline">
+                <Link href={`/mdm/${o.nadredena.id}`} className="text-primarna-slova hover:underline">
                   {o.nadredena.naziv}
                 </Link>
               </span>
@@ -116,7 +116,7 @@ export default async function Organizacija({ params }: PageProps<"/mdm/[id]">) {
           <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="mdm-uredaji">
             {o.uredaji.map((u) => (
               <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <Link href={`/mdm/uredaji/${u.id}`} className="break-all text-primarna hover:underline">
+                <Link href={`/mdm/uredaji/${u.id}`} className="break-all text-primarna-slova hover:underline">
                   {u.serijski}
                   {u.naziv ? ` · ${u.naziv}` : ""}
                 </Link>
@@ -157,7 +157,7 @@ export default async function Organizacija({ params }: PageProps<"/mdm/[id]">) {
           <ul className="flex flex-col gap-1 text-sm">
             {o.podredene.map((p) => (
               <li key={p.id}>
-                <Link href={`/mdm/${p.id}`} className="text-primarna hover:underline">
+                <Link href={`/mdm/${p.id}`} className="text-primarna-slova hover:underline">
                   {p.naziv}
                 </Link>
               </li>

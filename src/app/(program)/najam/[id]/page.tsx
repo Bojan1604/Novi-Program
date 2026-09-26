@@ -93,7 +93,7 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
         naslov={`Ugovor ${u.broj}`}
         opis={
           <span className="inline-flex flex-wrap items-center gap-2">
-            <Link href={`/partneri/${u.partner.id}`} className="text-primarna hover:underline">
+            <Link href={`/partneri/${u.partner.id}`} className="text-primarna-slova hover:underline">
               {u.partner.naziv}
             </Link>
             <Znacka boja={s === "AKTIVAN" ? "zelena" : s === "OTKAZAN" ? "crvena" : "siva"}>{STATUSI_UGOVORA[s]}</Znacka>
@@ -131,7 +131,7 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
         {redovi.length > 200 && (
           <p className="mt-2 text-sm text-neutral-600">
             Prikazano 200 od {redovi.length} uređaja — cijeli popis po stranicama je u{" "}
-            <Link href={`/najam/${u.id}/raspored`} className="text-primarna hover:underline">
+            <Link href={`/najam/${u.id}/raspored`} className="text-primarna-slova hover:underline">
               rasporedu
             </Link>
             .
@@ -155,7 +155,7 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
                 <span className="flex items-center gap-2 font-medium">
                   višak {formatirajIznos(v.razlika)} €
                   {v.dokumentId && (
-                    <Link href={`/racuni/${v.dokumentId}`} className="font-normal text-primarna hover:underline">
+                    <Link href={`/racuni/${v.dokumentId}`} className="font-normal text-primarna-slova hover:underline">
                       račun {racuni.get(v.dokumentId)}
                     </Link>
                   )}
@@ -220,7 +220,7 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
                     {formatirajIznos(Math.round(Number(r.iznos) * 100))} €
                   </span>
                   {r.dokumentId ? (
-                    <Link href={`/racuni/${r.dokumentId}`} className="text-primarna hover:underline">
+                    <Link href={`/racuni/${r.dokumentId}`} className="text-primarna-slova hover:underline">
                       {racuni.get(r.dokumentId)}
                     </Link>
                   ) : (
@@ -241,7 +241,7 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
             {u.prilozi.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <div className="min-w-0">
-                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna hover:underline">
+                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna-slova hover:underline">
                     {p.naziv}
                   </a>
                   <div className="text-xs text-neutral-500">

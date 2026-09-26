@@ -80,7 +80,7 @@ export default async function Izvjestaj({ params, searchParams }: PageProps<"/iz
               const t = tekstVrijednosti(s.vrijednost(r), s.vrsta);
               const v = s.veza?.(r);
               return v ? (
-                <Link href={v} className="text-primarna hover:underline">
+                <Link href={v} className="text-primarna-slova hover:underline">
                   {t}
                 </Link>
               ) : (

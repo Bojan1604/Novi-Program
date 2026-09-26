@@ -34,7 +34,7 @@ export default async function PortalUredaji({ searchParams }: PageProps<"/portal
             {redovi.map((u) => (
               <li key={u.id} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <Link href={`/portal/uredaji/${u.id}`} className="font-medium break-all text-primarna hover:underline">
+                  <Link href={`/portal/uredaji/${u.id}`} className="font-medium break-all text-primarna-slova hover:underline">
                     {u.serijski}
                   </Link>
                   <div className="text-sm text-neutral-600 dark:text-neutral-400">

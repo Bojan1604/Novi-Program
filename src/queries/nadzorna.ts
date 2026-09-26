@@ -1,3 +1,4 @@
+import { formatirajIznos, type Centi } from "@/domain/novac";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { sljedeciMjesec } from "@/domain/najam";
 import { imaPravo, type Prava } from "@/domain/prava";
@@ -55,13 +56,13 @@ export async function podaciNadzorne(db: PrismaClient, firmaId: string, prava: P
           naslov: "Potraživanja",
           vrijednost: Number(p.rezultat.zbroj["otvoreno"] ?? 0),
           vrsta: "iznos",
-          opis: `dospjelo ${(dosp / 100).toFixed(2).replace(".", ",")} €`,
+          opis: `dospjelo ${formatirajIznos(dosp as Centi, true)}`,
           veza: "/izvjestaji/potrazivanja",
         });
         if (dosp > 0)
           upozorenja.push({
             kljuc: "dospjelo",
-            tekst: `Dospjela potraživanja: ${(dosp / 100).toFixed(2).replace(".", ",")} €`,
+            tekst: `Dospjela potraživanja: ${formatirajIznos(dosp as Centi, true)}`,
             veza: "/izvjestaji/potrazivanja",
             razina: "upozorenje",
           });

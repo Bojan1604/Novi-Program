@@ -1,5 +1,6 @@
 "use server";
 
+import { formatirajIznos, type Centi } from "@/domain/novac";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { STATUSI_SERVISA } from "@/domain/servis";
@@ -99,7 +100,7 @@ export async function otpisAkcija(id: string, _p: Odgovor | undefined, fd: FormD
     return {
       ok: true,
       poruka: r.visak
-        ? `Uređaj je otpisan. Višak naplaćenog najma ${(r.visak / 100).toFixed(2).replace(".", ",")} € — odobrenje na ugovoru.`
+        ? `Uređaj je otpisan. Višak naplaćenog najma ${formatirajIznos(r.visak as Centi, true)} — odobrenje na ugovoru.`
         : "Uređaj je otpisan.",
     };
   });

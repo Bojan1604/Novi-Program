@@ -14,7 +14,7 @@ export function ObrazacLozinke({ token }: { token: string }) {
     return (
       <div className="flex flex-col gap-3">
         <Obavijest vrsta="uspjeh">Lozinka je postavljena. Prijavite se s e-poštom {stanje.email}.</Obavijest>
-        <Link href="/portal/prijava" className="text-primarna hover:underline">
+        <Link href="/portal/prijava" className="text-primarna-slova hover:underline">
           Na prijavu
         </Link>
       </div>

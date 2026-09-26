@@ -49,8 +49,37 @@ export function tamnija(hex: string, udio = 0.15): string {
   return uHex(r * (1 - udio), g * (1 - udio), b * (1 - udio));
 }
 
+function pomijesaj(hex: string, prema: string, udio: number): string {
+  const [r, g, b] = kanali(hex);
+  const [x, y, z] = kanali(prema);
+  return uHex(r + (x - r) * udio, g + (y - g) * udio, b + (z - b) * udio);
+}
+
+/** Pozadine na kojima stoje slova u boji firme (stranica, redak pod mišem, kartica) — svijetla i tamna tema. */
+export const POZADINE_SVIJETLE = ["#ffffff", "#f5f5f5"] as const;
+export const POZADINE_TAMNE = ["#0a0a0a", "#171717", "#262626"] as const;
+
+/**
+ * Boja slova u boji firme (veze, aktivna stavka izbornika) čitljiva na svim zadanim pozadinama (WCAG AA 4,5 : 1):
+ * boja firme, po potrebi potamnjena (svijetla tema) ili posvijetljena (tamna tema) koliko treba.
+ */
+export function slovaNaPozadini(boja: string, pozadine: readonly string[]): string {
+  const prema = pozadine.every((p) => svjetlina(p) > 0.5) ? "#000000" : "#ffffff";
+  for (let i = 0; i <= 40; i++) {
+    const c = pomijesaj(boja, prema, i / 40);
+    if (pozadine.every((p) => kontrast(c, p) >= 4.5)) return c;
+  }
+  return prema;
+}
+
 /** CSS varijable za boju firme (neispravna boja → zadana). */
 export function varijableBoje(boja: string | null | undefined): Record<string, string> {
   const b = jeBoja(boja) ? boja.toLowerCase() : ZADANA_BOJA;
-  return { "--primarna": b, "--primarna-tamnija": tamnija(b), "--primarna-tekst": tekstNaBoji(b) };
+  return {
+    "--primarna": b,
+    "--primarna-tamnija": tamnija(b),
+    "--primarna-tekst": tekstNaBoji(b),
+    "--primarna-slova-svijetla": slovaNaPozadini(b, POZADINE_SVIJETLE),
+    "--primarna-slova-tamna": slovaNaPozadini(b, POZADINE_TAMNE),
+  };
 }

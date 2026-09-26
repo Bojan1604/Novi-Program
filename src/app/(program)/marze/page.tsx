@@ -56,7 +56,7 @@ export default async function Marze({ searchParams }: PageProps<"/marze">) {
                 return (
                   <tr key={m.mjesec} className="border-b border-neutral-100 dark:border-neutral-900">
                     <td className="py-1 pr-2">
-                      <Link href={`/racuni?od=${m.mjesec}-01&do=${m.mjesec}-${zadnji}`} className="text-primarna hover:underline">
+                      <Link href={`/racuni?od=${m.mjesec}-01&do=${m.mjesec}-${zadnji}`} className="text-primarna-slova hover:underline">
                         {MJESECI[Number(mj) - 1]} {g}.
                       </Link>
                     </td>

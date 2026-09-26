@@ -53,7 +53,7 @@ export default async function MdmUredaj({ params }: PageProps<"/mdm/uredaji/[id]
             ) : (
               naVezi(u.zadnjiKontakt, new Date()) && <Znacka boja="zelena">na vezi</Znacka>
             )}
-            <Link href={`/mdm/${u.organizacija.id}`} className="text-primarna hover:underline">
+            <Link href={`/mdm/${u.organizacija.id}`} className="text-primarna-slova hover:underline">
               {u.organizacija.naziv}
             </Link>
           </span>
@@ -79,7 +79,7 @@ export default async function MdmUredaj({ params }: PageProps<"/mdm/uredaji/[id]
             <div>
               <dt className="text-neutral-500">Kartica uređaja</dt>
               <dd>
-                <Link href={`/uredaji/${u.uredaj.id}`} className="text-primarna hover:underline">
+                <Link href={`/uredaji/${u.uredaj.id}`} className="text-primarna-slova hover:underline">
                   {u.uredaj.serijski}
                 </Link>
               </dd>

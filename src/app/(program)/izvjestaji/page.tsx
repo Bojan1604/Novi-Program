@@ -21,7 +21,7 @@ export default async function Izvjestaji() {
               .filter((x) => x.grupa === g)
               .map((x) => (
                 <li key={x.kljuc} className="py-2">
-                  <Link href={`/izvjestaji/${x.kljuc}`} className="font-medium text-primarna hover:underline">
+                  <Link href={`/izvjestaji/${x.kljuc}`} className="font-medium text-primarna-slova hover:underline">
                     {x.naziv}
                   </Link>
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">{x.opis}</p>

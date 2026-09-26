@@ -91,7 +91,7 @@ export default async function Inventura({ params, searchParams }: PageProps<"/in
                 <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                   <div className="min-w-0">
                     {s.uredaj ? (
-                      <Link href={`/uredaji/${s.uredaj.id}`} className="font-mono text-primarna hover:underline">
+                      <Link href={`/uredaji/${s.uredaj.id}`} className="font-mono text-primarna-slova hover:underline">
                         {s.serijski}
                       </Link>
                     ) : (
@@ -117,11 +117,11 @@ export default async function Inventura({ params, searchParams }: PageProps<"/in
         {!otvorena && (inv.manjak ?? 0) + (inv.visak ?? 0) > 0 && (
           <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
             Razlike se ispravljaju dokumentima: manjak{" "}
-            <Link href="/skladisni/nova?vrsta=IZLAZ" className="text-primarna hover:underline">
+            <Link href="/skladisni/nova?vrsta=IZLAZ" className="text-primarna-slova hover:underline">
               izlazom
             </Link>{" "}
             (uz odobrenje), višak iz drugog skladišta{" "}
-            <Link href="/skladisni/nova?vrsta=MEDJUSKLADISNICA" className="text-primarna hover:underline">
+            <Link href="/skladisni/nova?vrsta=MEDJUSKLADISNICA" className="text-primarna-slova hover:underline">
               međuskladišnicom
             </Link>
             .

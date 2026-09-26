@@ -55,7 +55,7 @@ export default async function Narudzbenica({ params }: PageProps<"/nabava/[id]">
         naslov={`Narudžbenica ${n.broj}`}
         opis={
           <span className="inline-flex flex-wrap items-center gap-2">
-            <Link href={`/partneri/${n.dobavljac.id}`} className="text-primarna hover:underline">
+            <Link href={`/partneri/${n.dobavljac.id}`} className="text-primarna-slova hover:underline">
               {n.dobavljac.naziv}
             </Link>
             · {datum.format(n.datum)} · <Znacka>{STATUSI_NARUDZBE[n.status as StatusNarudzbe]}</Znacka>
@@ -129,7 +129,7 @@ export default async function Narudzbenica({ params }: PageProps<"/nabava/[id]">
           <ul className="mb-3 flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="racuni-narudzbenice">
             {racuni.map((r) => (
               <li key={r.id} className="flex justify-between gap-2 py-1.5">
-                <Link href={`/ulazni/${r.id}`} className="text-primarna hover:underline">
+                <Link href={`/ulazni/${r.id}`} className="text-primarna-slova hover:underline">
                   {r.interni} · {r.broj}
                 </Link>
                 <span>
@@ -167,7 +167,7 @@ export default async function Narudzbenica({ params }: PageProps<"/nabava/[id]">
           <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="primke-narudzbenice">
             {n.primke.map((p) => (
               <li key={p.id} className="flex justify-between gap-2 py-1.5">
-                <Link href={`/primke/${p.id}`} className="text-primarna hover:underline">
+                <Link href={`/primke/${p.id}`} className="text-primarna-slova hover:underline">
                   {p.broj}
                 </Link>
                 <span>

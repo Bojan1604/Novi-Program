@@ -56,7 +56,7 @@ export default async function SkladisniDokument({ params, searchParams }: PagePr
             {d.partner && (
               <>
                 {" · "}
-                <Link href={`/partneri/${d.partner.id}`} className="text-primarna hover:underline">
+                <Link href={`/partneri/${d.partner.id}`} className="text-primarna-slova hover:underline">
                   {d.partner.naziv}
                 </Link>
               </>

@@ -89,7 +89,7 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
           <Podatak naziv="Kod partnera">
             {u.partner && (
               <>
-                <Link href={`/partneri/${u.partner.id}`} className="text-primarna hover:underline">
+                <Link href={`/partneri/${u.partner.id}`} className="text-primarna-slova hover:underline">
                   {u.partner.naziv}
                 </Link>
                 {u.poslovnica && ` · ${u.poslovnica.naziv}`}
@@ -99,7 +99,7 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
           <Podatak naziv="Stanje robe">{u.stanjeRobe?.naziv}</Podatak>
           <Podatak naziv="Primka">
             {u.primka && (
-              <Link href={`/primke/${u.primka.id}`} className="text-primarna hover:underline">
+              <Link href={`/primke/${u.primka.id}`} className="text-primarna-slova hover:underline">
                 {u.primka.broj}
               </Link>
             )}
@@ -149,7 +149,7 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
                   {d.partner && (
                     <>
                       {" · "}
-                      <Link href={`/partneri/${d.partner.id}`} className="text-primarna hover:underline">
+                      <Link href={`/partneri/${d.partner.id}`} className="text-primarna-slova hover:underline">
                         {d.partner.naziv}
                       </Link>
                     </>
@@ -158,7 +158,7 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
                     <>
                       {" · "}
                       {putanja && d.dokumentId ? (
-                        <Link href={`${putanja}/${d.dokumentId}`} className="text-primarna hover:underline">
+                        <Link href={`${putanja}/${d.dokumentId}`} className="text-primarna-slova hover:underline">
                           {d.dokumentVrsta} {d.dokumentBroj}
                         </Link>
                       ) : (
@@ -185,7 +185,7 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
             {u.prilozi.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <div className="min-w-0">
-                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna hover:underline">
+                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna-slova hover:underline">
                     {p.naziv}
                   </a>
                   <div className="text-xs text-neutral-500 dark:text-neutral-400">

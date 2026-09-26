@@ -91,7 +91,7 @@ export default async function Troskovi({ searchParams }: PageProps<"/troskovi">)
                   <td className="py-1 pr-2">{r.kategorija}</td>
                   <td className="py-1 pr-2">
                     {r.veza ? (
-                      <Link href={r.veza} className="text-primarna hover:underline">
+                      <Link href={r.veza} className="text-primarna-slova hover:underline">
                         {r.opis}
                       </Link>
                     ) : (

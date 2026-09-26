@@ -193,7 +193,7 @@ export function Skeniranje() {
                     <li key={s.serijski} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                       <div className="min-w-0">
                         {u ? (
-                          <Link href={`/uredaji/${u.id}`} className="font-mono text-primarna hover:underline">
+                          <Link href={`/uredaji/${u.id}`} className="font-mono text-primarna-slova hover:underline">
                             {s.serijski}
                           </Link>
                         ) : (

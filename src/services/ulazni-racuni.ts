@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { danas, jeDatum, usporedi } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
-import { centiIzDecimala, centiUDecimal, formatirajIznos } from "@/domain/novac";
+import { centiIzDecimala, centiUDecimal, formatirajIznos, type Centi } from "@/domain/novac";
 import { procitajOib } from "@/domain/oib";
 import { trosakNarudzbenice } from "@/domain/trosak-robe";
 import { oznakaDokumenta } from "@/domain/zaprimanje";
@@ -125,7 +125,7 @@ export async function spremiUlazniRacun(
       if (s.izvor !== "ERACUN" && c(s.placeno) > 0 && u.osnovica + u.pdv < c(s.placeno))
         return {
           ok: false,
-          polja: { osnovica: `Već je plaćeno ${(c(s.placeno) / 100).toFixed(2).replace(".", ",")} € — ukupno ne može biti manje.` },
+          polja: { osnovica: `Već je plaćeno ${formatirajIznos(c(s.placeno) as Centi, true)} — ukupno ne može biti manje.` },
         };
       if (s.status !== "EVIDENTIRAN" && s.status !== "PRIHVACEN") throw new GreskaKorisniku("Ovaj račun se više ne mijenja.");
       // eRačun: iznosi i dobavljač su s računa — mijenjaju se samo veze, oznaka i opis
@@ -387,7 +387,7 @@ export async function platiUlazni(db: PrismaClient, akter: Akter, id: string, u:
     if (r.status === "PRIMLJEN") throw new GreskaKorisniku("eRačun se plaća tek nakon prihvata.");
     if (r.status !== "EVIDENTIRAN" && r.status !== "PRIHVACEN") throw new GreskaKorisniku("Ovaj račun se ne plaća.");
     const otvoreno = c(r.ukupno) - c(r.placeno);
-    if (u.iznos > otvoreno) throw new GreskaKorisniku(`Najviše ${(otvoreno / 100).toFixed(2).replace(".", ",")} € (otvoreno).`);
+    if (u.iznos > otvoreno) throw new GreskaKorisniku(`Najviše ${formatirajIznos(otvoreno as Centi, true)} (otvoreno).`);
     const ime = (await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";
     await tx.placanjeUlaznog.create({
       data: { firmaId: f, ulazniRacunId: id, datum: d(u.datum), iznos: centiUDecimal(u.iznos), korisnikId: akter.korisnikId, korisnik: ime },

@@ -58,7 +58,7 @@ export function Tablica<R>({
                   {s.sortira && sort ? (
                     <Link
                       href={urlPopisa(putanja, parametri, { sort: s.sortira, smjer: sljedeciSmjer(sort, s.sortira) })}
-                      className="inline-flex items-center gap-1 hover:text-primarna"
+                      className="inline-flex items-center gap-1 hover:text-primarna-slova"
                       scroll={false}
                     >
                       {s.naslov}

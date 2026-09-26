@@ -64,7 +64,7 @@ export default async function Knjigovodja({ searchParams }: PageProps<"/knjigovo
           {p.izlazni.map((x) => (
             <li key={x.id} className="flex flex-wrap justify-between gap-2 py-1.5">
               <span>
-                <Link href={`/racuni/${x.id}`} className="text-primarna hover:underline">
+                <Link href={`/racuni/${x.id}`} className="text-primarna-slova hover:underline">
                   {x.broj}
                 </Link>{" "}
                 · {VRSTE_PRODAJE[x.vrsta as VrstaProdaje]?.naziv} · {datum.format(x.datum)} · {x.partner?.naziv ?? "građanin"}
@@ -86,7 +86,7 @@ export default async function Knjigovodja({ searchParams }: PageProps<"/knjigovo
           {p.ulazni.map((x) => (
             <li key={x.id} className="flex flex-wrap justify-between gap-2 py-1.5">
               <span>
-                <Link href={`/ulazni/${x.id}`} className="text-primarna hover:underline">
+                <Link href={`/ulazni/${x.id}`} className="text-primarna-slova hover:underline">
                   {x.interni}
                 </Link>{" "}
                 · {x.broj} · {x.dobavljac?.naziv ?? x.dobavljacTekst} · {datum.format(x.datum)}

@@ -19,17 +19,37 @@
   --primarna: #1d4ed8;
   --primarna-tamnija: #1e40af;
   --primarna-tekst: #ffffff;
+  /* slova u boji firme na pozadini stranice (varijableBoje računa kontrast 4,5 : 1 za obje teme) */
+  --primarna-slova-svijetla: #1d4ed8;
+  --primarna-slova-tamna: #6c8ce6;
+}
+
+/* boja slova prema temi — na :root i na svakom okviru koji postavlja boju firme (style="--primarna…") */
+:root,
+[style*="--primarna"] {
+  --primarna-slova: var(--primarna-slova-svijetla);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="svijetla"]) {
     --pozadina: #0a0a0a;
     --tekst: #ededed;
+    /* sivi pomoćni tekst u tamnoj temi: 4,5 : 1 i na karticama (#262626) */
+    --color-neutral-500: #949494;
+  }
+  :root:not([data-tema="svijetla"]),
+  :root:not([data-tema="svijetla"]) [style*="--primarna"] {
+    --primarna-slova: var(--primarna-slova-tamna);
   }
 }
 :root[data-tema="tamna"] {
   --pozadina: #0a0a0a;
   --tekst: #ededed;
+  --color-neutral-500: #949494;
+}
+:root[data-tema="tamna"],
+:root[data-tema="tamna"] [style*="--primarna"] {
+  --primarna-slova: var(--primarna-slova-tamna);
 }
 
 @theme inline {
@@ -38,6 +58,7 @@
   --color-primarna: var(--primarna);
   --color-primarna-tamnija: var(--primarna-tamnija);
   --color-primarna-tekst: var(--primarna-tekst);
+  --color-primarna-slova: var(--primarna-slova);
   --font-sans: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
@@ -66,6 +87,6 @@ body {
     @apply md:text-right md:tabular-nums;
   }
   .tbl-veza {
-    @apply font-medium text-primarna hover:underline max-md:after:absolute max-md:after:inset-0;
+    @apply font-medium text-primarna-slova hover:underline max-md:after:absolute max-md:after:inset-0;
   }
 }

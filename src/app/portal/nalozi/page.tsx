@@ -38,7 +38,7 @@ export default async function PortalNalozi({ searchParams }: PageProps<"/portal/
             {redovi.map((n) => (
               <li key={n.id} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <Link href={`/portal/nalozi/${n.id}`} className="font-medium text-primarna hover:underline">
+                  <Link href={`/portal/nalozi/${n.id}`} className="font-medium text-primarna-slova hover:underline">
                     {n.broj}
                   </Link>{" "}
                   <span className="text-sm text-neutral-600 dark:text-neutral-400">

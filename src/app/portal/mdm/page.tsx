@@ -21,7 +21,7 @@ export default async function PortalMdm() {
           <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="portal-mdm-organizacije">
             {org.map((o) => (
               <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <Link href={`/portal/mdm/${o.id}`} className="font-medium text-primarna hover:underline">
+                <Link href={`/portal/mdm/${o.id}`} className="font-medium text-primarna-slova hover:underline">
                   {o.naziv}
                 </Link>
                 <span className="flex gap-1">

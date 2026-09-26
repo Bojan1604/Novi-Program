@@ -1,3 +1,4 @@
+import { formatirajIznos, type Centi } from "./novac";
 /**
  * Uplate po računu — čista logika (korak 2.5). Iznosi u centima.
  * Uplata je pozitivna (kupac plaća), povrat kupcu negativan. Poništene se ne broje.
@@ -43,7 +44,7 @@ export function provjeriUplatu(ukupno: number, uplate: readonly Uplata[], iznos:
   if (iznos < 0 && -iznos > s.zaPovrat) {
     return s.zaPovrat === 0
       ? "Kupcu se nema što vratiti — račun nije preplaćen."
-      : `Povrat može biti najviše ${(s.zaPovrat / 100).toFixed(2).replace(".", ",")} €.`;
+      : `Povrat može biti najviše ${formatirajIznos(s.zaPovrat as Centi, true)}.`;
   }
   return null;
 }

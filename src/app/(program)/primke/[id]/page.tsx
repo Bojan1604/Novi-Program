@@ -56,7 +56,7 @@ export default async function Primka({ params, searchParams }: PageProps<"/primk
             {p.dobavljac && (
               <>
                 {" · "}
-                <Link href={`/partneri/${p.dobavljac.id}`} className="text-primarna hover:underline">
+                <Link href={`/partneri/${p.dobavljac.id}`} className="text-primarna-slova hover:underline">
                   {p.dobavljac.naziv}
                 </Link>
               </>

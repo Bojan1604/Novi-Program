@@ -82,7 +82,7 @@ export function RasporedNajma({
             {redovi.map((r) => (
               <tr key={r.planId} className="border-b border-neutral-100 dark:border-neutral-900">
                 <td className="sticky left-0 bg-white py-1 pr-2 font-mono whitespace-nowrap dark:bg-neutral-950">
-                  <Link href={`/uredaji/${r.uredajId}`} className="text-primarna hover:underline">
+                  <Link href={`/uredaji/${r.uredajId}`} className="text-primarna-slova hover:underline">
                     {r.serijski}
                   </Link>
                 </td>

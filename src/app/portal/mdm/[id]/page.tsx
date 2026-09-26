@@ -70,7 +70,7 @@ export default async function PortalOrganizacija({ params }: PageProps<"/portal/
           <ul className="flex flex-col gap-1 text-sm">
             {o.podredene.map((p) => (
               <li key={p.id}>
-                <Link href={`/portal/mdm/${p.id}`} className="text-primarna hover:underline">
+                <Link href={`/portal/mdm/${p.id}`} className="text-primarna-slova hover:underline">
                   {p.naziv}
                 </Link>
               </li>

@@ -70,7 +70,7 @@ export default async function Trosak({ params }: PageProps<"/troskovi/[id]">) {
             {prilozi.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <div className="min-w-0">
-                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna hover:underline">
+                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna-slova hover:underline">
                     {p.naziv}
                   </a>
                   <div className="text-xs text-neutral-500">

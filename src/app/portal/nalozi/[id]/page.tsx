@@ -87,7 +87,7 @@ export default async function PortalNalog({ params }: PageProps<"/portal/nalozi/
           <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="prilozi-klijenta">
             {n.prilozi.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <a href={`/portal/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna hover:underline">
+                <a href={`/portal/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna-slova hover:underline">
                   {p.naziv}
                 </a>
                 <span className="text-xs text-neutral-500">{velicinaZaPrikaz(p.velicina)}</span>

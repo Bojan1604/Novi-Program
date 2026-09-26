@@ -135,7 +135,7 @@ export function FilterVise({ oznaka, parametar, opcije }: { oznaka: string; para
             <button
               type="button"
               onClick={() => postavi([])}
-              className="mt-1 w-full rounded px-2 py-1.5 text-left text-sm text-primarna hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="mt-1 w-full rounded px-2 py-1.5 text-left text-sm text-primarna-slova hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
               Poništi
             </button>

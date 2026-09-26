@@ -88,7 +88,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
       <Kartica>
         <dl className="flex flex-col gap-2 text-sm">
           <Redak oznaka="Uređaj">
-            <Link href={`/uredaji/${n.uredaj.id}`} className="text-primarna hover:underline">
+            <Link href={`/uredaji/${n.uredaj.id}`} className="text-primarna-slova hover:underline">
               {n.uredaj.serijski}
             </Link>{" "}
             · {n.uredaj.model.naziv} · sada: {STANJA[n.uredaj.stanje as Stanje]}
@@ -96,7 +96,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
           <Redak oznaka="Prije servisa">{STANJA[stanjePrije]}</Redak>
           <Redak oznaka="Klijent">
             {n.partner ? (
-              <Link href={`/partneri/${n.partner.id}`} className="text-primarna hover:underline">
+              <Link href={`/partneri/${n.partner.id}`} className="text-primarna-slova hover:underline">
                 {n.partner.naziv}
               </Link>
             ) : (
@@ -105,7 +105,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
           </Redak>
           {n.ugovor && (
             <Redak oznaka="Ugovor o najmu">
-              <Link href={`/najam/${n.ugovor.id}`} className="text-primarna hover:underline">
+              <Link href={`/najam/${n.ugovor.id}`} className="text-primarna-slova hover:underline">
                 {n.ugovor.broj}
               </Link>
             </Redak>
@@ -120,7 +120,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
           </Redak>
           {n.zamjenski && (
             <Redak oznaka="Zamjenski uređaj">
-              <Link href={`/uredaji/${n.zamjenski.id}`} className="text-primarna hover:underline">
+              <Link href={`/uredaji/${n.zamjenski.id}`} className="text-primarna-slova hover:underline">
                 {n.zamjenski.serijski}
               </Link>{" "}
               · od {n.zamjenaOd ? datum.format(n.zamjenaOd) : "—"}
@@ -191,7 +191,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
             {prilozi.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <div className="min-w-0">
-                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna hover:underline">
+                  <a href={`/api/prilozi/${p.id}`} target="_blank" rel="noopener" className="break-all text-primarna-slova hover:underline">
                     {p.naziv}
                   </a>
                   <div className="text-xs text-neutral-500">

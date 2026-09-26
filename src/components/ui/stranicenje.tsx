@@ -35,7 +35,9 @@ export function Stranicenje({
             ‹ Prethodna
           </Link>
         ) : (
-          <span className={`${klase} opacity-40`}>‹ Prethodna</span>
+          <span className={`${klase} opacity-40`} aria-disabled="true">
+            ‹ Prethodna
+          </span>
         )}
         <span>
           {stranica} / {zadnja}
@@ -45,7 +47,9 @@ export function Stranicenje({
             Sljedeća ›
           </Link>
         ) : (
-          <span className={`${klase} opacity-40`}>Sljedeća ›</span>
+          <span className={`${klase} opacity-40`} aria-disabled="true">
+            Sljedeća ›
+          </span>
         )}
       </div>
     </nav>

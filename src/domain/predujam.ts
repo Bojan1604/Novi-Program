@@ -1,3 +1,4 @@
+import { formatirajIznos, type Centi } from "./novac";
 /**
  * Predujam (korak 2.7) — čista pravila. Iznosi u centima (osnovica bez PDV-a).
  * Konačni račun odbija predujam negativnim stavkama „Predujam po računu …“ po istoj stopi PDV-a,
@@ -29,7 +30,7 @@ export function provjeriPredujmove(p: {
     if (!d) return "Predujam nije s izdanog računa za predujam ovog kupca.";
     if (s.iznos >= 0) return `Predujam „${d.naziv}“ mora umanjiti račun (negativan iznos).`;
     const ukupno = (koristi.get(d.stavkaId) ?? 0) + Math.abs(s.iznos);
-    if (ukupno > preostalo(d)) return `Predujam „${d.naziv}“: odbija se više od preostalih ${(preostalo(d) / 100).toFixed(2).replace(".", ",")} €.`;
+    if (ukupno > preostalo(d)) return `Predujam „${d.naziv}“: odbija se više od preostalih ${formatirajIznos(preostalo(d) as Centi, true)}.`;
     koristi.set(d.stavkaId, ukupno);
   }
   if (p.ukupnoRacuna < 0) return "Predujam je veći od računa — smanjite iznos predujma.";

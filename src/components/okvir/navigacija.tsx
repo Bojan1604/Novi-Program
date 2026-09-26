@@ -30,7 +30,7 @@ function Popis({ stavke, trenutna, onOdabir }: { stavke: StavkaNav[]; trenutna: 
                       aria-current={aktivna ? "page" : undefined}
                       className={`block rounded-md px-3 py-2 text-sm ${
                         aktivna
-                          ? "bg-primarna/10 font-medium text-primarna"
+                          ? "bg-primarna/10 font-medium text-primarna-slova"
                           : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                       }`}
                     >
