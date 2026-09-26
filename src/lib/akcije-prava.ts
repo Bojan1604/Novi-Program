@@ -65,6 +65,7 @@ export const AKCIJE = {
   "troskovi.spremi": { modul: "troskovi", razina: "operativno" },
   "troskovi.obrisi": { modul: "troskovi", razina: "puno" },
   "troskovi.prilozi": { modul: "troskovi", razina: "operativno" },
+  "knjigovodja.predaja": { modul: "knjigovodja", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -93,6 +94,7 @@ export const STRANICE = {
   "/nabava": { naziv: "Narudžbenice", modul: "nabava", razina: "pregled" },
   "/ulazni": { naziv: "Ulazni računi", modul: "nabava", razina: "pregled" },
   "/troskovi": { naziv: "Troškovi", modul: "troskovi", razina: "pregled" },
+  "/knjigovodja": { naziv: "Za knjigovođu", modul: "knjigovodja", razina: "pregled" },
   "/marze": { naziv: "Marže", modul: "prodaja", razina: "pregled", posebno: "costs" },
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;

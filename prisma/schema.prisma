@@ -52,6 +52,8 @@ model Firma {
   smtpLozinka       String?
   epostaPosiljatelj String?
   epostaKopija      String?
+  /// e-pošta knjigovođe (za slanje mjesečnog paketa)
+  epostaKnjigovodje String?
   /// fiskalizacija (korak 2.10): ISKLJUCENA, DEMO, TEST, PRODUKCIJA; certifikat .p12 i lozinka šifrirani (src/lib/tajne.ts)
   fiskalNacin       String    @default("DEMO")
   fiskalCertifikat  String?
@@ -103,6 +105,7 @@ model Firma {
   troskovi             Trosak[]
   ponavljajuciTroskovi PonavljajuciTrosak[]
   ulazniRacuni         UlazniRacun[]
+  predajeKnjigovodji   PredajaKnjigovodji[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -1335,4 +1338,25 @@ model PonavljajuciTrosak {
   troskovi   Trosak[]
 
   @@unique([firmaId, id])
+}
+
+/// Predaja dokumenata knjigovođi za mjesec (ZIP ili e-pošta): „označi poslano“.
+model PredajaKnjigovodji {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  /// prvi dan mjeseca
+  mjesec     DateTime @db.Date
+  /// ZIP, EPOSTA, RUCNO
+  nacin      String
+  prima      String?
+  izlaznih   Int
+  ulaznih    Int
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+  vrijeme    DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, mjesec])
 }
