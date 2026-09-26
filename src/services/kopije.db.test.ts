@@ -114,16 +114,16 @@ describe("sigurnosne kopije", () => {
     const logo = await prisma.logoFirme.findUniqueOrThrow({ where: { id: f.logoId! } });
     expect(logo.firmaId).toBe(n);
     expect([...logo.sadrzaj]).toEqual([137, 80, 78, 71, 0, 1, 2, 255]);
-    expect(Buffer.from((await prisma.prilog.findFirstOrThrow({ where: { firmaId: n } })).sadrzaj).toString()).toBe("%PDF");
+    expect(Buffer.from((await prisma.prilog.findFirstOrThrow({ where: { firmaId: n, naziv: "ugovor.pdf" } })).sadrzaj).toString()).toBe("%PDF");
 
     const noviPartner = await prisma.partner.findFirstOrThrow({ where: { firmaId: n, naziv: partner.naziv, oib: partner.oib } });
     expect(noviPartner.id).not.toBe(partner.id);
     const kl = await prisma.mdmOrganizacija.findFirstOrThrow({ where: { firmaId: n, naziv: "Klijent" }, include: { nadredena: true } });
     expect(kl.nadredena).toMatchObject({ firmaId: n, naziv: "Distributer", partnerId: noviPartner.id });
     expect(kl.kodUpisa).not.toBe("KOD-K1");
-    expect(await prisma.mdmUredaj.findFirstOrThrow({ where: { firmaId: n } })).toMatchObject({ ponovniUpis: true });
-    expect((await prisma.mdmUredaj.findFirstOrThrow({ where: { firmaId: n } })).tokenHash).not.toBe("h".repeat(64));
-    expect(await prisma.korisnikPortala.findFirstOrThrow({ where: { firmaId: n } })).toMatchObject({
+    expect(await prisma.mdmUredaj.findFirstOrThrow({ where: { firmaId: n, serijski: "TAB-1" } })).toMatchObject({ ponovniUpis: true });
+    expect((await prisma.mdmUredaj.findFirstOrThrow({ where: { firmaId: n, serijski: "TAB-1" } })).tokenHash).not.toBe("h".repeat(64));
+    expect(await prisma.korisnikPortala.findFirstOrThrow({ where: { firmaId: n, email: "k@x.hr" } })).toMatchObject({
       poveznicaHash: null,
       lozinkaHash: null,
       aktivan: false,
