@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { GumbVeza } from "@/components/ui/gumb";
+import { GumbNaljepnice } from "@/components/ui/naljepnice";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Promjene } from "@/components/ui/promjene";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
@@ -63,7 +64,12 @@ export default async function KarticaUredaja({ params }: PageProps<"/uredaji/[id
             {u.stanjePrijeServisa && <span className="text-xs">(prije servisa: {STANJA[u.stanjePrijeServisa as Stanje]})</span>}
           </span>
         }
-        akcije={<GumbVeza href="/uredaji">Natrag</GumbVeza>}
+        akcije={
+          <>
+            <GumbNaljepnice parametri={{ uredaj: u.id }} oznaka="Naljepnica" />
+            <GumbVeza href="/uredaji">Natrag</GumbVeza>
+          </>
+        }
       />
 
       <Kartica naslov="Podaci">

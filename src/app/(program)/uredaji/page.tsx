@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { FilterVise, PoljePretrage } from "@/components/ui/filtri";
 import { GumbiIzvoza } from "@/components/ui/izvoz";
+import { GumbNaljepnice } from "@/components/ui/naljepnice";
+import { NAJVISE_NALJEPNICA } from "@/domain/naljepnice";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
 import { Stranicenje } from "@/components/ui/stranicenje";
 import { Tablica, type Stupac } from "@/components/ui/tablica";
@@ -116,6 +118,7 @@ export default async function Uredaji({ searchParams }: PageProps<"/uredaji">) {
               kolacic={KOLACIC}
             />
             <GumbiIzvoza izvor="uredaji" parametri={sp} />
+            {r.ukupno > 0 && r.ukupno <= NAJVISE_NALJEPNICA && <GumbNaljepnice parametri={{ ...sp, popis: "1" }} />}
           </>
         }
       />

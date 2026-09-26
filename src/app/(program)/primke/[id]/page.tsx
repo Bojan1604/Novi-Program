@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GumbVeza } from "@/components/ui/gumb";
+import { GumbNaljepnice } from "@/components/ui/naljepnice";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
 import { Tablica } from "@/components/ui/tablica";
@@ -61,7 +62,12 @@ export default async function Primka({ params }: PageProps<"/primke/[id]">) {
             {p.knjiziUTroskove && <Znacka>knjiži u troškove</Znacka>}
           </span>
         }
-        akcije={<GumbVeza href="/primke">Natrag</GumbVeza>}
+        akcije={
+          <>
+            {p.status === "IZDANA" && <GumbNaljepnice parametri={{ primka: p.id }} />}
+            <GumbVeza href="/primke">Natrag</GumbVeza>
+          </>
+        }
       />
       <Kartica naslov={`Uređaji (${p.brojUredaja})`}>
         {p.status === "STORNIRANA" ? (

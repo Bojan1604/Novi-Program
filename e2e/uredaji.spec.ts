@@ -103,3 +103,23 @@ test("kartica uređaja za prodavača: bez ispravka, bez nabavne cijene", async (
   expect(await page.content()).not.toContain("700,00");
   await bezVodoravnogPomicanja(page);
 });
+
+test("naljepnice: PDF s kartice i popisa, QR poveznica vodi na karticu", async ({ page }) => {
+  await prijaviSe(page, E2E.prodavac.email);
+  await page.goto("/uredaji/sn/e2e-ur-001");
+  await expect(page.getByRole("heading", { name: "E2E-UR-001" })).toBeVisible();
+  await page.getByRole("button", { name: "Naljepnica" }).click();
+  const dijalog = page.getByRole("dialog");
+  await dijalog.getByLabel("Format").selectOption("traka-62x29");
+  const href = await dijalog.getByRole("link", { name: "Otvori PDF" }).getAttribute("href");
+  expect(href).toContain("format=traka-62x29");
+  const r = await page.request.get(href!);
+  expect(r.status()).toBe(200);
+  expect(r.headers()["content-type"]).toBe("application/pdf");
+  // popis: sve filtrirano (ovdje 3 uređaja) na A4 arku
+  const popis = await page.request.get("/api/naljepnice?format=a4-3x8&popis=1&trazi=E2E-UR-00");
+  expect(popis.status()).toBe(200);
+  expect((await popis.body()).toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  expect((await page.request.get("/api/naljepnice?format=nepoznat&popis=1")).status()).toBe(400);
+  expect((await page.request.get("/uredaji/sn/NEPOSTOJI-1")).status()).toBe(404);
+});

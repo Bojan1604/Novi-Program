@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GumbVeza } from "@/components/ui/gumb";
+import { GumbNaljepnice } from "@/components/ui/naljepnice";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { Tablica } from "@/components/ui/tablica";
@@ -60,7 +61,12 @@ export default async function SkladisniDokument({ params, searchParams }: PagePr
             <ZnackaStatusa status={d.status} />
           </span>
         }
-        akcije={<GumbVeza href="/skladisni">Natrag</GumbVeza>}
+        akcije={
+          <>
+            <GumbNaljepnice parametri={{ dokument: d.id }} />
+            <GumbVeza href="/skladisni">Natrag</GumbVeza>
+          </>
+        }
       />
       {o && (
         <Kartica naslov="Odobrenje">

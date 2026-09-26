@@ -162,3 +162,6 @@ Na Windowsu sve pokreće `pokreni.bat`.
   nova vrsta zahtjeva = grana u `odluciOZahtjevu` i putanja u `/odobrenja`.
 - **Inventura** (`src/services/inventure.ts`): svaki sken odmah u bazu (`StavkaInventure`), zaključenje uspoređuje
   sa stanjem u programu (`usporedi` u `src/domain/inventura.ts`) i ne mijenja uređaje — razlike se ispravljaju dokumentima.
+- **Naljepnice:** geometrija u `src/domain/naljepnice.ts` (test „ispis bez odrezivanja“ za svaki format), PDF u
+  `src/lib/naljepnice-pdf.ts` (bwip-js: Code 128 + QR na `/uredaji/sn/<serijski>`), gumb `GumbNaljepnice`.
+  Novi format = unos u `FORMATI` (test ga sam provjeri).
