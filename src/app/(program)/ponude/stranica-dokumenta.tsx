@@ -13,10 +13,14 @@ import { preostalo } from "@/domain/predujam";
 import { ukupnoZaPlacanje } from "@/domain/odobrenja";
 import { NAZIVI_STATUSA, stanjePlacanja } from "@/domain/uplate";
 import { PonistiUplatu, UnosUplate } from "../racuni/placanje";
+import { SlanjeEposte } from "./eposta";
+import { predlozak, vrstaPoruke, type VrstaPoruke } from "@/domain/eposta";
+import { pozivNaBrojRacuna } from "@/domain/hub3";
 import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, Pretvori, Storniraj } from "./radnje";
 import { UredjivacDokumenta, type PocetniDokument } from "./uredjivac";
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
+const vrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Zagreb" });
 const dan = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const putanja = (vrsta: string) => (["RACUN", "STORNO", "ODOBRENJE", "PREDUJAM"].includes(vrsta) ? "/racuni" : "/ponude");
 
@@ -154,6 +158,29 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
     d.uplate.map((u) => ({ iznos: centiIzDecimala(u.iznos.toFixed(2)), ponistena: u.ponistena })),
   );
   const smijePonistiti = imaPravo(k.prava, "prodaja", "puno");
+  // e-pošta: predlošci iz podataka dokumenta (kako je izdan)
+  const sn = (d.snimka ?? {}) as { firma?: { naziv: string; iban: string | null }; kupac?: { naziv: string; email?: string | null } | null };
+  const [slanja, izvornik, kupacUzivo] = await Promise.all([
+    k.db.slanjeEposte.findMany({ where: { firmaId: k.firmaId, dokumentId: d.id }, orderBy: { vrijeme: "desc" }, take: 20 }),
+    d.izvorId ? k.db.prodajniDokument.findFirst({ where: { firmaId: k.firmaId, id: d.izvorId }, select: { broj: true } }) : null,
+    d.partnerId ? k.db.partner.findFirst({ where: { firmaId: k.firmaId, id: d.partnerId }, select: { email: true } }) : null,
+  ]);
+  const kupacEmail = kupacUzivo?.email ?? "";
+  const smtp = !!firma.smtpHost || process.env["EPOSTA_NACIN"] === "test";
+  const podaciPoruke = {
+    firma: sn.firma?.naziv ?? firma.naziv,
+    kupac: sn.kupac?.naziv ?? d.partner?.naziv ?? null,
+    broj: d.broj ?? "",
+    iznos: `${formatirajIznos(centiIzDecimala(d.ukupno.toFixed(2)))} €`,
+    datum: datum.format(d.datum),
+    dospijece: d.dospijece ? datum.format(d.dospijece) : null,
+    vrijediDo: d.vrijediDo ? datum.format(d.vrijediDo) : null,
+    iban: sn.firma?.iban ?? firma.iban,
+    pozivNaBroj: d.redni && d.godina ? pozivNaBrojRacuna(d.redni, d.godina) : null,
+    zaRacun: izvornik?.broj ?? null,
+  };
+  const zaVrstu: VrstaPoruke[] = d.vrsta === "RACUN" ? ["RACUN", "PLACEN"] : [vrstaPoruke(d.vrsta, false)];
+  const predlosci = Object.fromEntries(zaVrstu.map((v) => [v, predlozak(v, podaciPoruke)]));
   const skladista =
     d.vrsta === "RACUN" && d.status === "IZDAN"
       ? await k.db.skladiste.findMany({
@@ -268,6 +295,34 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
         {d.napomena && <p className="mt-3 text-sm whitespace-pre-line">{d.napomena}</p>}
         <p className="mt-3 text-xs text-neutral-500">Izradio {d.korisnik}</p>
       </Kartica>
+      {smije && !nacrt && (
+        <Kartica naslov="E-pošta">
+          <SlanjeEposte
+            key={vrstaPoruke(d.vrsta, placanje.status === "PLACEN")}
+            dokumentId={d.id}
+            prima={kupacEmail}
+            vrsta={vrstaPoruke(d.vrsta, placanje.status === "PLACEN")}
+            predlosci={predlosci}
+            smtp={smtp}
+          />
+          {slanja.length > 0 && (
+            <ul className="mt-4 flex flex-col divide-y divide-neutral-100 text-xs dark:divide-neutral-900" data-testid="slanja">
+              {slanja.map((x) => (
+                <li key={x.id} className="flex flex-wrap justify-between gap-2 py-1.5">
+                  <span>
+                    {x.status === "POSLANO" ? "Poslano" : x.status === "MAILTO" ? "Otvoreno u programu za poštu" : "Nije poslano"}: {x.predmet} →{" "}
+                    {x.prima}
+                    {x.greska && <span className="text-red-700 dark:text-red-400"> ({x.greska})</span>}
+                  </span>
+                  <span className="text-neutral-500">
+                    {x.korisnik} · {vrijeme.format(x.vrijeme)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Kartica>
+      )}
       {(d.vrsta === "RACUN" || d.vrsta === "ODOBRENJE") && !nacrt && (
         <Kartica naslov={`Plaćanje · ${NAZIVI_STATUSA[placanje.status]}`}>
           <dl className="mb-3 grid grid-cols-3 gap-3 text-sm tabular-nums" data-testid="stanje-placanja">

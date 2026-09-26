@@ -95,6 +95,15 @@ test("račun: skenirani uređaj, izdavanje s brojem, uređaj prodan, izdani se n
   await expect(page.getByRole("heading", { name: "Plaćanje · Plaćen" })).toBeVisible();
   await expect(page.getByTestId("uplate").locator("li")).toHaveCount(3);
 
+  // e-pošta: predložak „Potvrda plaćanja“ jer je račun plaćen; slanje (testni prijevoz) i zapis
+  const eposta = page.getByRole("group", { name: "Slanje e-poštom" });
+  await expect(eposta.getByLabel("Predložak")).toHaveValue("PLACEN");
+  await expect(eposta.getByLabel("Predmet")).toHaveValue(/je plaćen/);
+  await eposta.getByLabel("Prima").fill("kupac@e2e.hr");
+  await eposta.getByRole("button", { name: "Pošalji s PDF-om" }).click();
+  await expect(eposta.getByText("Poslano.")).toBeVisible();
+  await expect(page.getByTestId("slanja")).toContainText("kupac@e2e.hr");
+
   await page.goto(`/uredaji/sn/${serijski}`);
   await expect(page.getByText("Prodan").first()).toBeVisible();
   await expect(page.getByTestId("povijest")).toContainText(/Račun \d+\/PP1\/1/);

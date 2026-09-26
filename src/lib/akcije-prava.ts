@@ -42,6 +42,8 @@ export const AKCIJE = {
   "prodaja.podaci": { modul: "prodaja", razina: "operativno" },
   "uplate.unos": { modul: "prodaja", razina: "operativno" },
   "prodaja.storno": { modul: "prodaja", razina: "puno" },
+  "eposta.slanje": { modul: "prodaja", razina: "operativno" },
+  "postavke.spremi": { modul: "postavke", razina: "puno" },
   "prodaja.odobrenje": { modul: "prodaja", razina: "puno" },
   "uplate.ponisti": { modul: "prodaja", razina: "puno" },
 } as const satisfies Record<string, PotrebnoPravo>;
@@ -66,6 +68,7 @@ export const STRANICE = {
   "/inventure": { naziv: "Inventure", modul: "uredaji", razina: "pregled" },
   "/ponude": { naziv: "Ponude i predračuni", modul: "prodaja", razina: "pregled" },
   "/racuni": { naziv: "Računi", modul: "prodaja", razina: "pregled" },
+  "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 
 export type PutanjaStranice = keyof typeof STRANICE;

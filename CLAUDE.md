@@ -168,3 +168,8 @@ Na Windowsu sve pokreće `pokreni.bat`.
 - **Prodajni dokumenti** (`ProdajniDokument`, `src/services/prodaja.ts`): nacrt bez broja → izdavanje (broj, `snimka`
   podataka firme/kupca, zaključano). Iznosi i PDV uvijek kroz `izracunajDokument` (`src/domain/prodaja.ts`) — isti
   izračun u pregledniku i na poslužitelju; poslužitelj ne vjeruje iznosima iz preglednika. Pretvorba kopira stavke 1:1.
+- **Stanje klijentske komponente iz propsa** (`useState(prop)`): kad poslužitelj promijeni podatke (revalidate), komponenta
+  zadrži staro stanje — daj joj `key` iz podatka o kojem ovisi (npr. predložak e-pošte, broj stavki predujma).
+- **E-pošta:** predlošci u `src/domain/eposta.ts`, slanje `posaljiDokument` (PDF u privitku, zapis u `SlanjeEposte`);
+  bez SMTP-a „Otvori u programu za poštu“ (mailto). `EPOSTA_NACIN=test` ne šalje ništa (e2e, demo). SMTP lozinka se
+  šifrira (`src/lib/tajne.ts`, ključ `TAJNI_KLJUC`) i nikad ne ide u preglednik ni u dnevnik.

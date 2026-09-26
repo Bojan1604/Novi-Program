@@ -27,23 +27,31 @@ model Firma {
   stvoreno DateTime @default(now()) @db.Timestamptz(3)
 
   /// podaci za dokumente (izdani dokument ih pamti u trenutku izdavanja)
-  adresa          String?
-  postanskiBroj   String?
-  mjesto          String?
-  email           String?
-  telefon         String?
-  web             String?
-  iban            String?
-  banka           String?
+  adresa            String?
+  postanskiBroj     String?
+  mjesto            String?
+  email             String?
+  telefon           String?
+  web               String?
+  iban              String?
+  banka             String?
   /// u sustavu PDV-a; obračun po naplaćenoj naknadi
-  uSustavuPdv     Boolean @default(true)
-  pdvPoNaplacenoj Boolean @default(false)
+  uSustavuPdv       Boolean @default(true)
+  pdvPoNaplacenoj   Boolean @default(false)
   /// fiskalizacija: oznaka poslovnog prostora i naplatnog uređaja (broj računa 12/PP1/1)
-  oznakaProstora  String  @default("PP1")
-  oznakaUredaja   String  @default("1")
+  oznakaProstora    String  @default("PP1")
+  oznakaUredaja     String  @default("1")
   /// zadani rok plaćanja (dana) i tekst u podnožju dokumenata
-  rokPlacanjaDana Int     @default(15)
-  podnozje        String?
+  rokPlacanjaDana   Int     @default(15)
+  podnozje          String?
+  /// e-pošta: SMTP (lozinka šifrirana, src/lib/tajne.ts); bez SMTP-a slanje ide preko programa za poštu (mailto)
+  smtpHost          String?
+  smtpPort          Int?
+  smtpSigurno       Boolean @default(true)
+  smtpKorisnik      String?
+  smtpLozinka       String?
+  epostaPosiljatelj String?
+  epostaKopija      String?
 
   clanstva ClanstvoFirme[]
   sesije   Sesija[]
@@ -74,6 +82,7 @@ model Firma {
   stavkeProdaje      StavkaProdajnogDokumenta[]
   uredajiNaStavkama  UredajNaStavci[]
   uplate             Uplata[]
+  slanjaEposte       SlanjeEposte[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -784,6 +793,7 @@ model ProdajniDokument {
   poslovnica Poslovnica?                @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
   stavke     StavkaProdajnogDokumenta[]
   uplate     Uplata[]
+  slanja     SlanjeEposte[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, vrsta, godina, redni])
@@ -873,4 +883,27 @@ model Uplata {
   @@unique([firmaId, id])
   @@index([firmaId, dokumentId])
   @@index([firmaId, datum(sort: Desc)])
+}
+
+/// Dnevnik slanja e-pošte uz dokument.
+model SlanjeEposte {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  dokumentId String   @db.Uuid
+  /// predložak (RACUN, PLACEN, STORNO…)
+  vrsta      String
+  prima      String
+  predmet    String
+  /// POSLANO, GRESKA, MAILTO (otvoreno u programu za poštu)
+  status     String
+  greska     String?
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+  vrijeme    DateTime @default(now()) @db.Timestamptz(3)
+
+  firma    Firma            @relation(fields: [firmaId], references: [id])
+  dokument ProdajniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, dokumentId, vrijeme(sort: Desc)])
 }

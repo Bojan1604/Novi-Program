@@ -18,7 +18,7 @@ export const OSJETLJIVA_POLJA = new Set([
 ]);
 
 /** Polja koja se nikad ne zapisuju (tajne). */
-export const TAJNA_POLJA = new Set(["lozinkaHash", "lozinka", "token", "totpTajna", "rezervniKodovi"]);
+export const TAJNA_POLJA = new Set(["lozinkaHash", "lozinka", "token", "totpTajna", "rezervniKodovi", "smtpLozinka"]);
 
 const ZANEMARENA = new Set(["id", "firmaId", "stvoreno", "azurirano", "verzija"]);
 

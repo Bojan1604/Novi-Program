@@ -6,7 +6,7 @@ const GRUPE: { grupa: string; putanje: PutanjaStranice[] }[] = [
   { grupa: "Prodaja", putanje: ["/racuni", "/ponude"] },
   { grupa: "Partneri", putanje: ["/partneri", "/cjenici"] },
   { grupa: "Skladište", putanje: ["/uredaji", "/skeniranje", "/primke", "/skladisni", "/odobrenja", "/inventure", "/sifrarnici"] },
-  { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik", "/moj-racun"] },
+  { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik", "/postavke", "/moj-racun"] },
 ];
 
 export const IZBORNIK: StavkaIzbornika[] = GRUPE.flatMap(({ grupa, putanje }) =>
