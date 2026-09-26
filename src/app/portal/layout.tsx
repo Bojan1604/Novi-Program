@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { db } from "@/lib/db";
 import { trenutniKlijent } from "@/lib/portal";
+import { vidljiveOrganizacijePartnera } from "@/services/mdm";
 import { odjavaPortalaAkcija } from "./akcije";
 
 export const metadata = { title: "Portal klijenata" };
 
 export default async function PortalLayout({ children }: LayoutProps<"/portal">) {
   const k = await trenutniKlijent();
+  const imaMdm = k ? (await vidljiveOrganizacijePartnera(db, k.firmaId, k.partnerId)).length > 0 : false;
   return (
     <div className="flex min-h-full flex-1 flex-col bg-neutral-50 dark:bg-neutral-950">
       {k && (
@@ -27,6 +30,11 @@ export default async function PortalLayout({ children }: LayoutProps<"/portal">)
               <Link href="/portal/prijava-kvara" className="hover:underline">
                 Prijava kvara
               </Link>
+              {imaMdm && (
+                <Link href="/portal/mdm" className="hover:underline">
+                  MDM
+                </Link>
+              )}
               <form action={odjavaPortalaAkcija}>
                 <button type="submit" className="text-neutral-600 hover:underline dark:text-neutral-300">
                   Odjava

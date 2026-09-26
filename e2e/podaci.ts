@@ -11,4 +11,6 @@ export const E2E = {
   /** klijent na portalu (partner E2E Kupac) i klijent drugog partnera (napad na tuđe podatke) */
   klijent: { ime: "Ivana Klijent", email: "klijent@e2e.hr", lozinka: "Portal-lozinka-2026" },
   drugiKlijent: { email: "drugi@e2e.hr" },
+  /** korisnik portala partnera „E2E Distributer d.o.o.“ (MDM) */
+  distributer: { email: "distributer@e2e.hr" },
 };

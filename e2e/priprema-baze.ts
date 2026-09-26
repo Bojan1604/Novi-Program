@@ -79,7 +79,7 @@ async function priprema(): Promise<void> {
         });
     }
     await prisma.usluga.create({ data: { firmaId: firma.id, naziv: "E2E Instalacija", jedinica: "h", cijena: "40.00" } });
-    await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Distributer d.o.o.", kupac: false, dobavljac: true } });
+    const distributer = await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Distributer d.o.o.", kupac: false, dobavljac: true } });
     const kupac = await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Kupac d.o.o.", oib: "33392005961", rokPlacanjaDana: 30 } });
     // servis: kupčev uređaj i zamjenski sa skladišta, za svaki projekt
     for (const p of ["RACUNALO", "MOBITEL"]) {
@@ -123,6 +123,9 @@ async function priprema(): Promise<void> {
     });
     await prisma.korisnikPortala.create({
       data: { firmaId: firma.id, partnerId: drugi.id, ime: "Drugi", email: E2E.drugiKlijent.email, lozinkaHash: hashPortala },
+    });
+    await prisma.korisnikPortala.create({
+      data: { firmaId: firma.id, partnerId: distributer.id, ime: "Distributer", email: E2E.distributer.email, lozinkaHash: hashPortala },
     });
   } finally {
     await prisma.$disconnect();

@@ -110,6 +110,8 @@ model Firma {
   dogadajiServisa      DogadajServisa[]
   korisniciPortala     KorisnikPortala[]
   sesijePortala        SesijaPortala[]
+  mdmOrganizacije      MdmOrganizacija[]
+  mdmUredaji           MdmUredaj[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -402,6 +404,7 @@ model Partner {
   ulazniRacuni       UlazniRacun[]
   servisniNalozi     ServisniNalog[]
   korisniciPortala   KorisnikPortala[]
+  mdmOrganizacije    MdmOrganizacija[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -541,6 +544,7 @@ model Uredaj {
   naUgovorima        UredajNaUgovoru[]
   servisniNalozi     ServisniNalog[]     @relation("NalogUredaj")
   zamjeneNaNalozima  ServisniNalog[]     @relation("NalogZamjena")
+  mdmUredaji         MdmUredaj[]
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -1487,4 +1491,65 @@ model SesijaPortala {
   korisnik KorisnikPortala @relation(fields: [firmaId, korisnikPortalaId], references: [firmaId, id], onDelete: Cascade)
 
   @@index([korisnikPortalaId])
+}
+
+/// MDM organizacija (korak 5.5): distributer ili klijent; klijent može biti pod distributerom.
+model MdmOrganizacija {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  firmaId     String   @db.Uuid
+  naziv       String
+  /// DISTRIBUTER ili KLIJENT
+  vrsta       String
+  nadredenaId String?  @db.Uuid
+  /// partner čiji korisnici portala vide ovu organizaciju i sve ispod nje
+  partnerId   String?  @db.Uuid
+  /// kod za upis uređaja (agent ga upisuje ili skenira QR) — jedinstven u cijelom sustavu
+  kodUpisa    String   @unique
+  aktivna     Boolean  @default(true)
+  korisnikId  String?  @db.Uuid
+  korisnik    String   @default("Sustav")
+  stvoreno    DateTime @default(now()) @db.Timestamptz(3)
+  azurirano   DateTime @updatedAt @db.Timestamptz(3)
+
+  firma     Firma             @relation(fields: [firmaId], references: [id])
+  nadredena MdmOrganizacija?  @relation("MdmStablo", fields: [firmaId, nadredenaId], references: [firmaId, id])
+  podredene MdmOrganizacija[] @relation("MdmStablo")
+  partner   Partner?          @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  uredaji   MdmUredaj[]
+
+  @@unique([firmaId, id])
+  @@index([firmaId, nadredenaId])
+  @@index([firmaId, partnerId])
+}
+
+/// Uređaj upisan u MDM (agent na Androidu ili Windowsu); autentikacija agenta tokenom (u bazi samo hash).
+model MdmUredaj {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  firmaId        String    @db.Uuid
+  organizacijaId String    @db.Uuid
+  /// uređaj iz skladišta s istim serijskim (ako postoji)
+  uredajId       String?   @db.Uuid
+  serijski       String
+  naziv          String?
+  /// ANDROID ili WINDOWS
+  platforma      String
+  model          String?
+  osVerzija      String?
+  verzijaAgenta  String?
+  tokenHash      String    @unique
+  /// AKTIVAN ili BLOKIRAN
+  stanje         String    @default("AKTIVAN")
+  zadnjiKontakt  DateTime? @db.Timestamptz(3)
+  /// zadnje stanje koje je agent javio (baterija, prostor, IP, aplikacije…)
+  izvjestaj      Json      @default("{}")
+  upisan         DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano      DateTime  @updatedAt @db.Timestamptz(3)
+
+  firma        Firma           @relation(fields: [firmaId], references: [id])
+  organizacija MdmOrganizacija @relation(fields: [firmaId, organizacijaId], references: [firmaId, id])
+  uredaj       Uredaj?         @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, serijski])
+  @@index([firmaId, organizacijaId])
 }
