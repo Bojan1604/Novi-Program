@@ -544,6 +544,7 @@ model Uredaj {
   @@index([serijski(ops: raw("gin_trgm_ops"))], type: Gin, map: "Uredaj_serijski_trgm")
   @@index([firmaId, nabavniDatum(sort: Desc)])
   @@index([firmaId, jamstvoDo])
+  @@index([firmaId, stavkaNarudzbeniceId])
 }
 
 /// Povijest uređaja: svaka promjena stanja ili lokacije.
