@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { granice, procitajRazdoblje, type Razdoblje } from "@/domain/izvjestaji";
 import { jedan, sortiranje, vise, type ParametriUrl, type Sortiranje } from "@/domain/popis";
-import type { Prava } from "@/domain/prava";
+import { imaPosebno, type Prava } from "@/domain/prava";
 import { zadovoljava } from "@/lib/akcije-prava";
 import type { Izvjestaj, RezultatIzvjestaja } from "./tipovi";
 
@@ -23,7 +23,8 @@ export async function pokreni(
 ): Promise<Pokretanje> {
   const razdoblje = procitajRazdoblje(sp, danas);
   const g = iz.razdoblje ? granice(razdoblje) : { od: null, do: null };
-  const sortirajuci = iz.stupci.filter((s) => s.sort).map((s) => s.kljuc);
+  // stupci s nabavnim cijenama ne smiju ni sortirati bez prava „costs“ (redoslijed bi ih otkrio)
+  const sortirajuci = iz.stupci.filter((s) => s.sort && (!s.osjetljivo || imaPosebno(prava, "costs"))).map((s) => s.kljuc);
   const sort = sortiranje(sp, sortirajuci, iz.zadanoSortiranje);
   const stupac = iz.stupci.find((s) => s.kljuc === sort.kljuc)!;
   const smjer = sort.smjer === "desc" ? Prisma.sql`DESC NULLS LAST` : Prisma.sql`ASC NULLS FIRST`;

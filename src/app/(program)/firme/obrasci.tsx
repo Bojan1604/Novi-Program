@@ -72,10 +72,11 @@ export function Prijedi({ id }: { id: string }) {
   );
 }
 
-export function OdgovorNaPoziv({ id }: { id: string }) {
+export function OdgovorNaPoziv({ token }: { token: string }) {
   const [s, setS] = useState<Odgovor | null>(null);
   const [uTijeku, zapocni] = useTransition();
-  const odgovori = (prihvati: boolean) => zapocni(async () => setS(await odgovorAkcija(id, prihvati)));
+  const odgovori = (prihvati: boolean) => zapocni(async () => setS(await odgovorAkcija(token, prihvati)));
+  if (s?.ok) return <Poruka s={s} />;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex gap-2">

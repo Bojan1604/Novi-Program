@@ -111,11 +111,21 @@ describe("opasna zona", () => {
   it("fiskalizirani računi u produkciji se ne brišu", async () => {
     const { d, akter } = await pripremi();
     const rac = await prisma.prodajniDokument.findFirstOrThrow({ where: { firmaId: d.firmaId, vrsta: "RACUN" } });
-    await prisma.prodajniDokument.update({ where: { id: rac.id }, data: { jir: "11111111-2222-3333-4444-555555555555" } });
+    await prisma.prodajniDokument.update({ where: { id: rac.id }, data: { jir: "11111111-2222-3333-4444-555555555555", fiskalNacin: "PRODUKCIJA" } });
     await prisma.firma.update({ where: { id: d.firmaId }, data: { fiskalNacin: "PRODUKCIJA" } });
     await expect(
       obrisiPodatke(prisma, await akter("Administrator"), { nacin: "PROMET", lozinka: DEMO_LOZINKA, naziv: "Demo Informatika d.o.o." }),
     ).rejects.toThrow("11 godina");
+    // prebacivanje firme u demo ne otvara brisanje: način je zapisan na računu
+    await prisma.prodajniDokument.update({ where: { id: rac.id }, data: { fiskalNacin: "PRODUKCIJA" } });
+    await prisma.firma.update({ where: { id: d.firmaId }, data: { fiskalNacin: "DEMO" } });
+    await expect(
+      obrisiPodatke(prisma, await akter("Administrator"), { nacin: "PROMET", lozinka: DEMO_LOZINKA, naziv: "Demo Informatika d.o.o." }),
+    ).rejects.toThrow("11 godina");
+    // računi izdani u demo načinu (lažni JIR) se smiju brisati
+    await prisma.prodajniDokument.update({ where: { id: rac.id }, data: { fiskalNacin: "DEMO" } });
+    await obrisiPodatke(prisma, await akter("Administrator"), { nacin: "PROMET", lozinka: DEMO_LOZINKA, naziv: "Demo Informatika d.o.o." });
+    expect(await prisma.prodajniDokument.count({ where: { firmaId: d.firmaId } })).toBe(0);
   }, 120_000);
 
   it("čišćenje dnevnika: samo stariji od granice (najmanje 12 mjeseci) i samo ova firma", async () => {

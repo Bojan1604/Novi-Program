@@ -26,7 +26,7 @@ async function pripremi() {
 }
 
 describe("izvještaji 6.2", () => {
-  it("potraživanja: otvoreno = dospjelo + nije dospjelo; plaćeni, nacrti i ponude ne ulaze", async () => {
+  it("potraživanja: otvoreno = dospjelo + nije dospjelo; odobrenje umanjuje (kao na popisu računa); plaćeni, nacrti i ponude ne ulaze", async () => {
     const { f, a, b } = await pripremi();
     const dok = (partnerId: string, ukupno: string, placeno: string, dospijece: string, vrsta = "RACUN", status = "IZDAN") =>
       prisma.prodajniDokument.create({
@@ -37,11 +37,18 @@ describe("izvještaji 6.2", () => {
     await dok(b.id, "80.00", "80.00", "2026-09-10"); // plaćeno
     await dok(b.id, "70.00", "0", "2026-09-10", "RACUN", "NACRT");
     await dok(b.id, "60.00", "0", "2026-09-10", "PONUDA");
+    await dok(a.id, "-20.00", "0", "2026-09-05", "ODOBRENJE"); // neisplaćeno odobrenje
     const r = await run("potrazivanja", f);
     expect(r.redovi).toEqual([
-      expect.objectContaining({ kupac: "Alfa", racuna: 2, otvoreno: 15000, dospjelo: 10000, nijeDospjelo: 5000, najstarije: "2026-09-10" }),
+      expect.objectContaining({ kupac: "Alfa", racuna: 3, otvoreno: 13000, dospjelo: 8000, nijeDospjelo: 5000, najstarije: "2026-09-05" }),
     ]);
-    expect(r.zbroj).toEqual({ racuna: 2, otvoreno: 15000, dospjelo: 10000, nijeDospjelo: 5000 });
+    expect(r.zbroj).toEqual({ racuna: 3, otvoreno: 13000, dospjelo: 8000, nijeDospjelo: 5000 });
+    // isto kao „otvoreno“ na popisu računa (važeći računi i odobrenja, bez storna)
+    const o = await prisma.prodajniDokument.aggregate({
+      where: { firmaId: f, status: "IZDAN", vrsta: { in: ["RACUN", "PREDUJAM", "ODOBRENJE"] } },
+      _sum: { ukupno: true, placeno: true },
+    });
+    expect(Math.round((Number(o._sum.ukupno) - Number(o._sum.placeno)) * 100)).toBe(r.zbroj["otvoreno"]);
   });
 
   it("zaliha po modelu i skladištu; filtar skladišta; nabavna vrijednost je osjetljiv stupac", async () => {
@@ -56,6 +63,20 @@ describe("izvještaji 6.2", () => {
     expect(r.zbroj).toEqual({ naSkladistu: 2, rezervirano: 1, vrijednost: 35000 });
     expect((await run("zaliha-modeli", f, { skladiste: s2.id })).zbroj).toEqual({ naSkladistu: 1, rezervirano: 0, vrijednost: 5000 });
     expect(izvjestaj("zaliha-modeli")!.stupci.find((s) => s.kljuc === "vrijednost")!.osjetljivo).toBe(true);
+    // bez prava „costs“ se ni ne sortira po nabavnoj vrijednosti (redoslijed bi je otkrio)
+    const bezCosts = { ...punaPrava(), posebna: { ...punaPrava().posebna, costs: false } };
+    const p1 = await pokreni(izvjestaj("zaliha-modeli")!, prisma, f, bezCosts, { sort: "vrijednost", smjer: "desc" }, { skip: 0, take: 10 }, DANAS);
+    expect(p1.sort.kljuc).toBe("naSkladistu");
+    const p2 = await pokreni(
+      izvjestaj("zaliha-modeli")!,
+      prisma,
+      f,
+      punaPrava(),
+      { sort: "vrijednost", smjer: "desc" },
+      { skip: 0, take: 10 },
+      DANAS,
+    );
+    expect(p2.sort.kljuc).toBe("vrijednost");
   });
 
   it("najam po ugovoru = zbroj rata u razdoblju", async () => {

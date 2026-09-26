@@ -23,9 +23,9 @@ export async function novaFirmaAkcija(_p: Odgovor | undefined, fd: FormData): Pr
   });
 }
 
-export async function odgovorAkcija(pozivId: string, prihvati: boolean): Promise<Odgovor> {
+export async function odgovorAkcija(token: string, prihvati: boolean): Promise<Odgovor> {
   return akcija("firme.poziv-odgovor", async (k): Promise<Odgovor> => {
-    await odgovoriNaPoziv(db, { id: k.korisnikId, email: k.sesija.korisnik.email }, pozivId, prihvati, k.ip);
+    await odgovoriNaPoziv(db, { id: k.korisnikId, email: k.sesija.korisnik.email }, token, prihvati, k.ip);
     revalidatePath("/", "layout");
     return { ok: true, poruka: prihvati ? "Poziv je prihvaćen — firma je na popisu." : "Poziv je odbijen." };
   });

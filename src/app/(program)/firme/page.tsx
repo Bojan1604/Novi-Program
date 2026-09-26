@@ -2,20 +2,20 @@ import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stran
 import { jeAdministrator } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
 import { db } from "@/lib/db";
-import { mojeFirme, mojiPozivi } from "@/services/firme";
-import { NovaFirma, OdgovorNaPoziv, Prijedi } from "./obrasci";
+import { mojeFirme } from "@/services/firme";
+import { NovaFirma, Prijedi } from "./obrasci";
 
 export const metadata = { title: "Firme · ERP-WMS" };
 export const dynamic = "force-dynamic";
 
 export default async function Firme() {
   const k = await pristupStranici("/firme");
-  const [firme, pozivi] = await Promise.all([mojeFirme(db, k.korisnikId), mojiPozivi(db, k.sesija.korisnik.email)]);
+  const firme = await mojeFirme(db, k.korisnikId);
   return (
     <Stranica sirina="5xl">
       <NaslovStranice
         naslov="Firme"
-        opis="Firme u kojima radite. Podaci svake firme su potpuno odvojeni; prava vrijede po firmi (uloga u svakoj firmi posebno)."
+        opis="Firme u kojima radite. Podaci svake firme su potpuno odvojeni; prava vrijede po firmi (uloga u svakoj firmi posebno). U drugu firmu ulazite preko poveznice poziva koju dobijete od njenog administratora."
       />
       <Kartica naslov="Moje firme">
         <ul className="divide-y divide-neutral-200 dark:divide-neutral-800" data-testid="moje-firme">
@@ -31,20 +31,6 @@ export default async function Firme() {
           ))}
         </ul>
       </Kartica>
-      {pozivi.length > 0 && (
-        <Kartica naslov="Pozivi u firme">
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800" data-testid="pozivi">
-            {pozivi.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                <span>
-                  <span className="font-medium">{p.firma}</span> — uloga {p.uloga}, poziv od: {p.pozvao}
-                </span>
-                <OdgovorNaPoziv id={p.id} />
-              </li>
-            ))}
-          </ul>
-        </Kartica>
-      )}
       {jeAdministrator(k.prava) && (
         <Kartica naslov="Nova firma">
           <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">

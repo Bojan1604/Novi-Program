@@ -1,12 +1,12 @@
-import bcrypt from "bcryptjs";
 import { DNEVNIK_NAJMANJE_MJESECI, NACINI_BRISANJA, type NacinBrisanja } from "@/domain/opasna-zona";
 import { imaPosebno, imaPravo } from "@/domain/prava";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { zapisiDnevnik } from "./dnevnik";
-import { izradiKopiju, katalog, redoslijedUpisa, type TablicaKataloga } from "./kopije";
+import { katalog, redoslijedUpisa, sadrzajUTransakciji, spremiKopiju, type TablicaKataloga } from "./kopije";
 import type { Akter } from "./korisnici";
+import { potvrdiLozinku } from "./prijava";
 import { napraviZadaneSifrarnike } from "./sifrarnici";
 
 /**
@@ -80,11 +80,8 @@ const q = (ime: string) => `"${ime.replaceAll('"', '""')}"`;
 
 async function provjeriPotvrdu(db: PrismaClient, akter: Akter, potvrda: { lozinka: string; naziv?: string }) {
   if (!imaPosebno(akter.prava, "opasnaZona") || !imaPravo(akter.prava, "postavke", "puno")) throw new GreskaKorisniku("Nemate pravo na opasnu zonu.");
-  const [k, f] = await Promise.all([
-    db.korisnik.findUniqueOrThrow({ where: { id: akter.korisnikId }, select: { lozinkaHash: true } }),
-    db.firma.findUniqueOrThrow({ where: { id: akter.firmaId }, select: { naziv: true, fiskalNacin: true } }),
-  ]);
-  if (!potvrda.lozinka || !(await bcrypt.compare(potvrda.lozinka.slice(0, 200), k.lozinkaHash))) throw new GreskaKorisniku("Lozinka nije ispravna.");
+  const f = await db.firma.findUniqueOrThrow({ where: { id: akter.firmaId }, select: { naziv: true, fiskalNacin: true } });
+  await potvrdiLozinku(db, akter.korisnikId, potvrda.lozinka, akter.ip ?? null);
   if (potvrda.naziv !== undefined && potvrda.naziv.trim() !== f.naziv) throw new GreskaKorisniku("Prepisani naziv firme ne odgovara.");
   return f;
 }
@@ -115,13 +112,27 @@ export async function obrisiPodatke(
   if (!(ulaz.nacin in NACINI_BRISANJA)) throw new GreskaKorisniku("Odaberite što se briše.");
   const firma = await provjeriPotvrdu(db, akter, ulaz);
   const f = akter.firmaId;
-  if (firma.fiskalNacin === "PRODUKCIJA" && (await db.prodajniDokument.count({ where: { firmaId: f, jir: { not: null } } })) > 0)
-    throw new GreskaKorisniku("Firma ima račune fiskalizirane u produkciji — zakon traži njihovo čuvanje 11 godina, pa se promet ne može obrisati.");
-
-  const kopija = await izradiKopiju(db, f, "RUCNA", akter);
+  // kopija i brisanje u istom stanju baze (REPEATABLE READ): sve što se briše je u kopiji; zapis koji
+  // netko doda u međuvremenu nije ni u kopiji ni obrisan (ili brisanje padne na vezi pa se ponovi)
   return db.$transaction(
     async (tx) => {
       await zakljucajKljuc(tx, `opasna-zona:${f}`);
+      // bez obzira na današnji način: dokumenti izdani u produkciji (fiskalizirani ili još na putu do CIS-a);
+      // stari dokumenti bez zapisanog načina računaju se kao produkcijski ako je firma sada u produkciji
+      const produkcijski = await tx.prodajniDokument.count({
+        where: {
+          firmaId: f,
+          OR: [
+            { fiskalNacin: "PRODUKCIJA", OR: [{ jir: { not: null } }, { fiskalStatus: { in: ["CEKA", "FISKALIZIRAN"] } }] },
+            ...(firma.fiskalNacin === "PRODUKCIJA" ? [{ fiskalNacin: null, OR: [{ jir: { not: null } }, { fiskalStatus: "CEKA" }] }] : []),
+          ],
+        },
+      });
+      if (produkcijski > 0)
+        throw new GreskaKorisniku(
+          "Firma ima račune fiskalizirane u produkciji — zakon traži njihovo čuvanje 11 godina, pa se promet ne može obrisati.",
+        );
+      const kopija = await spremiKopiju(tx, f, "RUCNA", akter, await sadrzajUTransakciji(tx, f));
       const tablice = await katalog(tx);
       const { brisu } = podjelaBrisanja(tablice, ulaz.nacin);
       const red = redoslijedUpisa(tablice);
@@ -166,7 +177,7 @@ export async function obrisiPodatke(
       });
       return { obrisano, kopijaId: kopija.id };
     },
-    { timeout: 30 * 60_000, maxWait: 60_000 },
+    { isolationLevel: "RepeatableRead", timeout: 30 * 60_000, maxWait: 60_000 },
   );
 }
 

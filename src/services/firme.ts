@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { procitajOib } from "@/domain/oib";
 import { jeAdministrator, procitajPrava, smijeUpravljati, ULOGA_ADMINISTRATOR } from "@/domain/prava";
 import { jeEmail, normalizirajEmail } from "@/domain/prijava";
@@ -70,13 +71,23 @@ export async function novaFirma(db: PrismaClient, akter: Akter, ulaz: { naziv: s
   });
 }
 
+const TRAJANJE_POZIVA_MS = 7 * 24 * 3600_000;
+const hashTokena = (t: string) => createHash("sha256").update(t).digest("hex");
+
 /**
- * Poziv u firmu po e-pošti. Ne otkriva postoji li račun (poziv čeka dok se osoba ne prijavi).
- * Uloga ne smije imati više prava od onoga tko poziva.
+ * Poziv u firmu po e-pošti. Ne otkriva postoji li račun. Uloga ne smije imati više prava od onoga tko poziva.
+ * Vraća jednokratni token poveznice (7 dana): administrator ga predaje osobi — samo s njim i prijavom na
+ * račun s tom e-poštom poziv se prihvaća (e-pošta računa nije provjerena, pa sama nije dokaz).
  */
-export async function pozoviKorisnika(db: PrismaClient, akter: Akter, ulaz: { email: string; ulogaId: string }): Promise<void> {
+export async function pozoviKorisnika(
+  db: PrismaClient,
+  akter: Akter,
+  ulaz: { email: string; ulogaId: string },
+  sada = new Date(),
+): Promise<{ token: string }> {
   const email = normalizirajEmail(ulaz.email);
   if (!jeEmail(email)) throw new GreskaKorisniku("E-pošta nije ispravna.");
+  const token = randomBytes(32).toString("base64url");
   await db.$transaction(async (tx) => {
     await zakljucajKljuc(tx, `poziv:${akter.firmaId}:${email}`);
     const uloga = jeUuid(ulaz.ulogaId) ? await tx.uloga.findFirst({ where: { id: ulaz.ulogaId, firmaId: akter.firmaId } }) : null;
@@ -89,10 +100,17 @@ export async function pozoviKorisnika(db: PrismaClient, akter: Akter, ulaz: { em
         clan.aktivno ? "Taj korisnik je već u firmi." : "Taj korisnik je u firmi, ali isključen — uključite ga u popisu korisnika.",
       );
     const ime = (await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";
+    const podaci = {
+      ulogaId: uloga.id,
+      korisnikId: akter.korisnikId,
+      korisnik: ime,
+      tokenHash: hashTokena(token),
+      istice: new Date(sada.getTime() + TRAJANJE_POZIVA_MS),
+    };
     const p = await tx.pozivUFirmu.upsert({
       where: { firmaId_email: { firmaId: akter.firmaId, email } },
-      create: { firmaId: akter.firmaId, email, ulogaId: uloga.id, korisnikId: akter.korisnikId, korisnik: ime },
-      update: { ulogaId: uloga.id, korisnikId: akter.korisnikId, korisnik: ime },
+      create: { firmaId: akter.firmaId, email, ...podaci },
+      update: podaci,
     });
     await zapisiDnevnik(tx, {
       firmaId: akter.firmaId,
@@ -104,6 +122,7 @@ export async function pozoviKorisnika(db: PrismaClient, akter: Akter, ulaz: { em
       ip: akter.ip ?? null,
     });
   });
+  return { token };
 }
 
 export async function otkaziPoziv(db: PrismaClient, akter: Akter, id: string): Promise<void> {
@@ -111,7 +130,7 @@ export async function otkaziPoziv(db: PrismaClient, akter: Akter, id: string): P
   await db.$transaction(async (tx) => {
     const p = await tx.pozivUFirmu.findUnique({ where: { firmaId_id: { firmaId: akter.firmaId, id } } });
     if (!p) throw new GreskaKorisniku("Poziv ne postoji.");
-    await tx.pozivUFirmu.delete({ where: { id } });
+    await tx.pozivUFirmu.deleteMany({ where: { id, firmaId: akter.firmaId } });
     await zapisiDnevnik(tx, {
       firmaId: akter.firmaId,
       korisnikId: akter.korisnikId,
@@ -124,30 +143,39 @@ export async function otkaziPoziv(db: PrismaClient, akter: Akter, id: string): P
   });
 }
 
-/** Pozivi koji čekaju prijavljenog korisnika. */
-export async function mojiPozivi(db: PrismaClient, email: string) {
-  const p = await db.pozivUFirmu.findMany({
-    where: { email: normalizirajEmail(email), firma: { aktivna: true } },
-    orderBy: { stvoreno: "asc" },
-    select: { id: true, korisnik: true, stvoreno: true, firma: { select: { naziv: true } }, uloga: { select: { naziv: true } } },
+/** Poziv iz poveznice (za prikaz prije prihvaćanja) ili null. */
+export async function pozivPoTokenu(db: PrismaClient, token: string, sada = new Date()) {
+  if (!token || token.length > 100) return null;
+  const p = await db.pozivUFirmu.findUnique({
+    where: { tokenHash: hashTokena(token) },
+    select: { email: true, istice: true, korisnik: true, firma: { select: { naziv: true, aktivna: true } }, uloga: { select: { naziv: true } } },
   });
-  return p.map((x) => ({ id: x.id, firma: x.firma.naziv, uloga: x.uloga.naziv, pozvao: x.korisnik, stvoreno: x.stvoreno }));
+  if (!p || !p.firma.aktivna || !p.istice || p.istice <= sada) return null;
+  return { email: p.email, firma: p.firma.naziv, uloga: p.uloga.naziv, pozvao: p.korisnik };
 }
 
-/** Prihvaćanje ili odbijanje poziva — samo osoba s tom e-poštom. */
+/** Prihvaćanje ili odbijanje poziva: token iz poveznice + prijava na račun s tom e-poštom. */
 export async function odgovoriNaPoziv(
   db: PrismaClient,
   korisnik: { id: string; email: string },
-  pozivId: string,
+  token: string,
   prihvati: boolean,
   ip: string | null,
+  sada = new Date(),
 ): Promise<{ firmaId: string }> {
-  if (!jeUuid(pozivId)) throw new GreskaKorisniku("Poziv ne postoji.");
+  if (!token || token.length > 100) throw new GreskaKorisniku("Poziv ne postoji ili je istekao.");
+  const tokenHash = hashTokena(token);
   return db.$transaction(async (tx) => {
-    const p = await tx.pozivUFirmu.findUnique({ where: { id: pozivId }, include: { uloga: { select: { naziv: true } } } });
-    if (!p || p.email !== normalizirajEmail(korisnik.email)) throw new GreskaKorisniku("Poziv ne postoji.");
+    await tx.$queryRaw`SELECT id FROM "PozivUFirmu" WHERE "tokenHash" = ${tokenHash} FOR UPDATE`;
+    const p = await tx.pozivUFirmu.findUnique({
+      where: { tokenHash },
+      include: { uloga: { select: { naziv: true } }, firma: { select: { aktivna: true } } },
+    });
+    if (!p || !p.istice || p.istice <= sada || !p.firma.aktivna) throw new GreskaKorisniku("Poziv ne postoji ili je istekao.");
+    if (p.email !== normalizirajEmail(korisnik.email)) throw new GreskaKorisniku("Poziv je poslan na drugu e-poštu — prijavite se tim računom.");
     await zakljucajKljuc(tx, `clanstvo:${p.firmaId}`);
-    await tx.pozivUFirmu.delete({ where: { id: p.id } });
+    const obrisano = await tx.pozivUFirmu.deleteMany({ where: { id: p.id } });
+    if (obrisano.count !== 1) throw new GreskaKorisniku("Poziv ne postoji ili je istekao.");
     if (prihvati) {
       await tx.clanstvoFirme.upsert({
         where: { firmaId_korisnikId: { firmaId: p.firmaId, korisnikId: korisnik.id } },

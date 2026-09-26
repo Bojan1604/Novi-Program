@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { GreskaKorisniku } from "@/lib/greske";
 import { desifriraj } from "@/lib/tajne";
 import { hashRezervnog, provjeriKod } from "@/lib/totp";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
@@ -85,7 +86,8 @@ export async function prijavi(db: PrismaClient, ulaz: UlazPrijave, sada = new Da
         return { ok: false as const, greska: PORUKA_KRIVO };
       }
 
-      await tx.pokusajPrijave.create({ data: { email, ip, uspjeh: true, vrijeme: sada } });
+      // uz prijavu u dva koraka lozinka još nije uspjeh: brojač pogrešaka se ne poništava dok kod ne prođe
+      if (!korisnik.totpUkljucen) await tx.pokusajPrijave.create({ data: { email, ip, uspjeh: true, vrijeme: sada } });
       if (korisnik.totpUkljucen) {
         const drugiKorak = randomBytes(32).toString("base64url");
         await tx.prijavaDrugiKorak.deleteMany({ where: { korisnikId: korisnik.id, istjece: { lt: sada } } });
@@ -149,6 +151,13 @@ export async function dovrsiPrijavu(
       await tx.prijavaDrugiKorak.delete({ where: { id } });
       return ISTEKLO;
     }
+    // pogrešni kodovi broje se kao pogrešne prijave (isto ograničenje 5/20/50) — nova lozinka ne daje nove pokušaje
+    const ip = u.ip || p.ip || "nepoznat";
+    const odluka = await odlukaOPokusaju(tx, k.email, ip, sada);
+    if (!odluka.dopusteno) {
+      await tx.prijavaDrugiKorak.delete({ where: { id } });
+      return { ok: false as const, greska: porukaZakljucano(odluka.zakljucanoDo, sada) };
+    }
     const tajna = desifriraj(k.totpTajna);
     const korak = tajna ? provjeriKod(tajna, u.kod, sada, k.totpZadnjiKorak) : null;
     let ok = korak !== null;
@@ -162,8 +171,10 @@ export async function dovrsiPrijavu(
     }
     if (!ok) {
       await tx.prijavaDrugiKorak.update({ where: { id }, data: { pokusaja: { increment: 1 } } });
+      await tx.pokusajPrijave.create({ data: { email: k.email, ip, uspjeh: false, vrijeme: sada } });
       return NEISPRAVNO;
     }
+    await tx.pokusajPrijave.create({ data: { email: k.email, ip, uspjeh: true, vrijeme: sada } });
     await tx.prijavaDrugiKorak.delete({ where: { id } });
     const s = await napraviSesiju(tx, k.id, clanstvo.firmaId, u.ip || p.ip || "nepoznat", p.preglednik, sada);
     return { ok: true as const, ...s, korisnikId: k.id, firmaId: clanstvo.firmaId };
@@ -254,4 +265,41 @@ export async function napraviPrvogAdmina(db: PrismaClient, ulaz: UlazPrvogAdmina
     });
     return { firmaId: firma.id, korisnikId: korisnik.id };
   });
+}
+
+type TxPokusaja = Pick<Tx, "pokusajPrijave" | "$executeRaw">;
+
+async function odlukaOPokusaju(tx: TxPokusaja, email: string, ip: string, sada: Date) {
+  await zakljucajKljuc(tx, `prijava:${email}`);
+  const od = new Date(sada.getTime() - PROZOR_POKUSAJA_MS);
+  const [poEmailu, poIp] = await Promise.all([
+    tx.pokusajPrijave.findMany({ where: { email, vrijeme: { gt: od } }, select: { vrijeme: true, uspjeh: true, ip: true } }),
+    tx.pokusajPrijave.findMany({ where: { ip, vrijeme: { gt: od } }, select: { vrijeme: true, uspjeh: true, ip: true } }),
+  ]);
+  return odluciOPrijavi(poEmailu, poIp, ip, sada);
+}
+
+/**
+ * Ponovna provjera lozinke prijavljenog korisnika (promjena lozinke, dva koraka, opasna zona): isto ograničenje
+ * pokušaja kao prijava, pa ukradena sesija ne može pogađati lozinku. Pogrešna lozinka → GreskaKorisniku.
+ */
+export async function potvrdiLozinku(
+  db: PrismaClient,
+  korisnikId: string,
+  lozinka: string,
+  ip: string | null,
+  poruka = "Lozinka nije ispravna.",
+  sada = new Date(),
+) {
+  const k = await db.korisnik.findUniqueOrThrow({ where: { id: korisnikId } });
+  const adresa = ip || "nepoznat";
+  const r = await db.$transaction(async (tx) => {
+    const odluka = await odlukaOPokusaju(tx, k.email, adresa, sada);
+    if (!odluka.dopusteno) return { greska: porukaZakljucano(odluka.zakljucanoDo, sada) };
+    const ok = lozinka.length > 0 && lozinka.length <= 200 && (await bcrypt.compare(lozinka, k.lozinkaHash));
+    await tx.pokusajPrijave.create({ data: { email: k.email, ip: adresa, uspjeh: ok, vrijeme: sada } });
+    return ok ? { greska: null } : { greska: poruka };
+  });
+  if (r.greska) throw new GreskaKorisniku(r.greska);
+  return k;
 }

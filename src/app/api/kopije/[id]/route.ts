@@ -1,4 +1,5 @@
 import { jeUuid } from "@/domain/id";
+import { jeAdministrator } from "@/domain/prava";
 import { AKCIJE } from "@/lib/akcije-prava";
 import { pristupApi } from "@/lib/akcija";
 import { db } from "@/lib/db";
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 export async function GET(_r: Request, ctx: RouteContext<"/api/kopije/[id]">) {
   const k = await pristupApi(AKCIJE["kopije.vrati"]);
   if (k instanceof Response) return k;
+  // kopija sadrži sve podatke firme bez maskiranja (i nabavne cijene) — samo administrator
+  if (!jeAdministrator(k.prava)) return Response.json({ greska: "Kopiju može preuzeti samo administrator." }, { status: 403 });
   const { id } = await ctx.params;
   const kopija = jeUuid(id)
     ? await db.sigurnosnaKopija.findUnique({ where: { firmaId_id: { firmaId: k.firmaId, id } }, include: { firma: { select: { oib: true } } } })

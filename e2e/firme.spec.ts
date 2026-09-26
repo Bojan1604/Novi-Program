@@ -30,6 +30,7 @@ test("više firmi: nova firma, prelazak iz zaglavlja, poziv i otkaz, podaci odvo
   const poziv = page.getByRole("form", { name: "Poziv u firmu" });
   await poziv.getByLabel("E-pošta").fill(`netko-${info.project.name}@primjer.hr`);
   await poziv.getByRole("button", { name: "Pošalji poziv" }).click();
+  await expect(page.getByTestId("poveznica-poziva")).toContainText("/firme/poziv/");
   await expect(page.getByTestId("pozivi-firme")).toContainText(`netko-${info.project.name}@primjer.hr`);
   await page.getByTestId("pozivi-firme").getByRole("button", { name: "Otkaži" }).click();
   await expect(page.getByTestId("pozivi-firme")).toHaveCount(0);

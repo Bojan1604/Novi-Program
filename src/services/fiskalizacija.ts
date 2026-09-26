@@ -29,7 +29,7 @@ export async function pripremiFiskalizaciju(
   p: { firma: Firma; korisnikId: string; vrsta: string; nacinPlacanja: string; kupacImaOib: boolean; redni: number; ukupno: number; vrijeme: Date },
 ) {
   const nacin = p.firma.fiskalNacin as NacinFiskalizacije;
-  if (nacin === "ISKLJUCENA" || !trebaFiskalizaciju(p)) return { fiskalStatus: "NIJE_POTREBNO" };
+  if (nacin === "ISKLJUCENA" || !trebaFiskalizaciju(p)) return { fiskalStatus: "NIJE_POTREBNO", fiskalNacin: nacin };
   const cert = certifikatFirme(p.firma);
   const oibOperatera = (await tx.korisnik.findUnique({ where: { id: p.korisnikId }, select: { oib: true } }))?.oib ?? p.firma.oib;
   const zki = izracunajZki(
@@ -44,7 +44,7 @@ export async function pripremiFiskalizaciju(
     cert.kljucPem,
   );
   // prvi pokušaj šalje izdavanje odmah; pozadinski posao tek nakon minute
-  return { fiskalStatus: "CEKA", zki, oibOperatera, fiskalSljedeci: new Date(p.vrijeme.getTime() + 60_000) };
+  return { fiskalStatus: "CEKA", fiskalNacin: nacin, zki, oibOperatera, fiskalSljedeci: new Date(p.vrijeme.getTime() + 60_000) };
 }
 
 type SnimkaRacuna = { racun?: { oznakaProstora: string; oznakaUredaja: string; nacinPlacanja: string; poKategoriji?: ZbrojKategorije[] } };

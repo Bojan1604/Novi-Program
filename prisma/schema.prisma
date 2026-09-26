@@ -897,6 +897,8 @@ model ProdajniDokument {
   izdano         DateTime? @db.Timestamptz(3)
   /// fiskalizacija: NIJE_POTREBNO, CEKA (naknadna dostava), FISKALIZIRAN; ZKI se računa pri izdavanju, JIR vraća CIS
   fiskalStatus   String?
+  /// način fiskalizacije firme u trenutku izdavanja (PRODUKCIJA se ne smije brisati — čuvanje 11 godina)
+  fiskalNacin    String?
   zki            String?   @db.Char(32)
   jir            String?
   oibOperatera   String?   @db.Char(11)
@@ -1793,14 +1795,17 @@ model SigurnosnaKopija {
 /// Poziv postojećem korisniku (iz druge firme) u ovu firmu (6.8). Korisnik ga sam prihvaća u „Firme“ —
 /// firma ne može sama pripojiti tuđi račun ni saznati njegovu lozinku.
 model PozivUFirmu {
-  id         String   @id @default(uuid(7)) @db.Uuid
-  firmaId    String   @db.Uuid
+  id         String    @id @default(uuid(7)) @db.Uuid
+  firmaId    String    @db.Uuid
   /// e-pošta pozvanog (mala slova)
   email      String
-  ulogaId    String   @db.Uuid
-  korisnikId String?  @db.Uuid
-  korisnik   String   @default("Sustav")
-  stvoreno   DateTime @default(now()) @db.Timestamptz(3)
+  ulogaId    String    @db.Uuid
+  /// hash jednokratnog tokena iz poveznice poziva (dokaz da je poziv stigao pravoj osobi) i istek
+  tokenHash  String?   @unique
+  istice     DateTime? @db.Timestamptz(3)
+  korisnikId String?   @db.Uuid
+  korisnik   String    @default("Sustav")
+  stvoreno   DateTime  @default(now()) @db.Timestamptz(3)
 
   firma Firma @relation(fields: [firmaId], references: [id])
   uloga Uloga @relation(fields: [firmaId, ulogaId], references: [firmaId, id], onDelete: Cascade)

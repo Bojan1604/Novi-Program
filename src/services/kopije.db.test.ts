@@ -32,7 +32,16 @@ async function pripremi() {
   const A: Akter = { firmaId, korisnikId, prava: (await pravaClana(prisma, firmaId, korisnikId))!, ip: null };
   // dodatno: bajtovi (logo, prilog), MDM stablo (veza na samu sebe), portal s poveznicom, JSON s id-em
   const logo = await prisma.logoFirme.create({ data: { firmaId, vrsta: "image/png", sadrzaj: Buffer.from([137, 80, 78, 71, 0, 1, 2, 255]) } });
-  await prisma.firma.update({ where: { id: firmaId }, data: { logoId: logo.id, fiskalNacin: "PRODUKCIJA" } });
+  await prisma.firma.update({
+    where: { id: firmaId },
+    data: {
+      logoId: logo.id,
+      fiskalNacin: "PRODUKCIJA",
+      smtpLozinka: "sifrirana-lozinka",
+      fiskalCertifikat: "sifrirani-certifikat",
+      fiskalLozinka: "x",
+    },
+  });
   const partner = await prisma.partner.findFirstOrThrow({ where: { firmaId }, orderBy: { naziv: "asc" } });
   await prisma.prilog.create({
     data: {
@@ -87,6 +96,9 @@ describe("sigurnosne kopije", () => {
     const k = await izradiKopiju(prisma, firmaId, "RUCNA", A);
     const kopija = await prisma.sigurnosnaKopija.findUniqueOrThrow({ where: { id: k.id } });
     const oib = testniOib();
+    const voditeljId = d.korisnici["Voditelj"]!;
+    const V: Akter = { firmaId, korisnikId: voditeljId, prava: (await pravaClana(prisma, firmaId, voditeljId))!, ip: null };
+    await expect(vratiUNovuFirmu(prisma, V, kopija.sadrzaj, { naziv: "Moja kopija", oib })).rejects.toThrow("administrator");
     const v = await vratiUNovuFirmu(prisma, A, kopija.sadrzaj, { naziv: "Vraćena d.o.o.", oib });
 
     const n = v.firmaId;
@@ -98,7 +110,7 @@ describe("sigurnosne kopije", () => {
     expect(await brojRedaka(prisma, d.drugaFirmaId)).toEqual(drugaPrije);
 
     const f = await prisma.firma.findUniqueOrThrow({ where: { id: n } });
-    expect(f).toMatchObject({ naziv: "Vraćena d.o.o.", oib, fiskalNacin: "DEMO" });
+    expect(f).toMatchObject({ naziv: "Vraćena d.o.o.", oib, fiskalNacin: "DEMO", smtpLozinka: null, fiskalCertifikat: null, fiskalLozinka: null });
     const logo = await prisma.logoFirme.findUniqueOrThrow({ where: { id: f.logoId! } });
     expect(logo.firmaId).toBe(n);
     expect([...logo.sadrzaj]).toEqual([137, 80, 78, 71, 0, 1, 2, 255]);
@@ -189,6 +201,7 @@ describe("sigurnosne kopije", () => {
       WHERE n.nspname = 'public' AND x.indisunique AND NOT x.indisprimary
         AND EXISTS (SELECT 1 FROM pg_attribute f WHERE f.attrelid = c.oid AND f.attname = 'firmaId')
         AND NOT EXISTS (SELECT 1 FROM pg_attribute f WHERE f.attrelid = c.oid AND f.attname = 'firmaId' AND f.attnum = ANY (x.indkey))
+        AND c.relname NOT IN ('Sesija', 'SesijaPortala', 'SigurnosnaKopija', 'ClanstvoFirme', 'PozivUFirmu')
       GROUP BY c.relname, x.indexrelid`;
     expect(new Set(indeksi.map((i) => `${i.t}.${i.s}`))).toEqual(GLOBALNO_JEDINSTVENI);
   });

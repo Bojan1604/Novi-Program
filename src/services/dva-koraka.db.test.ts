@@ -74,12 +74,46 @@ describe("prijava u dva koraka", () => {
       ok: false,
       greska: expect.stringMatching(/istekla/),
     });
-    const p3 = await lozinka(za(20));
+    // krivi kodovi su pogrešne prijave: odmah nakon njih račun je privremeno zaključan, poslije prozora opet radi
+    expect(await lozinka(za(20))).toMatchObject({ ok: false, greska: expect.stringMatching(/zaključan|pokušaj/i) });
+    const p3 = await lozinka(za(1000));
     if (p3.ok || !p3.drugiKorak) throw new Error("očekivan drugi korak");
-    expect(await dovrsiPrijavu(prisma, { drugiKorak: p3.drugiKorak, kod: kodovi[1]!, ip: "1.1.1.1" }, za(20 + 6 * 60))).toMatchObject({
+    expect(await dovrsiPrijavu(prisma, { drugiKorak: p3.drugiKorak, kod: kodovi[1]!, ip: "1.1.1.1" }, za(1000 + 6 * 60))).toMatchObject({
       greska: expect.stringMatching(/istekla/),
     });
     expect(await stanjeDvaKoraka(prisma, A.korisnikId)).toMatchObject({ preostaloRezervnih: 9 });
+  });
+
+  it("napad s poznatom lozinkom: nova prijava ne daje nove pokušaje koda (zaključavanje kao za lozinku)", async () => {
+    const { A } = await pripremi();
+    const { tajna } = await ukljuci(A);
+    let t = 100;
+    let pokusaja = 0;
+    let zakljucano = false;
+    for (let krug = 0; krug < 5 && !zakljucano; krug++) {
+      const p = await lozinka(za(t++));
+      if (p.ok) throw new Error("bez koda nema sesije");
+      if (!p.drugiKorak) {
+        zakljucano = true;
+        break;
+      }
+      for (let i = 0; i < 5; i++) {
+        const r = await dovrsiPrijavu(prisma, { drugiKorak: p.drugiKorak, kod: "000001", ip: "1.1.1.1" }, za(t++));
+        if (r.ok) throw new Error("krivi kod prošao");
+        pokusaja++;
+      }
+    }
+    expect(zakljucano).toBe(true);
+    expect(pokusaja).toBeLessThanOrEqual(10);
+    // ni točan kod ne prolazi dok je zaključano (lozinka se ne može ni upisati)
+    expect(await lozinka(za(t++))).toMatchObject({ ok: false });
+    void tajna;
+  });
+
+  it("ponovna provjera lozinke (Moj račun) ima isto ograničenje pokušaja", async () => {
+    const { A } = await pripremi();
+    for (let i = 0; i < 5; i++) await expect(zapocniDvaKoraka(prisma, { ...A, ip: "2.2.2.2" }, "kriva")).rejects.toThrow("Lozinka nije ispravna");
+    await expect(zapocniDvaKoraka(prisma, { ...A, ip: "2.2.2.2" }, TESTNA_LOZINKA)).rejects.toThrow(/zaključan|pokušaj/i);
   });
 
   it("novi rezervni kodovi poništavaju stare; isključivanje traži lozinku i kod", async () => {

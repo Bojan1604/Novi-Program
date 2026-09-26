@@ -73,8 +73,9 @@ export const AKCIJE = {
   "troskovi.prilozi": { modul: "troskovi", razina: "operativno" },
   "knjigovodja.predaja": { modul: "knjigovodja", razina: "operativno" },
   "dosljednost.popravi": { modul: "postavke", razina: "puno" },
-  "kopije.izradi": { modul: "postavke", razina: "puno" },
-  "kopije.vrati": { modul: "postavke", razina: "puno" },
+  /** kopija sadrži sve (i nabavne cijene) — preuzimanje i vraćanje uz to traže administratora (servis/ruta) */
+  "kopije.izradi": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
+  "kopije.vrati": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "opasna.brisanje": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "opasna.dnevnik": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "servis.zaprimi": { modul: "servis", razina: "operativno" },
@@ -125,7 +126,7 @@ export const STRANICE = {
   "/marze": { naziv: "Marže", modul: "prodaja", razina: "pregled", posebno: "costs" },
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
   "/provjera": { naziv: "Provjera dosljednosti", modul: "postavke", razina: "pregled" },
-  "/kopije": { naziv: "Sigurnosne kopije", modul: "postavke", razina: "puno" },
+  "/kopije": { naziv: "Sigurnosne kopije", modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "/opasna-zona": { naziv: "Opasna zona", modul: "postavke", razina: "puno", posebno: "opasnaZona" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 

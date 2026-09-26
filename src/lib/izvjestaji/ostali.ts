@@ -180,9 +180,10 @@ export const POTRAZIVANJA: Izvjestaj = {
     const dan = danas();
     const u = [
       Prisma.sql`d."firmaId" = ${firmaId}::uuid`,
-      Prisma.sql`d.vrsta IN ('RACUN', 'PREDUJAM')`,
+      // isti skup kao „otvoreno“ na popisu računa: i odobrenja (umanjuju dug kupca)
+      Prisma.sql`d.vrsta IN ('RACUN', 'PREDUJAM', 'ODOBRENJE')`,
       Prisma.sql`d.status = 'IZDAN'`,
-      Prisma.sql`d.ukupno - d.placeno > 0`,
+      Prisma.sql`d.ukupno - d.placeno <> 0`,
     ];
     if (f.trazi) u.push(Prisma.sql`p.naziv ILIKE ${`%${f.trazi}%`}`);
     const w = i(u);

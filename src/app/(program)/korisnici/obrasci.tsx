@@ -171,7 +171,17 @@ export function PozoviKorisnika({ uloge }: { uloge: Uloga[] }) {
           Pošalji poziv
         </Gumb>
       </div>
-      {s && (s.ok ? <Obavijest vrsta="uspjeh">{s.poruka}</Obavijest> : <Obavijest vrsta="greska">{s.greska}</Obavijest>)}
+      {s &&
+        (s.ok ? (
+          <Obavijest vrsta="uspjeh">
+            {s.poruka}{" "}
+            <code className="break-all select-all" data-testid="poveznica-poziva">
+              {`${typeof window === "undefined" ? "" : window.location.origin}/firme/poziv/${s.podaci?.token ?? ""}`}
+            </code>
+          </Obavijest>
+        ) : (
+          <Obavijest vrsta="greska">{s.greska}</Obavijest>
+        ))}
     </Obrazac>
   );
 }

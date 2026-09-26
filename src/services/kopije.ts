@@ -3,6 +3,7 @@ import { Gunzip, Gzip, strToU8 } from "fflate";
 import { danas, datumUZagrebu, ZONA } from "@/domain/datum";
 import { kodUpisa } from "@/domain/mdm";
 import { procitajOib } from "@/domain/oib";
+import { jeAdministrator } from "@/domain/prava";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
@@ -128,62 +129,66 @@ export async function izradiSadrzaj(
   firmaId: string,
   sada = new Date(),
 ): Promise<{ sadrzaj: Uint8Array; redaka: Record<string, number> }> {
-  return db.$transaction(
-    async (tx) => {
-      const tablice = await katalog(tx);
-      const [firma] = await tx.$queryRawUnsafe<{ r: Redak }[]>(`SELECT to_jsonb(f) AS r FROM "Firma" f WHERE id = $1::uuid`, firmaId);
-      if (!firma) throw new GreskaKorisniku("Firma ne postoji.");
-      const dijelovi: Uint8Array[] = [];
-      const gz = new Gzip({ level: 6 }, (d) => dijelovi.push(d));
-      const pisi = (o: unknown) => gz.push(strToU8(JSON.stringify(o) + "\n"));
-      const opis: Opis = {
-        format: FORMAT_KOPIJE,
-        verzija: VERZIJA,
-        firmaId,
-        naziv: String(firma.r["naziv"]),
-        oib: String(firma.r["oib"]),
-        vrijeme: sada.toISOString(),
-        stupciFirme: Object.keys(firma.r),
-        tablice: Object.fromEntries(tablice.map((t) => [t.ime, t.stupci])),
-      };
-      pisi(opis);
-      pisi({ m: "Firma", r: firma.r });
-      const redaka: Record<string, number> = {};
-      for (const t of tablice) {
-        let n = 0;
-        if (t.imaId) {
-          let zadnji = "00000000-0000-0000-0000-000000000000";
-          for (;;) {
-            const dio = await tx.$queryRawUnsafe<{ id: string; r: Redak }[]>(
-              `SELECT id::text AS id, to_jsonb(t) AS r FROM ${q(t.ime)} t WHERE "firmaId" = $1::uuid AND id > $2::uuid ORDER BY id LIMIT 200`,
-              firmaId,
-              zadnji,
-            );
-            for (const d of dio) pisi({ m: t.ime, r: d.r });
-            n += dio.length;
-            if (dio.length < 200) break;
-            zadnji = dio[dio.length - 1]!.id;
-          }
-        } else {
-          const sve = await tx.$queryRawUnsafe<{ r: Redak }[]>(`SELECT to_jsonb(t) AS r FROM ${q(t.ime)} t WHERE "firmaId" = $1::uuid`, firmaId);
-          for (const d of sve) pisi({ m: t.ime, r: d.r });
-          n = sve.length;
-        }
-        if (n) redaka[t.ime] = n;
+  return db.$transaction((tx) => sadrzajUTransakciji(tx, firmaId, sada), { isolationLevel: "RepeatableRead", timeout: 30 * 60_000, maxWait: 60_000 });
+}
+
+/** Sadržaj kopije iz stanja transakcije (pozivatelj daje REPEATABLE READ — jedno dosljedno stanje). */
+export async function sadrzajUTransakciji(
+  tx: Prisma.TransactionClient,
+  firmaId: string,
+  sada = new Date(),
+): Promise<{ sadrzaj: Uint8Array; redaka: Record<string, number> }> {
+  const tablice = await katalog(tx);
+  const [firma] = await tx.$queryRawUnsafe<{ r: Redak }[]>(`SELECT to_jsonb(f) AS r FROM "Firma" f WHERE id = $1::uuid`, firmaId);
+  if (!firma) throw new GreskaKorisniku("Firma ne postoji.");
+  const dijelovi: Uint8Array[] = [];
+  const gz = new Gzip({ level: 6 }, (d) => dijelovi.push(d));
+  const pisi = (o: unknown) => gz.push(strToU8(JSON.stringify(o) + "\n"));
+  const opis: Opis = {
+    format: FORMAT_KOPIJE,
+    verzija: VERZIJA,
+    firmaId,
+    naziv: String(firma.r["naziv"]),
+    oib: String(firma.r["oib"]),
+    vrijeme: sada.toISOString(),
+    stupciFirme: Object.keys(firma.r),
+    tablice: Object.fromEntries(tablice.map((t) => [t.ime, t.stupci])),
+  };
+  pisi(opis);
+  pisi({ m: "Firma", r: firma.r });
+  const redaka: Record<string, number> = {};
+  for (const t of tablice) {
+    let n = 0;
+    if (t.imaId) {
+      let zadnji = "00000000-0000-0000-0000-000000000000";
+      for (;;) {
+        const dio = await tx.$queryRawUnsafe<{ id: string; r: Redak }[]>(
+          `SELECT id::text AS id, to_jsonb(t) AS r FROM ${q(t.ime)} t WHERE "firmaId" = $1::uuid AND id > $2::uuid ORDER BY id LIMIT 200`,
+          firmaId,
+          zadnji,
+        );
+        for (const d of dio) pisi({ m: t.ime, r: d.r });
+        n += dio.length;
+        if (dio.length < 200) break;
+        zadnji = dio[dio.length - 1]!.id;
       }
-      pisi({ kraj: true, redaka });
-      gz.push(new Uint8Array(0), true);
-      const ukupno = dijelovi.reduce((s, d) => s + d.length, 0);
-      const sadrzaj = new Uint8Array(ukupno);
-      let pomak = 0;
-      for (const d of dijelovi) {
-        sadrzaj.set(d, pomak);
-        pomak += d.length;
-      }
-      return { sadrzaj, redaka };
-    },
-    { isolationLevel: "RepeatableRead", timeout: 30 * 60_000, maxWait: 60_000 },
-  );
+    } else {
+      const sve = await tx.$queryRawUnsafe<{ r: Redak }[]>(`SELECT to_jsonb(t) AS r FROM ${q(t.ime)} t WHERE "firmaId" = $1::uuid`, firmaId);
+      for (const d of sve) pisi({ m: t.ime, r: d.r });
+      n = sve.length;
+    }
+    if (n) redaka[t.ime] = n;
+  }
+  pisi({ kraj: true, redaka });
+  gz.push(new Uint8Array(0), true);
+  const ukupno = dijelovi.reduce((s, d) => s + d.length, 0);
+  const sadrzaj = new Uint8Array(ukupno);
+  let pomak = 0;
+  for (const d of dijelovi) {
+    sadrzaj.set(d, pomak);
+    pomak += d.length;
+  }
+  return { sadrzaj, redaka };
 }
 
 /** Nova kopija spremljena u bazu; stare iste vrste iznad CUVA_SE se brišu. */
@@ -195,34 +200,44 @@ export async function izradiKopiju(
   sada = new Date(),
 ): Promise<{ id: string; velicina: number }> {
   const { sadrzaj, redaka } = await izradiSadrzaj(db, firmaId, sada);
+  return db.$transaction((tx) => spremiKopiju(tx, firmaId, vrsta, akter, { sadrzaj, redaka }, sada));
+}
+
+/** Spremanje izrađene kopije (i brisanje starih iste vrste) u transakciji pozivatelja. */
+export async function spremiKopiju(
+  tx: Prisma.TransactionClient,
+  firmaId: string,
+  vrsta: VrstaKopije,
+  akter: Pick<Akter, "korisnikId" | "ip"> | null,
+  { sadrzaj, redaka }: { sadrzaj: Uint8Array; redaka: Record<string, number> },
+  sada = new Date(),
+): Promise<{ id: string; velicina: number }> {
   if (sadrzaj.length > NAJVISE_RASPAKIRANO) throw new GreskaKorisniku("Kopija je prevelika za spremanje u bazu — koristite kopiju cijele baze.");
-  return db.$transaction(async (tx) => {
-    await zakljucajKljuc(tx, `kopija:${firmaId}`);
-    const ime = akter ? ((await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat") : "Sustav";
-    const k = await tx.sigurnosnaKopija.create({
-      data: { firmaId, vrsta, velicina: sadrzaj.length, redaka, sadrzaj: Buffer.from(sadrzaj), korisnik: ime, vrijeme: sada },
-      select: { id: true, velicina: true },
-    });
-    const visak = await tx.sigurnosnaKopija.findMany({
-      where: { firmaId, vrsta },
-      orderBy: { vrijeme: "desc" },
-      skip: CUVA_SE[vrsta],
-      select: { id: true },
-    });
-    if (visak.length) await tx.sigurnosnaKopija.deleteMany({ where: { firmaId, id: { in: visak.map((v) => v.id) } } });
-    if (akter) {
-      await zapisiDnevnik(tx, {
-        firmaId,
-        korisnikId: akter.korisnikId,
-        radnja: "kopije.izrada",
-        entitet: "SigurnosnaKopija",
-        entitetId: k.id,
-        opis: `Ručna sigurnosna kopija (${Math.round(sadrzaj.length / 1024)} KB)`,
-        ip: akter.ip ?? null,
-      });
-    }
-    return k;
+  await zakljucajKljuc(tx, `kopija:${firmaId}`);
+  const ime = akter ? ((await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat") : "Sustav";
+  const k = await tx.sigurnosnaKopija.create({
+    data: { firmaId, vrsta, velicina: sadrzaj.length, redaka, sadrzaj: Buffer.from(sadrzaj), korisnik: ime, vrijeme: sada },
+    select: { id: true, velicina: true },
   });
+  const visak = await tx.sigurnosnaKopija.findMany({
+    where: { firmaId, vrsta },
+    orderBy: { vrijeme: "desc" },
+    skip: CUVA_SE[vrsta],
+    select: { id: true },
+  });
+  if (visak.length) await tx.sigurnosnaKopija.deleteMany({ where: { firmaId, id: { in: visak.map((v) => v.id) } } });
+  if (akter) {
+    await zapisiDnevnik(tx, {
+      firmaId,
+      korisnikId: akter.korisnikId,
+      radnja: "kopije.izrada",
+      entitet: "SigurnosnaKopija",
+      entitetId: k.id,
+      opis: `Ručna sigurnosna kopija (${Math.round(sadrzaj.length / 1024)} KB)`,
+      ip: akter.ip ?? null,
+    });
+  }
+  return k;
 }
 
 function satUZagrebu(sada: Date): number {
@@ -354,10 +369,12 @@ export type UlazVracanja = { naziv: string; oib: string };
  */
 export async function vratiUNovuFirmu(
   db: PrismaClient,
-  akter: Pick<Akter, "korisnikId" | "ip" | "firmaId">,
+  akter: Pick<Akter, "korisnikId" | "ip" | "firmaId" | "prava">,
   sadrzaj: Uint8Array,
   ulaz: UlazVracanja,
 ): Promise<{ firmaId: string; redaka: number }> {
+  // vraćeni postaje administrator kopije sa svim podacima (i nabavnim cijenama) — samo administrator
+  if (!jeAdministrator(akter.prava)) throw new GreskaKorisniku("Kopiju može vratiti samo administrator.");
   const naziv = ulaz.naziv.trim();
   if (!naziv || naziv.length > 200) throw new GreskaKorisniku("Upišite naziv nove firme.");
   const oib = procitajOib(ulaz.oib);
@@ -391,6 +408,8 @@ export async function vratiUNovuFirmu(
       const firma = zamijeni(k.firma, mapa) as Redak;
       Object.assign(firma, { id: novaFirma, naziv, oib: oib.vrijednost, aktivna: true, stvoreno: new Date().toISOString() });
       if (firma["fiskalNacin"] !== "ISKLJUCENA") firma["fiskalNacin"] = "DEMO";
+      // tajne izvorne firme (SMTP lozinka, fiskalni certifikat) se ne prenose u kopiju
+      Object.assign(firma, { smtpLozinka: null, fiskalCertifikat: null, fiskalLozinka: null, fiskalCertNaziv: null, fiskalCertVrijedi: null });
       const stupciFirme = (
         await tx.$queryRaw<
           { s: string }[]

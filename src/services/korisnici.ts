@@ -1,5 +1,4 @@
 import { procitajOib } from "@/domain/oib";
-import bcrypt from "bcryptjs";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { jeEmail, normalizirajEmail, provjeriNovuLozinku } from "@/domain/prijava";
 import {
@@ -21,7 +20,7 @@ import { jeUuid } from "@/domain/id";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { zapisiDnevnik } from "./dnevnik";
-import { hashLozinke, odjaviSveSesije } from "./prijava";
+import { hashLozinke, odjaviSveSesije, potvrdiLozinku } from "./prijava";
 
 type Tx = Prisma.TransactionClient;
 type Baza = PrismaClient | Tx;
@@ -167,7 +166,13 @@ export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId:
     const noviOib = izmjena.oib === undefined ? undefined : izmjena.oib.trim() === "" ? null : procitajOib(izmjena.oib);
     if (noviOib && !noviOib.ok) throw new GreskaKorisniku(`OIB operatera: ${noviOib.greska}`);
     const oib = noviOib === undefined ? undefined : noviOib && noviOib.ok ? noviOib.vrijednost : null;
-    if (oib !== undefined && oib !== cilj.korisnik.oib) await tx.korisnik.update({ where: { id: korisnikId }, data: { oib } });
+    if (oib !== undefined && oib !== cilj.korisnik.oib) {
+      // OIB operatera je zajednički svim firmama korisnika (ide na fiskalizirane račune) — kao i ime
+      const drugaClanstva = await tx.clanstvoFirme.count({ where: { korisnikId, firmaId: { not: akter.firmaId } } });
+      if (drugaClanstva > 0 && korisnikId !== akter.korisnikId)
+        throw new GreskaKorisniku("Korisnik radi i u drugoj firmi; OIB operatera može promijeniti samo on sam.");
+      await tx.korisnik.update({ where: { id: korisnikId }, data: { oib } });
+    }
     await tx.clanstvoFirme.update({
       where: { id: cilj.id },
       data: {
@@ -314,8 +319,7 @@ export async function obrisiUlogu(db: PrismaClient, akter: Akter, ulogaId: strin
 
 /** Promjena vlastite lozinke (svaki korisnik; traži trenutnu lozinku). Odjavljuje ostale uređaje. */
 export async function promijeniVlastituLozinku(db: PrismaClient, akter: Akter & { sesijaId: string }, trenutna: string, nova: string): Promise<void> {
-  const k = await db.korisnik.findUniqueOrThrow({ where: { id: akter.korisnikId } });
-  if (!(await bcrypt.compare(trenutna, k.lozinkaHash))) throw new GreskaKorisniku("Trenutna lozinka nije ispravna.");
+  const k = await potvrdiLozinku(db, akter.korisnikId, trenutna, akter.ip ?? null, "Trenutna lozinka nije ispravna.");
   if (trenutna === nova) throw new GreskaKorisniku("Nova lozinka mora biti različita od trenutne.");
   const greska = provjeriNovuLozinku(nova, k.email);
   if (greska) throw new GreskaKorisniku(greska);

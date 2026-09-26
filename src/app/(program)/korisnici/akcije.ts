@@ -47,11 +47,15 @@ export async function postaviLozinkuAkcija(korisnikId: string, _p: Odgovor | und
   });
 }
 
-export async function pozoviAkcija(_p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
-  return akcija("korisnici.poziv", async (k): Promise<Odgovor> => {
-    await pozoviKorisnika(db, k, { email: tekst(fd, "email"), ulogaId: tekst(fd, "ulogaId") });
+export async function pozoviAkcija(_p: Odgovor<{ token: string }> | undefined, fd: FormData): Promise<Odgovor<{ token: string }>> {
+  return akcija("korisnici.poziv", async (k): Promise<Odgovor<{ token: string }>> => {
+    const r = await pozoviKorisnika(db, k, { email: tekst(fd, "email"), ulogaId: tekst(fd, "ulogaId") });
     revalidatePath("/korisnici");
-    return { ok: true, poruka: "Poziv je spremljen — osoba ga prihvaća na stranici Firme nakon prijave." };
+    return {
+      ok: true,
+      poruka: "Poziv je spremljen. Pošaljite osobi ovu poveznicu (vrijedi 7 dana) — prihvaća ga prijavom na svoj račun:",
+      podaci: r,
+    };
   });
 }
 

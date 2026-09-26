@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sFirmom } from "@/lib/firma-db";
 import { odabirPartnera } from "@/queries/partneri";
 import { napraviFirmu, napraviKorisnika, ocistiBazu, TESTNA_LOZINKA, testnaPrisma, testniOib } from "@/test/baza";
-import { mojeFirme, mojiPozivi, novaFirma, odgovoriNaPoziv, otkaziPoziv, pozoviKorisnika, prebaciFirmu } from "./firme";
+import { mojeFirme, novaFirma, odgovoriNaPoziv, otkaziPoziv, pozivPoTokenu, pozoviKorisnika, prebaciFirmu } from "./firme";
 import { pravaClana, type Akter } from "./korisnici";
 import { prijavi, provjeriSesiju } from "./prijava";
 
@@ -47,7 +47,7 @@ describe("više firmi", () => {
     expect(p3.ok && p3.firmaId).toBe(a.id);
   });
 
-  it("poziv: samo pozvana osoba prihvaća; uloga ne veća od vlastite; otkazani poziv nestaje", async () => {
+  it("poziv: samo uz poveznicu i prijavu pozvanom e-poštom; uloga ne veća od vlastite; jednokratan, istječe, otkaz", async () => {
     const a = await napraviFirmu(prisma, "Alfa");
     const b = await napraviFirmu(prisma, "Beta");
     const adminA = await napraviKorisnika(prisma, a.id);
@@ -55,24 +55,33 @@ describe("više firmi", () => {
     const drugi = await napraviKorisnika(prisma, b.id, { email: "drugi@beta.hr" });
     const voditeljA = await napraviKorisnika(prisma, a.id, { uloga: "Voditelj" });
     const A = await akter(a.id, adminA.id);
+    const prodavac = a.uloge["Prodavač"]!;
 
-    await expect(pozoviKorisnika(prisma, await akter(a.id, voditeljA.id), { email: "ana@beta.hr", ulogaId: a.uloge["Prodavač"]! })).rejects.toThrow();
-    await pozoviKorisnika(prisma, A, { email: "ANA@beta.hr", ulogaId: a.uloge["Prodavač"]! });
-    await pozoviKorisnika(prisma, A, { email: "nitko@nigdje.hr", ulogaId: a.uloge["Prodavač"]! }); // ne otkriva postoji li račun
-    await expect(pozoviKorisnika(prisma, A, { email: voditeljA.email, ulogaId: a.uloge["Prodavač"]! })).rejects.toThrow("već u firmi");
+    await expect(pozoviKorisnika(prisma, await akter(a.id, voditeljA.id), { email: "ana@beta.hr", ulogaId: prodavac })).rejects.toThrow();
+    const { token } = await pozoviKorisnika(prisma, A, { email: "ANA@beta.hr", ulogaId: prodavac });
+    await pozoviKorisnika(prisma, A, { email: "nitko@nigdje.hr", ulogaId: prodavac }); // ne otkriva postoji li račun
+    await expect(pozoviKorisnika(prisma, A, { email: voditeljA.email, ulogaId: prodavac })).rejects.toThrow("već u firmi");
     await expect(pozoviKorisnika(prisma, A, { email: "x@y.hr", ulogaId: b.uloge["Prodavač"]! })).rejects.toThrow("ulogu");
+    expect(await prisma.pozivUFirmu.findFirst({ where: { tokenHash: token } })).toBeNull(); // u bazi samo hash
 
-    const pozivi = await mojiPozivi(prisma, "ana@beta.hr");
-    expect(pozivi.map((p) => [p.firma, p.uloga])).toEqual([["Alfa", "Prodavač"]]);
-    await expect(odgovoriNaPoziv(prisma, { id: drugi.id, email: drugi.email }, pozivi[0]!.id, true, null)).rejects.toThrow("ne postoji");
-    await odgovoriNaPoziv(prisma, { id: ana.id, email: ana.email }, pozivi[0]!.id, true, null);
+    expect(await pozivPoTokenu(prisma, token)).toMatchObject({ firma: "Alfa", uloga: "Prodavač", email: "ana@beta.hr" });
+    await expect(odgovoriNaPoziv(prisma, { id: drugi.id, email: drugi.email }, token, true, null)).rejects.toThrow("drugu e-poštu");
+    await expect(odgovoriNaPoziv(prisma, { id: ana.id, email: ana.email }, "krivi-token", true, null)).rejects.toThrow("ne postoji");
+    await expect(
+      odgovoriNaPoziv(prisma, { id: ana.id, email: ana.email }, token, true, null, new Date(Date.now() + 8 * 24 * 3600_000)),
+    ).rejects.toThrow("istekao");
+    await odgovoriNaPoziv(prisma, { id: ana.id, email: ana.email }, token, true, null);
+    await expect(odgovoriNaPoziv(prisma, { id: ana.id, email: ana.email }, token, true, null)).rejects.toThrow("ne postoji");
     expect((await mojeFirme(prisma, ana.id)).map((f) => f.naziv)).toEqual(["Alfa", "Beta"]);
     expect((await pravaClana(prisma, a.id, ana.id))?.moduli["prodaja"]).toBe("operativno");
-    expect(await mojiPozivi(prisma, "ana@beta.hr")).toEqual([]);
 
+    // novi poziv istoj osobi daje novu poveznicu, stara više ne vrijedi
+    const n1 = await pozoviKorisnika(prisma, A, { email: "nitko@nigdje.hr", ulogaId: prodavac });
+    expect(await pozivPoTokenu(prisma, n1.token)).not.toBeNull();
     const n = await prisma.pozivUFirmu.findFirstOrThrow({ where: { email: "nitko@nigdje.hr" } });
     await expect(otkaziPoziv(prisma, await akter(b.id, ana.id), n.id)).rejects.toThrow("ne postoji");
     await otkaziPoziv(prisma, A, n.id);
+    expect(await pozivPoTokenu(prisma, n1.token)).toBeNull();
     expect(await prisma.pozivUFirmu.count()).toBe(0);
   });
 

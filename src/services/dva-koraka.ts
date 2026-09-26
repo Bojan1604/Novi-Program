@@ -1,19 +1,17 @@
-import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { GreskaKorisniku } from "@/lib/greske";
 import { desifriraj, sifriraj } from "@/lib/tajne";
 import { hashRezervnog, novaTajna, otpauthAdresa, provjeriKod, rezervniKodovi } from "@/lib/totp";
 import { zapisiDnevnik } from "./dnevnik";
+import { potvrdiLozinku } from "./prijava";
 import type { Akter } from "./korisnici";
 
 /**
  * Prijava u dva koraka (korak 6.4) na „Mom računu“: uključivanje traži lozinku i potvrdu kodom iz aplikacije,
  * isključivanje lozinku i kod. Tajna je šifrirana; rezervni kodovi prikazuju se samo jednom (u bazi hash).
  */
-async function provjeriLozinku(db: PrismaClient, korisnikId: string, lozinka: string) {
-  const k = await db.korisnik.findUniqueOrThrow({ where: { id: korisnikId } });
-  if (!(await bcrypt.compare(lozinka, k.lozinkaHash))) throw new GreskaKorisniku("Lozinka nije ispravna.");
-  return k;
+async function provjeriLozinku(db: PrismaClient, a: Akter, lozinka: string) {
+  return potvrdiLozinku(db, a.korisnikId, lozinka, a.ip ?? null);
 }
 
 const zapis = (tx: Parameters<typeof zapisiDnevnik>[0], a: Akter, opis: string) =>
@@ -29,7 +27,7 @@ const zapis = (tx: Parameters<typeof zapisiDnevnik>[0], a: Akter, opis: string) 
 
 /** Prvi korak uključivanja: nova tajna (još neuključena) → adresa za QR i tajna za ručni upis. */
 export async function zapocniDvaKoraka(db: PrismaClient, a: Akter, lozinka: string): Promise<{ tajna: string; adresa: string }> {
-  const k = await provjeriLozinku(db, a.korisnikId, lozinka);
+  const k = await provjeriLozinku(db, a, lozinka);
   if (k.totpUkljucen) throw new GreskaKorisniku("Prijava u dva koraka je već uključena.");
   const tajna = novaTajna();
   await db.korisnik.update({ where: { id: k.id }, data: { totpTajna: sifriraj(tajna), totpZadnjiKorak: null } });
@@ -56,7 +54,7 @@ export async function potvrdiDvaKoraka(db: PrismaClient, a: Akter, kod: string, 
 }
 
 export async function iskljuciDvaKoraka(db: PrismaClient, a: Akter, lozinka: string, kod: string, sada = new Date()): Promise<void> {
-  const k = await provjeriLozinku(db, a.korisnikId, lozinka);
+  const k = await provjeriLozinku(db, a, lozinka);
   if (!k.totpUkljucen) throw new GreskaKorisniku("Prijava u dva koraka nije uključena.");
   const tajna = desifriraj(k.totpTajna);
   const korak = tajna ? provjeriKod(tajna, kod, sada, k.totpZadnjiKorak) : null;
@@ -71,7 +69,7 @@ export async function iskljuciDvaKoraka(db: PrismaClient, a: Akter, lozinka: str
 }
 
 export async function noviRezervniKodovi(db: PrismaClient, a: Akter, lozinka: string): Promise<string[]> {
-  const k = await provjeriLozinku(db, a.korisnikId, lozinka);
+  const k = await provjeriLozinku(db, a, lozinka);
   if (!k.totpUkljucen) throw new GreskaKorisniku("Prijava u dva koraka nije uključena.");
   const kodovi = rezervniKodovi();
   await db.$transaction(async (tx) => {
