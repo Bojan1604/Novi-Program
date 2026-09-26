@@ -7,6 +7,8 @@ import { provjeriSesiju, type Sesija } from "@/services/prijava";
 import { db } from "./db";
 
 export const KOLACIC_SESIJE = "erp_sesija";
+/** prijava u dva koraka: token čekanja na kod (5 min, samo /prijava) */
+export const KOLACIC_DRUGOG_KORAKA = "erp_2k";
 /** Kolačić živi dugo; stvarni istek (14 dana neaktivnosti) odlučuje baza. */
 const KOLACIC_MAX_SEKUNDI = 400 * 24 * 60 * 60;
 
@@ -29,6 +31,12 @@ export async function podaciZahtjeva(): Promise<{ ip: string; preglednik: string
   // postavlja ga samo naš poslužitelj (posluzitelj/ip.mjs) iz TCP veze ili pouzdanog proxyja
   const ip = h.get("x-erp-ip") || "nepoznat";
   return { ip, preglednik: h.get("user-agent"), protokol: h.get("x-forwarded-proto") };
+}
+
+/** Smije li kolačić imati „Secure“ (HTTPS ili prisilno postavljeno) — pravilo 11. */
+export async function sigurnaVeza(): Promise<boolean> {
+  const { protokol } = await podaciZahtjeva();
+  return kolacicSecure(protokol, (process.env["KOLACIC_SECURE"] as NacinSecure | undefined) ?? "auto");
 }
 
 export async function postaviKolacicSesije(token: string): Promise<void> {

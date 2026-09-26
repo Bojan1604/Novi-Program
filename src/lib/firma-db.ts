@@ -76,7 +76,7 @@ const S_FIRMOM = new Set<string>(MODELI_S_FIRMOM);
  * u upitima kroz dbFirme zabranjene. Test provjerava da je popis potpun.
  */
 export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
-  korisnik: ["clanstva", "sesije"],
+  korisnik: ["clanstva", "sesije", "rezervniKodovi", "drugiKoraci"],
   firma: [
     "clanstva",
     "sesije",

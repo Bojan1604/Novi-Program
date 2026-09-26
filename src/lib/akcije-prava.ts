@@ -13,6 +13,7 @@ export const AKCIJE = {
   "uloge.spremi": { modul: "korisnici", razina: "puno" },
   "uloge.obrisi": { modul: "korisnici", razina: "puno" },
   "racun.lozinka": { samoPrijava: true },
+  "racun.dva-koraka": { samoPrijava: true },
   "sifrarnici.spremi": { modul: "sifrarnici", razina: "operativno" },
   "sifrarnici.aktivnost": { modul: "sifrarnici", razina: "operativno" },
   "sifrarnici.obrisi": { modul: "sifrarnici", razina: "puno" },

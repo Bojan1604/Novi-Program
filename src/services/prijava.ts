@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { desifriraj } from "@/lib/tajne";
+import { hashRezervnog, provjeriKod } from "@/lib/totp";
 import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { ULOGA_ADMINISTRATOR } from "@/domain/prava";
 import { zapisiDnevnik } from "./dnevnik";
@@ -37,7 +39,12 @@ export async function hashLozinke(lozinka: string): Promise<string> {
 
 export type UlazPrijave = { email: string; lozinka: string; ip: string; preglednik?: string | null };
 
-export type RezultatPrijave = { ok: true; token: string; istjece: Date; korisnikId: string; firmaId: string } | { ok: false; greska: string };
+/**
+ * Neuspjeh s `drugiKorak`: lozinka je točna, ali korisnik ima prijavu u dva koraka — sesije još NEMA,
+ * a token drugog koraka vrijedi 5 minuta za upis koda (namjerno ok: false, pa zaboravljena provjera ne pušta dalje).
+ */
+export type RezultatPrijave =
+  { ok: true; token: string; istjece: Date; korisnikId: string; firmaId: string } | { ok: false; greska: string; drugiKorak?: string };
 
 /**
  * Prijava e-poštom i lozinkom. Pokušaji iste e-pošte izvode se jedan po jedan
@@ -78,25 +85,89 @@ export async function prijavi(db: PrismaClient, ulaz: UlazPrijave, sada = new Da
         return { ok: false as const, greska: PORUKA_KRIVO };
       }
 
-      const token = randomBytes(32).toString("base64url");
-      const istjece = istekSesije(sada);
       await tx.pokusajPrijave.create({ data: { email, ip, uspjeh: true, vrijeme: sada } });
-      await tx.sesija.create({
-        data: {
-          id: hashTokena(token),
-          korisnikId: korisnik.id,
-          firmaId: clanstvo.firmaId,
-          istjece,
-          zadnjaAktivnost: sada,
-          ip,
-          preglednik: ulaz.preglednik?.slice(0, 500) ?? null,
-        },
-      });
-      await tx.korisnik.update({ where: { id: korisnik.id }, data: { zadnjaPrijava: sada } });
-      return { ok: true as const, token, istjece, korisnikId: korisnik.id, firmaId: clanstvo.firmaId };
+      if (korisnik.totpUkljucen) {
+        const drugiKorak = randomBytes(32).toString("base64url");
+        await tx.prijavaDrugiKorak.deleteMany({ where: { korisnikId: korisnik.id, istjece: { lt: sada } } });
+        await tx.prijavaDrugiKorak.create({
+          data: {
+            id: hashTokena(drugiKorak),
+            korisnikId: korisnik.id,
+            istjece: new Date(sada.getTime() + 5 * 60_000),
+            ip,
+            preglednik: ulaz.preglednik?.slice(0, 500) ?? null,
+          },
+        });
+        return { ok: false as const, greska: "Upišite kod iz aplikacije za autentifikaciju.", drugiKorak };
+      }
+      const s = await napraviSesiju(tx, korisnik.id, clanstvo.firmaId, ip, ulaz.preglednik ?? null, sada);
+      return { ok: true as const, ...s, korisnikId: korisnik.id, firmaId: clanstvo.firmaId };
     },
     { timeout: 15_000 },
   );
+}
+
+type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
+
+async function napraviSesiju(tx: Tx, korisnikId: string, firmaId: string, ip: string, preglednik: string | null, sada: Date) {
+  const token = randomBytes(32).toString("base64url");
+  const istjece = istekSesije(sada);
+  await tx.sesija.create({
+    data: { id: hashTokena(token), korisnikId, firmaId, istjece, zadnjaAktivnost: sada, ip, preglednik: preglednik?.slice(0, 500) ?? null },
+  });
+  await tx.korisnik.update({ where: { id: korisnikId }, data: { zadnjaPrijava: sada } });
+  return { token, istjece };
+}
+
+/**
+ * Drugi korak prijave: TOTP kod (isti kod ne prolazi dvaput) ili jednokratni rezervni kod.
+ * Najviše 5 pokušaja po prijavi; nakon toga ispočetka (lozinka).
+ */
+export async function dovrsiPrijavu(
+  db: PrismaClient,
+  u: { drugiKorak: string; kod: string; ip: string },
+  sada = new Date(),
+): Promise<RezultatPrijave> {
+  const NEISPRAVNO = { ok: false as const, greska: "Kod nije ispravan." };
+  const ISTEKLO = { ok: false as const, greska: "Prijava je istekla — prijavite se ponovno." };
+  if (!u.drugiKorak || u.drugiKorak.length > 200) return ISTEKLO;
+  const id = hashTokena(u.drugiKorak);
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PrijavaDrugiKorak" WHERE id = ${id} FOR UPDATE`;
+    const p = await tx.prijavaDrugiKorak.findUnique({ where: { id } });
+    if (!p || p.istjece <= sada || p.pokusaja >= 5) {
+      if (p) await tx.prijavaDrugiKorak.delete({ where: { id } });
+      return ISTEKLO;
+    }
+    await tx.$queryRaw`SELECT id FROM "Korisnik" WHERE id = ${p.korisnikId}::uuid FOR UPDATE`;
+    const k = await tx.korisnik.findUniqueOrThrow({
+      where: { id: p.korisnikId },
+      include: { clanstva: { where: { aktivno: true, firma: { aktivna: true } }, orderBy: { stvoreno: "asc" }, take: 1 } },
+    });
+    const clanstvo = k.clanstva[0];
+    if (!k.aktivan || !clanstvo || !k.totpUkljucen) {
+      await tx.prijavaDrugiKorak.delete({ where: { id } });
+      return ISTEKLO;
+    }
+    const tajna = desifriraj(k.totpTajna);
+    const korak = tajna ? provjeriKod(tajna, u.kod, sada, k.totpZadnjiKorak) : null;
+    let ok = korak !== null;
+    if (korak !== null) await tx.korisnik.update({ where: { id: k.id }, data: { totpZadnjiKorak: korak } });
+    else if (/^[A-Za-z0-9]{4}[\s-]?[A-Za-z0-9]{4}$/.test(u.kod.trim())) {
+      const r = await tx.rezervniKod.updateMany({
+        where: { korisnikId: k.id, hash: hashRezervnog(u.kod.trim()), iskoristen: null },
+        data: { iskoristen: sada },
+      });
+      ok = r.count === 1;
+    }
+    if (!ok) {
+      await tx.prijavaDrugiKorak.update({ where: { id }, data: { pokusaja: { increment: 1 } } });
+      return NEISPRAVNO;
+    }
+    await tx.prijavaDrugiKorak.delete({ where: { id } });
+    const s = await napraviSesiju(tx, k.id, clanstvo.firmaId, u.ip || p.ip || "nepoznat", p.preglednik, sada);
+    return { ok: true as const, ...s, korisnikId: k.id, firmaId: clanstvo.firmaId };
+  });
 }
 
 export type Sesija = {

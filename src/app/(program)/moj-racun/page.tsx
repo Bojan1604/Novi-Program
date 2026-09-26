@@ -1,5 +1,8 @@
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { pristupStranici } from "@/lib/akcija";
+import { db } from "@/lib/db";
+import { stanjeDvaKoraka } from "@/services/dva-koraka";
+import { DvaKoraka } from "./dva-koraka";
 import { PromjenaLozinke } from "./obrazac";
 
 export const metadata = { title: "Moj račun · ERP-WMS" };
@@ -11,6 +14,9 @@ export default async function MojRacun() {
       <NaslovStranice naslov="Moj račun" opis={`${k.sesija.korisnik.ime} · ${k.sesija.korisnik.email}`} />
       <Kartica naslov="Promjena lozinke">
         <PromjenaLozinke />
+      </Kartica>
+      <Kartica naslov="Prijava u dva koraka">
+        <DvaKoraka {...await stanjeDvaKoraka(db, k.korisnikId)} />
       </Kartica>
     </Stranica>
   );

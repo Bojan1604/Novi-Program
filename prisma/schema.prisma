@@ -123,18 +123,53 @@ model Firma {
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
 model Korisnik {
-  id            String    @id @default(uuid(7)) @db.Uuid
-  ime           String
-  email         String    @unique
-  lozinkaHash   String
+  id              String    @id @default(uuid(7)) @db.Uuid
+  ime             String
+  email           String    @unique
+  lozinkaHash     String
   /// OIB operatera na fiskaliziranim računima (bez njega se šalje OIB firme)
-  oib           String?   @db.Char(11)
-  aktivan       Boolean   @default(true)
-  zadnjaPrijava DateTime? @db.Timestamptz(3)
-  stvoreno      DateTime  @default(now()) @db.Timestamptz(3)
+  oib             String?   @db.Char(11)
+  aktivan         Boolean   @default(true)
+  zadnjaPrijava   DateTime? @db.Timestamptz(3)
+  stvoreno        DateTime  @default(now()) @db.Timestamptz(3)
+  /// prijava u dva koraka (6.4): TOTP tajna šifrirana (src/lib/tajne.ts); uključena tek nakon potvrde kodom
+  totpTajna       String?
+  totpUkljucen    Boolean   @default(false)
+  /// zadnji iskorišteni vremenski korak — isti kod ne prolazi dvaput
+  totpZadnjiKorak Int?
 
-  clanstva ClanstvoFirme[]
-  sesije   Sesija[]
+  clanstva       ClanstvoFirme[]
+  sesije         Sesija[]
+  rezervniKodovi RezervniKod[]
+  drugiKoraci    PrijavaDrugiKorak[]
+}
+
+/// Jednokratni rezervni kod za prijavu u dva koraka (samo hash).
+model RezervniKod {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  korisnikId String    @db.Uuid
+  hash       String
+  iskoristen DateTime? @db.Timestamptz(3)
+
+  korisnik Korisnik @relation(fields: [korisnikId], references: [id], onDelete: Cascade)
+
+  @@index([korisnikId])
+}
+
+/// Prijava čeka drugi korak (lozinka je točna, čeka se kod) — kratko traje, najviše 5 pokušaja.
+model PrijavaDrugiKorak {
+  /// hash tokena iz kolačića „erp_2k“
+  id         String   @id
+  korisnikId String   @db.Uuid
+  istjece    DateTime @db.Timestamptz(3)
+  pokusaja   Int      @default(0)
+  ip         String?
+  preglednik String?
+  stvoreno   DateTime @default(now()) @db.Timestamptz(3)
+
+  korisnik Korisnik @relation(fields: [korisnikId], references: [id], onDelete: Cascade)
+
+  @@index([korisnikId])
 }
 
 model ClanstvoFirme {
