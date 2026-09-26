@@ -1015,6 +1015,8 @@ model UgovorNajma {
   /// uvjeti ugovora (slobodan tekst) i napomena koja ide na račune za najam
   uvjeti               String?
   napomenaRacuna       String?
+  /// račun iz prodaje kojim je ugovor otvoren (storno računa briše prazan ugovor)
+  izvorDokumentId      String?   @db.Uuid
   /// automatsko izdavanje rata (korak 3.7) od tog dana
   automatski           Boolean   @default(false)
   automatskiOd         DateTime? @db.Date
@@ -1051,6 +1053,8 @@ model UredajNaUgovoru {
   do         DateTime? @db.Date
   /// SKLADISTE ili KLIJENT (uređaj je već bio kod klijenta)
   izvor      String    @default("SKLADISTE")
+  /// račun iz prodaje koji je uređaj stavio na ugovor (storno računa ga poništava)
+  dokumentId String?   @db.Uuid
   napomena   String?
   korisnikId String?   @db.Uuid
   korisnik   String    @default("Sustav")

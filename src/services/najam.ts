@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { danas, dodajDane } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
 import { imaPravo } from "@/domain/prava";
@@ -87,6 +87,7 @@ export async function spremiUgovor(
     if (id) {
       const stari = await zakljucajUgovor(tx, f, id);
       if (stari.verzija !== u.verzija) throw new GreskaKorisniku("Netko je u međuvremenu promijenio ugovor. Osvježite stranicu.");
+      if (stari.partnerId !== u.partnerId) throw new GreskaKorisniku("Kupac na ugovoru se ne može promijeniti — otvorite novi ugovor.");
       let broj = stari.broj;
       if (rucni && rucni !== stari.broj) {
         if (await tx.ugovorNajma.count({ where: { firmaId: f, broj: rucni, id: { not: id } } }))
@@ -398,6 +399,7 @@ export async function izdajRate(
 ): Promise<{ id: string; broj: string; fiskal: string | null }> {
   if (!jeUuid(ugovorId)) throw new GreskaKorisniku("Ugovor ne postoji.");
   if (!jeMjesec(doMjeseca)) throw new GreskaKorisniku("Mjesec nije ispravan.");
+  if (doMjeseca > sljedeciMjesec(mjesecOd(danas(sada)), 12)) throw new GreskaKorisniku("Rate se mogu izdati najviše 12 mjeseci unaprijed.");
   const f = akter.firmaId;
   const r = await db.$transaction(
     async (tx) => {
@@ -556,11 +558,14 @@ export async function vratiUredaj(
     if (!(await tx.skladiste.count({ where: { id: skladisteId, firmaId: f, aktivan: true } })))
       throw new GreskaKorisniku("Odaberite aktivno skladište.");
     await tx.uredajNaUgovoru.update({ where: { id: planId }, data: { do: d(datum) } });
-    await promijeniStanje(tx, { firmaId: f, korisnikId: akter.korisnikId }, [plan.uredaj.id], "povratIzNajma", {
-      skladisteId,
-      dokument: { vrsta: "Ugovor o najmu", id: ug.id, broj: ug.broj },
-      opis: `Povrat s ugovora ${ug.broj} (naplata do ${datum.split("-").reverse().join(".")}.)`,
-    });
+    // uređaj koji više nije u najmu (prodan, na servisu…) samo prestaje s naplatom; stanje se ne dira
+    const stanje = (await tx.uredaj.findFirstOrThrow({ where: { id: plan.uredaj.id, firmaId: f }, select: { stanje: true } })).stanje;
+    if (stanje === "U_NAJMU")
+      await promijeniStanje(tx, { firmaId: f, korisnikId: akter.korisnikId }, [plan.uredaj.id], "povratIzNajma", {
+        skladisteId,
+        dokument: { vrsta: "Ugovor o najmu", id: ug.id, broj: ug.broj },
+        opis: `Povrat s ugovora ${ug.broj} (naplata do ${datum.split("-").reverse().join(".")}.)`,
+      });
     const n = await podaciZaNaplatu(tx, f, ugovorId);
     const v = visak(
       n.uvjeti,
@@ -622,6 +627,28 @@ export function visakUgovora(n: Awaited<ReturnType<typeof podaciZaNaplatu>>) {
       dokumentId: p.rate.find((r) => uMjesec(r.mjesec) === x.mjesec)?.dokumentId ?? null,
     })),
   );
+}
+
+/**
+ * Preostali višak po računu: višak umanjen za već izdana odobrenja na tom računu (osnovica).
+ * Računi čiji je višak pokriven odobrenjima se ne prikazuju.
+ */
+export async function preostaliVisak(tx: Tx | PrismaClient, firmaId: string, n: Awaited<ReturnType<typeof podaciZaNaplatu>>) {
+  const redovi = visakUgovora(n);
+  const ids = [...new Set(redovi.map((r) => r.dokumentId).filter((x): x is string => !!x))];
+  const odobrenja = ids.length
+    ? await tx.prodajniDokument.groupBy({
+        by: ["izvorId"],
+        where: { firmaId, izvorId: { in: ids }, vrsta: "ODOBRENJE", status: "IZDAN" },
+        _sum: { osnovica: true },
+      })
+    : [];
+  const odobreno = new Map(odobrenja.map((o) => [o.izvorId!, -centi(o._sum.osnovica ?? new Prisma.Decimal(0))]));
+  const poRacunu = new Map<string | null, number>();
+  for (const r of redovi) poRacunu.set(r.dokumentId, (poRacunu.get(r.dokumentId) ?? 0) + r.razlika);
+  const ostaje = redovi.filter((r) => !r.dokumentId || (poRacunu.get(r.dokumentId) ?? 0) > (odobreno.get(r.dokumentId) ?? 0));
+  const ukupno = [...poRacunu.entries()].reduce((a, [id, v]) => a + Math.max(0, v - (id ? (odobreno.get(id) ?? 0) : 0)), 0);
+  return { redovi: ostaje, odobreno, ukupno };
 }
 
 // ——— automatsko izdavanje (korak 3.7) ———

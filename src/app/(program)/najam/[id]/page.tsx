@@ -15,7 +15,7 @@ import { DodajUredaje, PauzaUgovora, PovratUredaja, UredajiUgovora, type RedakPl
 import { cijenaUMjesecu, mjesecOd, prvaNeizdana, rateUredaja, sljedeciMjesec, zaIzdati } from "@/domain/najam";
 import { AutomatskoIzdavanje, IzdajRate, IzvanPrograma } from "../rate";
 import { formatirajIznos } from "@/domain/novac";
-import { podaciZaNaplatu, visakUgovora } from "@/services/najam";
+import { podaciZaNaplatu, preostaliVisak } from "@/services/najam";
 import { db } from "@/lib/db";
 
 export const metadata = { title: "Ugovor o najmu · ERP-WMS" };
@@ -76,7 +76,8 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
       })
     ).map((x) => [x.id, x.broj]),
   );
-  const visakZaOdobrenje = visakUgovora(n);
+  const visakPodaci = await preostaliVisak(db, k.firmaId, n);
+  const visakZaOdobrenje = visakPodaci.redovi;
   const aktivni = n.planovi.filter((p) => !p.do).map((p) => ({ planId: p.id, serijski: p.uredaj.serijski }));
   const skladista = aktivni.length
     ? await k.db.skladiste.findMany({
@@ -126,7 +127,16 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
         />
       </Kartica>
       <Kartica naslov={`Uređaji (${redovi.length})`}>
-        <UredajiUgovora ugovorId={u.id} redovi={redovi} mjeseci={mjeseci} smije={smije} prvaNeizdana={prva > tekuci ? prva : tekuci} />
+        <UredajiUgovora ugovorId={u.id} redovi={redovi.slice(0, 200)} mjeseci={mjeseci} smije={smije} prvaNeizdana={prva > tekuci ? prva : tekuci} />
+        {redovi.length > 200 && (
+          <p className="mt-2 text-sm text-neutral-600">
+            Prikazano 200 od {redovi.length} uređaja — cijeli popis po stranicama je u{" "}
+            <Link href={`/najam/${u.id}/raspored`} className="text-primarna hover:underline">
+              rasporedu
+            </Link>
+            .
+          </p>
+        )}
         {smije && <DodajUredaje ugovorId={u.id} od={d0 > dan(u.od)! ? d0 : dan(u.od)!} otvoreno={redovi.length === 0} />}
       </Kartica>
       {visakZaOdobrenje.length > 0 && (
@@ -153,7 +163,10 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-sm font-medium">Ukupno višak: {formatirajIznos(visakZaOdobrenje.reduce((a, v) => a + v.razlika, 0))} € bez PDV-a</p>
+          <p className="mt-2 text-sm font-medium">
+            Preostali višak: {formatirajIznos(visakPodaci.ukupno)} € bez PDV-a
+            {visakPodaci.odobreno.size > 0 && " (umanjeno za već izdana odobrenja)"}
+          </p>
         </Kartica>
       )}
       {smije && aktivni.length > 0 && (

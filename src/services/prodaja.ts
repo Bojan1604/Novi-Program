@@ -25,7 +25,7 @@ import { sljedeciBroj, sljedeciBrojSDatumom } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
 import { fiskaliziraj, pripremiFiskalizaciju } from "./fiskalizacija";
-import { najamSRacuna } from "./najam-racun";
+import { najamSRacuna, ponistiNajamRacuna } from "./najam-racun";
 import { promijeniStanje } from "./uredaji";
 
 export type Tx = Prisma.TransactionClient;
@@ -577,6 +577,9 @@ export async function izdajRacunUBazi(
       }
 
       const datum = datumIzBaze(dok.datum);
+      // isti redoslijed zaključavanja kao izdavanje rata (ugovor pa brojač) — bez potpunog zastoja
+      if (dok.ugovorNajmaId)
+        await tx.$queryRaw`SELECT id FROM "UgovorNajma" WHERE id = ${dok.ugovorNajmaId}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
       const redni = await sljedeciBrojSDatumom(tx, f, vrstaBrojacaRacuna("racun", firma.oznakaProstora, firma.oznakaUredaja), {
         datum,
         dospijece: dok.dospijece ? datumIzBaze(dok.dospijece) : null,
@@ -589,6 +592,16 @@ export async function izdajRacunUBazi(
           partnerId: dok.partnerId,
           poslovnicaId: dok.poslovnicaId,
           dokument: { vrsta: "Račun", id, broj },
+        });
+        // otkup uređaja iz najma: naplata najma završava danom prodaje
+        await tx.uredajNaUgovoru.updateMany({
+          where: {
+            firmaId: f,
+            uredajId: { in: prodaniUredaji },
+            od: { lte: new Date(`${datum}T00:00:00Z`) },
+            OR: [{ do: null }, { do: { gt: new Date(`${datum}T00:00:00Z`) } }],
+          },
+          data: { do: new Date(`${datum}T00:00:00Z`) },
         });
       }
       if (vraceniUredaji.length) {
@@ -646,7 +659,7 @@ export async function izdajRacunUBazi(
               poslovnicaId: dok.poslovnicaId,
               ugovorNajmaId: dok.ugovorNajmaId,
               nacinPlacanja: dok.nacinPlacanja,
-              stavke: r.grupirane.filter((s) => s.namjena === "NAJAM").map((s) => ({ uredajIds: s.uredajIds, iznos: s.iznos })),
+              stavke: r.grupirane.filter((s) => s.namjena === "NAJAM").map((s) => ({ uredajIds: s.uredajIds, iznos: s.iznos, cijena: s.cijena })),
             })
           : null;
       const snimka = {
@@ -908,8 +921,8 @@ async function stornirajUBazi(db: PrismaClient, akter: Akter, racunId: string, s
         });
       }
       await tx.prodajniDokument.update({ where: { id: r.id }, data: { status: "STORNIRAN", verzija: { increment: 1 } } });
-      // rate najma s tog računa ponovno su za izdati
-      await tx.rataNajma.deleteMany({ where: { firmaId: f, dokumentId: r.id } });
+      // rate najma s tog računa ponovno su za izdati; najam koji je račun otvorio se poništava
+      await ponistiNajamRacuna(tx, akter, { id: r.id, broj: r.broj }, skl.id);
       await zapisiDnevnik(tx, {
         firmaId: f,
         korisnikId: akter.korisnikId,

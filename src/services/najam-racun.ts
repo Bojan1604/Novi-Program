@@ -27,8 +27,8 @@ export async function najamSRacuna(
     poslovnicaId: string | null;
     ugovorNajmaId: string | null;
     nacinPlacanja: string;
-    /** grupirane stavke najma s uređajima: ukupni iznos stavke (centi) dijeli se na uređaje */
-    stavke: { uredajIds: string[]; iznos: number }[];
+    /** grupirane stavke najma s uređajima: ukupni iznos stavke (centi) dijeli se na uređaje; cijena = jedinična bez popusta */
+    stavke: { uredajIds: string[]; iznos: number; cijena: number }[];
   },
 ): Promise<string | null> {
   const stavke = p.stavke.filter((s) => s.uredajIds.length);
@@ -65,6 +65,7 @@ export async function najamSRacuna(
         od: d(p.datum),
         nacinPlacanja: p.nacinPlacanja,
         uvjeti: `Otvoren računom ${p.broj}.`,
+        izvorDokumentId: p.dokumentId,
         korisnikId: akter.korisnikId,
         korisnik: ime,
       },
@@ -135,13 +136,17 @@ export async function najamSRacuna(
               uredajId,
               od: d(p.datum),
               izvor: noviKodKupca.includes(uredajId) ? "KLIJENT" : "SKLADISTE",
+              dokumentId: p.dokumentId,
               korisnikId: akter.korisnikId,
               korisnik: ime,
             },
             select: { id: true },
           })
         ).id;
-        await tx.cijenaNajma.create({ data: { firmaId: f, planId, od: mjesecDatum, iznos: centiUDecimal(iznos) } });
+        // mjesečna cijena = jedinična cijena stavke (popust vrijedi samo za ovaj račun);
+        // mjesec računa je naplaćen cijelim iznosom stavke (ručni iznos) — bez lažnog viška zbog početka usred mjeseca
+        await tx.cijenaNajma.create({ data: { firmaId: f, planId, od: mjesecDatum, iznos: centiUDecimal(s.cijena) } });
+        await tx.mjesecNajma.create({ data: { firmaId: f, planId, mjesec: mjesecDatum, iznos: centiUDecimal(iznos) } });
         planUredaja.set(uredajId, planId);
       }
       const vec = await tx.rataNajma.findUnique({
@@ -190,5 +195,53 @@ export async function postaviUgovorNacrta(
       if (!u || u.partnerId !== dok.partnerId) throw new GreskaKorisniku("Odabrani ugovor o najmu nije ovog kupca.");
     }
     await tx.prodajniDokument.update({ where: { id: dokumentId }, data: { ugovorNajmaId: ugovorId, verzija: { increment: 1 } } });
+  });
+}
+
+/**
+ * Storno računa s ratama najma (u transakciji storna): rate se oslobađaju; uređaji koje je taj račun stavio na ugovor
+ * vraćaju se na skladište, a ugovor otvoren tim računom briše se ako je ostao prazan.
+ * Ugovoru s automatskim izdavanjem ono se isključuje (inače bi iste rate odmah opet izdao).
+ */
+export async function ponistiNajamRacuna(tx: Tx, akter: Akter, racun: { id: string; broj: string | null }, skladisteId: string): Promise<void> {
+  const f = akter.firmaId;
+  const rate = await tx.rataNajma.findMany({ where: { firmaId: f, dokumentId: racun.id }, select: { plan: { select: { ugovorId: true } } } });
+  const ugovori = [...new Set(rate.map((r) => r.plan.ugovorId))];
+  await tx.rataNajma.deleteMany({ where: { firmaId: f, dokumentId: racun.id } });
+  const planovi = await tx.uredajNaUgovoru.findMany({
+    where: { firmaId: f, dokumentId: racun.id },
+    include: { uredaj: { select: { id: true, serijski: true, stanje: true } }, ugovor: { select: { id: true, broj: true } } },
+  });
+  for (const p of planovi) {
+    if (await tx.rataNajma.count({ where: { firmaId: f, planId: p.id } }))
+      throw new GreskaKorisniku(
+        `Najam uređaja ${p.uredaj.serijski} je nakon ovog računa dalje naplaćivan — prvo stornirajte kasnije račune ili vratite uređaj s ugovora.`,
+      );
+    await tx.uredajNaUgovoru.delete({ where: { id: p.id } });
+    if (p.uredaj.stanje === "U_NAJMU")
+      await promijeniStanje(tx, { firmaId: f, korisnikId: akter.korisnikId }, [p.uredaj.id], "povratIzNajma", {
+        skladisteId,
+        dokument: { vrsta: "Storno računa", id: racun.id, broj: racun.broj },
+        opis: `Storno računa ${racun.broj}: uređaj skinut s ugovora ${p.ugovor.broj}`,
+      });
+  }
+  const otvoreni = await tx.ugovorNajma.findMany({ where: { firmaId: f, izvorDokumentId: racun.id }, select: { id: true, broj: true } });
+  for (const u of otvoreni) {
+    if (await tx.uredajNaUgovoru.count({ where: { firmaId: f, ugovorId: u.id } })) continue;
+    await tx.prilog.deleteMany({ where: { firmaId: f, entitet: "UgovorNajma", entitetId: u.id } });
+    await tx.ugovorNajma.delete({ where: { id: u.id } });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.ugovor",
+      entitet: "UgovorNajma",
+      entitetId: u.id,
+      opis: `Ugovor ${u.broj} obrisan — storniran račun ${racun.broj} kojim je otvoren`,
+    });
+  }
+  await tx.ugovorNajma.updateMany({
+    where: { firmaId: f, id: { in: ugovori }, automatski: true },
+    data: { automatski: false, automatskiGreska: `Isključeno jer je storniran račun ${racun.broj} — provjerite rate i ponovno uključite.` },
   });
 }

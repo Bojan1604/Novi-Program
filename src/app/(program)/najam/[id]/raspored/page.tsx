@@ -3,6 +3,7 @@ import { GumbVeza } from "@/components/ui/gumb";
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { Stranicenje } from "@/components/ui/stranicenje";
 import { danas } from "@/domain/datum";
+import { jeUuid } from "@/domain/id";
 import { jeMjesec, mjesecOd, rateUredaja, sljedeciMjesec } from "@/domain/najam";
 import { formatirajIznos } from "@/domain/novac";
 import { jedan, stranica } from "@/domain/popis";
@@ -21,6 +22,7 @@ const PO_STRANICI = 100;
 export default async function Raspored({ params, searchParams }: PageProps<"/najam/[id]/raspored">) {
   const k = await pristupStranici("/najam");
   const { id } = await params;
+  if (!jeUuid(id)) notFound();
   const sp = await searchParams;
   const u = await k.db.ugovorNajma.findFirst({
     where: { firmaId: k.firmaId, id },
