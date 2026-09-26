@@ -43,3 +43,43 @@ test("portal: prijava klijenta, uređaji s jamstvom, tuđi uređaj nedostupan, p
   await expect(klijent).toHaveURL(/\/portal\/prijava$/);
   await klijent.close();
 });
+
+test("portal: prijava kvara s fotografijom, servis zaprima, klijent vidi napomenu ali ne dijagnozu", async ({ page, browser }) => {
+  const p = test.info().project.name.toUpperCase();
+  const klijent = await browser.newPage({ viewport: page.viewportSize()! });
+  await prijaviKlijenta(klijent);
+  await klijent.getByRole("link", { name: "Prijava kvara" }).first().click();
+  const obrazac = klijent.getByRole("form", { name: "Prijava kvara" });
+  await obrazac.getByLabel("Uređaj").selectOption({ label: `E2E-KVAR-${p} · E2E Laptop 14` });
+  await obrazac.getByLabel("Opis kvara").fill("Tipkovnica ne radi nakon prolijevanja");
+  await obrazac
+    .getByLabel(/Fotografije/)
+    .setInputFiles({ name: "tipkovnica.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
+  await obrazac.getByRole("button", { name: "Pošalji prijavu" }).click();
+  await expect(klijent.getByRole("heading", { name: /Servisni nalog SRV-/ })).toBeVisible();
+  await expect(klijent.getByText("Prijavljen", { exact: true })).toBeVisible();
+  await expect(klijent.getByTestId("prilozi-klijenta")).toContainText("tipkovnica.png");
+  await bezVodoravnogPomicanja(klijent);
+  const adresaNaloga = klijent.url();
+
+  // servis: zaprimi, interna dijagnoza, napomena klijentu
+  await prijaviSe(page);
+  await page.goto(`/servis?trazi=E2E-KVAR-${p}`);
+  await page.getByTestId("popis-servisa").getByRole("link").first().click();
+  await page.getByRole("form", { name: "Zaprimanje prijavljenog uređaja" }).getByRole("button", { name: "Zaprimi uređaj" }).click();
+  await expect(page.getByRole("form", { name: "Status naloga" })).toBeVisible();
+  const dijagnoza = page.getByRole("form", { name: "Dijagnoza" });
+  await dijagnoza.getByLabel("Dijagnoza (interno — klijent je nikad ne vidi)").fill("INTERNO: oksidacija ploče");
+  await dijagnoza.getByLabel("Napomena klijentu (vidi se na portalu)").fill("Mijenjamo tipkovnicu, gotovo sutra");
+  await dijagnoza.getByRole("button", { name: "Spremi" }).click();
+  await expect(page.getByTestId("tijek-servisa")).toContainText("Napomena: Mijenjamo tipkovnicu");
+
+  await klijent.goto(adresaNaloga);
+  await expect(klijent.getByTestId("napomena-servisa")).toHaveText("Mijenjamo tipkovnicu, gotovo sutra");
+  await expect(klijent.getByTestId("tijek-klijenta")).toContainText("Uređaj zaprimljen na servis");
+  await expect(klijent.locator("body")).not.toContainText("INTERNO");
+  const pdf = await klijent.request.get(`${adresaNaloga}/pdf`);
+  expect(pdf.status()).toBe(200);
+  expect(pdf.headers()["content-type"]).toBe("application/pdf");
+  await klijent.close();
+});

@@ -5,9 +5,20 @@ import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Obrazac } from "@/components/ui/obrazac";
 import { klaseUnosa, Odabir, Polje } from "@/components/ui/polje";
-import { OTVORENI_STATUSI, STATUSI_SERVISA } from "@/domain/servis";
+import { RADNI_STATUSI, STATUSI_SERVISA } from "@/domain/servis";
 import type { Odgovor } from "@/lib/greske";
-import { dijagnozaAkcija, obrisiAkcija, otpisAkcija, povratZamjeneAkcija, statusAkcija, zamjenaAkcija, zaprimiAkcija, zavrsiAkcija } from "./akcije";
+import {
+  dijagnozaAkcija,
+  javnostPrilogaAkcija,
+  obrisiAkcija,
+  otpisAkcija,
+  povratZamjeneAkcija,
+  statusAkcija,
+  zamjenaAkcija,
+  zaprimiAkcija,
+  zaprimiPrijavuAkcija,
+  zavrsiAkcija,
+} from "./akcije";
 
 type Skladiste = { id: string; naziv: string };
 
@@ -80,7 +91,7 @@ export function StatusNaloga({ id, verzija, status }: { id: string; verzija: num
     <Obrazac akcija={posalji} className="flex flex-col gap-2" aria-label="Status naloga">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <Odabir oznaka="Status" name="status" defaultValue={status} className="sm:w-56">
-          {OTVORENI_STATUSI.map((s) => (
+          {RADNI_STATUSI.map((s) => (
             <option key={s} value={s}>
               {STATUSI_SERVISA[s]}
             </option>
@@ -150,6 +161,7 @@ export function Zavrsetak({
   skladista,
   trebaSkladiste,
   smijeOtpis,
+  prijavljen = false,
 }: {
   id: string;
   danas: string;
@@ -157,6 +169,8 @@ export function Zavrsetak({
   /** zamjenski se vraća ili uređaj ide na skladište */
   trebaSkladiste: boolean;
   smijeOtpis: boolean;
+  /** prijava s portala prije zaprimanja: samo otkaz */
+  prijavljen?: boolean;
 }) {
   const [stanje, posalji, uTijeku] = useActionState(zavrsiAkcija.bind(null, id), undefined);
   const [otpis, posaljiOtpis, uTijekuOtpis] = useActionState(otpisAkcija.bind(null, id), undefined);
@@ -170,8 +184,8 @@ export function Zavrsetak({
     <div className="flex flex-col gap-4">
       <Obrazac akcija={posalji} className="flex flex-col gap-2" aria-label="Završetak naloga">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <Odabir oznaka="Ishod" name="ishod" defaultValue="VRACEN">
-            <option value="VRACEN">Vraćen (popravljen ili ne)</option>
+          <Odabir oznaka="Ishod" name="ishod" defaultValue={prijavljen ? "OTKAZAN" : "VRACEN"}>
+            {!prijavljen && <option value="VRACEN">Vraćen (popravljen ili ne)</option>}
             <option value="OTKAZAN">Otkazan</option>
           </Odabir>
           {polja}
@@ -184,7 +198,7 @@ export function Zavrsetak({
         </div>
         <Poruka stanje={stanje} />
       </Obrazac>
-      {smijeOtpis && (
+      {smijeOtpis && !prijavljen && (
         <Obrazac
           akcija={(fd) => {
             if (confirm("Otpisati uređaj? Uređaj iz najma prestaje se naplaćivati (zamjenski ostaje u najmu umjesto njega).")) posaljiOtpis(fd);
@@ -222,6 +236,35 @@ export function ObrisiNalog({ id }: { id: string }) {
         </Gumb>
       </div>
       <Poruka stanje={stanje} />
+    </form>
+  );
+}
+
+export function ZaprimiPrijavu({ id, danas, skladista }: { id: string; danas: string; skladista: Skladiste[] }) {
+  const [stanje, posalji, uTijeku] = useActionState(zaprimiPrijavuAkcija.bind(null, id), undefined);
+  return (
+    <Obrazac akcija={posalji} className="flex flex-col gap-2" aria-label="Zaprimanje prijavljenog uređaja">
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">Kvar je prijavljen s portala — uređaj je još kod klijenta.</p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <Polje oznaka="Datum prijema" name="datum" type="date" required defaultValue={danas} />
+        <OdabirSkladista skladista={skladista} oznaka="Gdje je uređaj" prazno="— kod servisa (bez skladišta) —" />
+        <Gumb type="submit" varijanta="primarni" disabled={uTijeku}>
+          Zaprimi uređaj
+        </Gumb>
+      </div>
+      <Poruka stanje={stanje} />
+    </Obrazac>
+  );
+}
+
+export function JavnostPriloga({ id, prilogId, javno }: { id: string; prilogId: string; javno: boolean }) {
+  const [stanje, posalji, uTijeku] = useActionState(() => javnostPrilogaAkcija(id, prilogId, !javno), undefined);
+  return (
+    <form action={posalji} className="inline-flex items-center gap-2">
+      {stanje && !stanje.ok && <span className="text-sm text-red-700 dark:text-red-400">{stanje.greska}</span>}
+      <Gumb type="submit" malen varijanta="tihi" disabled={uTijeku}>
+        {javno ? "Sakrij od klijenta" : "Pokaži klijentu"}
+      </Gumb>
     </form>
   );
 }

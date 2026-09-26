@@ -9,6 +9,8 @@ describe("servisni nalog", () => {
     expect(provjeriStatus("ZAPRIMLJEN", "ZAPRIMLJEN")).toMatch(/već/);
     expect(provjeriStatus("VRACEN", "POPRAVAK")).toMatch(/zatvoren/);
     expect(provjeriStatus("POPRAVAK", "OTPISAN")).toMatch(/Nepoznat/);
+    expect(provjeriStatus("POPRAVAK", "PRIJAVLJEN")).toMatch(/Nepoznat/);
+    expect(provjeriStatus("PRIJAVLJEN", "POPRAVAK")).toMatch(/zaprimite/);
   });
 
   it("zamjenski samo za uređaj kod klijenta", () => {
@@ -49,10 +51,17 @@ describe("servisni nalog", () => {
     const i = ishodZavrsetka(z, prije, zamjena);
     if (uredaj === "—") return expect(i.ok).toBe(false);
     if (!i.ok) throw new Error(i.razlog);
-    const u = prijelaz(i.uredaj, "NA_SERVISU", prije);
+    const u = prijelaz(i.uredaj!, "NA_SERVISU", prije);
     expect(u).toMatchObject({ ok: true, novo: uredaj });
     if (zamjenski === null) expect(i.zamjena).toBeNull();
     else expect(prijelaz(i.zamjena!, "ZAMJENSKI")).toMatchObject({ ok: true, novo: zamjenski });
+  });
+
+  it("prijava s portala prije zaprimanja: samo otkaz, uređaj se ne dira", () => {
+    expect(ishodZavrsetka("OTKAZAN", "PRODAN", false, true)).toEqual({ ok: true, uredaj: null, zamjena: null, najam: null });
+    expect(ishodZavrsetka("VRACEN", "PRODAN", false, true).ok).toBe(false);
+    expect(ishodZavrsetka("OTPISAN", "U_NAJMU", false, true).ok).toBe(false);
+    expect(provjeriBrisanje({ status: "PRIJAVLJEN", imaoZamjenu: false })).toBeNull();
   });
 
   it("najam kod otpisa: bez zamjene se zatvara, sa zamjenom prenosi", () => {

@@ -103,6 +103,10 @@ async function priprema(): Promise<void> {
     // portal: klijent E2E Kupca s uređajem i drugi klijent s tuđim uređajem
     const hashPortala = bcrypt.hashSync(E2E.klijent.lozinka, 4);
     const drugi = await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Drugi klijent d.o.o." } });
+    for (const p of ["RACUNALO", "MOBITEL"])
+      await prisma.uredaj.create({
+        data: { firmaId: firma.id, serijski: `E2E-KVAR-${p}`, modelId: model.id, stanje: "PRODAN", partnerId: kupac.id },
+      });
     await prisma.uredaj.create({
       data: {
         firmaId: firma.id,

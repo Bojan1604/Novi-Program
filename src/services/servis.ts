@@ -3,9 +3,11 @@ import { danas, jeDatum, usporedi } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
 import { mjesecOd, visak } from "@/domain/najam";
 import { imaPravo } from "@/domain/prava";
+import { provjeriPrilog } from "@/domain/prilozi";
 import {
   ishodZavrsetka,
   jeOtvoren,
+  OTVORENI_STATUSI,
   krajNaplateOriginala,
   provjeriBrisanje,
   provjeriStatus,
@@ -22,6 +24,7 @@ import { sljedeciBroj } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
 import { podaciZaNaplatu } from "./najam";
+import type { Datoteka } from "./prilozi";
 import { promijeniStanje } from "./uredaji";
 
 type Tx = Prisma.TransactionClient;
@@ -30,7 +33,7 @@ const dan = (x: Date) => x.toISOString().slice(0, 10);
 const hr = (x: string) => `${x.split("-").reverse().join(".")}.`;
 
 /** Tko radi: korisnik programa ili klijent s portala (korisnikId null, ime klijenta). */
-export type IzvrsiteljServisa = Pick<Akter, "firmaId" | "korisnikId" | "ip"> & { ime?: string };
+export type IzvrsiteljServisa = { firmaId: string; korisnikId: string | null; ip?: string | null | undefined; ime?: string };
 
 async function imeIzvrsitelja(tx: Tx, a: IzvrsiteljServisa): Promise<string> {
   if (a.ime) return a.ime;
@@ -101,6 +104,8 @@ export async function zaprimiNaServis(
     if (o.partnerId !== undefined && ur.partnerId !== o.partnerId) throw new GreskaKorisniku(`Uređaj ${serijski} nije među vašim uređajima.`);
     if (u.skladisteId && !(await tx.skladiste.count({ where: { id: u.skladisteId, firmaId: f, aktivan: true } })))
       throw new GreskaKorisniku("Odaberite aktivno skladište.");
+    const prijava = await tx.servisniNalog.findFirst({ where: { firmaId: f, uredajId: ur.id, status: "PRIJAVLJEN" }, select: { broj: true } });
+    if (prijava) throw new GreskaKorisniku(`Za uređaj ${serijski} postoji prijava kvara ${prijava.broj} — zaprimite uređaj na njoj.`);
     const stanje = ur.stanje as Stanje;
     const plan =
       stanje === "U_NAJMU"
@@ -219,6 +224,7 @@ export async function izdajZamjenu(db: PrismaClient, a: Akter, id: string, u: { 
   await db.$transaction(async (tx) => {
     const n = await zakljucajNalog(tx, f, id);
     if (!jeOtvoren(n.status)) throw new GreskaKorisniku("Nalog je zatvoren.");
+    if (n.status === "PRIJAVLJEN") throw new GreskaKorisniku("Prvo zaprimite uređaj.");
     if (!n.partnerId || !uredajKlijenta(n.stanjePrije as Stanje))
       throw new GreskaKorisniku("Zamjenski uređaj se daje samo za uređaj kupca ili iz najma.");
     if (n.zamjenskiUredajId && !n.zamjenaDo) throw new GreskaKorisniku(`Klijent već ima zamjenski uređaj ${n.zamjenski?.serijski}.`);
@@ -297,14 +303,15 @@ export async function zavrsiNalog(db: PrismaClient, a: Akter, id: string, u: Ula
       if (!jeOtvoren(n.status)) throw new GreskaKorisniku("Nalog je već zatvoren.");
       if (u.datum < dan(n.datum)) throw new GreskaKorisniku("Datum završetka ne može biti prije prijema.");
       const imaZamjenu = !!n.zamjenskiUredajId && !n.zamjenaDo;
-      const i = ishodZavrsetka(u.ishod, n.stanjePrije as Stanje, imaZamjenu);
+      const i = ishodZavrsetka(u.ishod, n.stanjePrije as Stanje, imaZamjenu, n.status === "PRIJAVLJEN");
       if (!i.ok) throw new GreskaKorisniku(i.razlog);
       const izv = { firmaId: f, korisnikId: a.korisnikId };
-      await promijeniStanje(tx, izv, [n.uredajId], i.uredaj, {
-        ...(u.skladisteId && (n.stanjePrije === "NA_SKLADISTU" || n.stanjePrije === "REZERVIRAN") ? { skladisteId: u.skladisteId } : {}),
-        dokument: dokument(n),
-        opis: `Servis: ${STATUSI_SERVISA[u.ishod].toLowerCase()}`,
-      });
+      if (i.uredaj)
+        await promijeniStanje(tx, izv, [n.uredajId], i.uredaj, {
+          ...(u.skladisteId && (n.stanjePrije === "NA_SKLADISTU" || n.stanjePrije === "REZERVIRAN") ? { skladisteId: u.skladisteId } : {}),
+          dokument: dokument(n),
+          opis: `Servis: ${STATUSI_SERVISA[u.ishod].toLowerCase()}`,
+        });
       let visakNajma = 0;
       let opisNajma = "";
       if (i.najam && n.ugovorNajmaId) {
@@ -399,10 +406,11 @@ export async function obrisiNalog(db: PrismaClient, a: Akter, id: string): Promi
     if (g) throw new GreskaKorisniku(g);
     if (await tx.prilog.count({ where: { firmaId: f, entitet: "ServisniNalog", entitetId: n.id } }))
       throw new GreskaKorisniku("Nalog ima priloge — prvo ih obrišite ili nalog otkažite.");
-    await promijeniStanje(tx, { firmaId: f, korisnikId: a.korisnikId }, [n.uredajId], "izlazSaServisa", {
-      dokument: { vrsta: "Servisni nalog", broj: `${n.broj} (obrisan)` },
-      opis: "Servisni nalog obrisan",
-    });
+    if (n.status !== "PRIJAVLJEN")
+      await promijeniStanje(tx, { firmaId: f, korisnikId: a.korisnikId }, [n.uredajId], "izlazSaServisa", {
+        dokument: { vrsta: "Servisni nalog", broj: `${n.broj} (obrisan)` },
+        opis: "Servisni nalog obrisan",
+      });
     await tx.dogadajServisa.deleteMany({ where: { firmaId: f, nalogId: n.id } });
     await tx.servisniNalog.delete({ where: { id: n.id } });
     await zapisiDnevnik(tx, {
@@ -413,6 +421,166 @@ export async function obrisiNalog(db: PrismaClient, a: Akter, id: string): Promi
       entitet: "ServisniNalog",
       entitetId: n.id,
       opis: `Obrisan servisni nalog ${n.broj} (${n.uredaj.serijski})`,
+    });
+  });
+}
+
+// ——— portal (korak 5.3) ———
+
+export const NAJVISE_FOTOGRAFIJA = 4;
+
+/**
+ * Prijava kvara s portala: nalog „prijavljen“ (uređaj ostaje kod klijenta dok ga servis ne zaprimi),
+ * do 4 fotografije kao javni prilozi. Samo za uređaj klijenta koji nije već na otvorenom nalogu.
+ */
+export async function prijaviKvarPortal(
+  db: PrismaClient,
+  k: { firmaId: string; partnerId: string; ip: string | null; ime: string },
+  u: { uredajId: string; opisKvara: string; kontakt: string | null },
+  fotografije: readonly Datoteka[],
+  sada = new Date(),
+): Promise<{ id: string; broj: string }> {
+  if (!jeUuid(u.uredajId)) throw new GreskaKorisniku("Odaberite uređaj.");
+  const opis = u.opisKvara.trim();
+  if (opis.length < 3) throw new GreskaKorisniku("Opišite kvar.");
+  if (opis.length > 2000) throw new GreskaKorisniku("Opis kvara je predug (najviše 2000 znakova).");
+  if (fotografije.length > NAJVISE_FOTOGRAFIJA) throw new GreskaKorisniku(`Najviše ${NAJVISE_FOTOGRAFIJA} fotografije.`);
+  const slike = fotografije.map((d) => {
+    const r = provjeriPrilog(d.naziv, d.velicina);
+    if (!r.ok) throw new GreskaKorisniku(r.greska);
+    if (!r.vrsta.startsWith("image/")) throw new GreskaKorisniku(`„${r.naziv}“ nije fotografija (JPG, PNG, WEBP…).`);
+    if (d.sadrzaj.byteLength !== d.velicina) throw new GreskaKorisniku(`Datoteka „${r.naziv}“ nije potpuno poslana.`);
+    return { ...d, naziv: r.naziv, vrsta: r.vrsta };
+  });
+  const f = k.firmaId;
+  const datum = danas(sada);
+  const ime = `${k.ime} (portal)`;
+  return db.$transaction(async (tx) => {
+    const [r] = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id::text FROM "Uredaj" WHERE "firmaId" = ${f}::uuid AND id = ${u.uredajId}::uuid AND "partnerId" = ${k.partnerId}::uuid FOR UPDATE`;
+    if (!r) throw new GreskaKorisniku("Uređaj ne postoji.");
+    const ur = await tx.uredaj.findFirstOrThrow({ where: { id: r.id, firmaId: f }, select: { id: true, serijski: true, stanje: true } });
+    if (ur.stanje !== "PRODAN" && ur.stanje !== "U_NAJMU") throw new GreskaKorisniku(`Uređaj ${ur.serijski} je već na servisu ili nije vaš.`);
+    const otvoren = await tx.servisniNalog.findFirst({
+      where: { firmaId: f, uredajId: ur.id, status: { in: [...OTVORENI_STATUSI] } },
+      select: { broj: true },
+    });
+    if (otvoren) throw new GreskaKorisniku(`Za uređaj ${ur.serijski} već postoji otvoren nalog ${otvoren.broj}.`);
+    const plan =
+      ur.stanje === "U_NAJMU"
+        ? await tx.uredajNaUgovoru.findFirst({
+            where: { firmaId: f, uredajId: ur.id, od: { lte: d(datum) }, OR: [{ do: null }, { do: { gte: d(datum) } }] },
+            select: { ugovorId: true },
+          })
+        : null;
+    const godina = Number(datum.slice(0, 4));
+    const redni = await sljedeciBroj(tx, f, "servis", godina);
+    const broj = oznakaDokumenta("SRV", redni, godina);
+    const n = await tx.servisniNalog.create({
+      data: {
+        firmaId: f,
+        broj,
+        godina,
+        redni,
+        datum: d(datum),
+        uredajId: ur.id,
+        partnerId: k.partnerId,
+        ugovorNajmaId: plan?.ugovorId ?? null,
+        stanjePrije: ur.stanje,
+        status: "PRIJAVLJEN",
+        opisKvara: opis,
+        kontakt: u.kontakt?.trim().slice(0, 200) || null,
+        izvor: "PORTAL",
+        korisnikId: null,
+        korisnik: ime,
+      },
+      select: { id: true, broj: true },
+    });
+    for (const s of slike)
+      await tx.prilog.create({
+        data: {
+          firmaId: f,
+          entitet: "ServisniNalog",
+          entitetId: n.id,
+          naziv: s.naziv,
+          vrsta: s.vrsta,
+          velicina: s.velicina,
+          sadrzaj: s.sadrzaj as Uint8Array<ArrayBuffer>,
+          javno: true,
+          korisnikId: null,
+          korisnik: ime,
+        },
+      });
+    await dogadaj(tx, { firmaId: f, korisnikId: null, ip: k.ip, ime }, n.id, `Prijava kvara: ${opis}`, { status: "PRIJAVLJEN" });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: null,
+      ip: k.ip,
+      radnja: "servis.prijava",
+      entitet: "ServisniNalog",
+      entitetId: n.id,
+      opis: `Prijava kvara s portala ${broj}: ${ur.serijski} (${ime}${slike.length ? `, fotografija: ${slike.length}` : ""})`,
+    });
+    return n;
+  });
+}
+
+/** Zaprimanje uređaja za kvar prijavljen s portala: tek sada uređaj prelazi „na servis“. */
+export async function zaprimiPrijavu(db: PrismaClient, a: Akter, id: string, u: { datum: string; skladisteId: string | null }, sada = new Date()) {
+  if (!jeDatum(u.datum) || usporedi(u.datum, danas(sada)) > 0) throw new GreskaKorisniku("Datum nije ispravan.");
+  if (u.skladisteId !== null && !jeUuid(u.skladisteId)) throw new GreskaKorisniku("Odaberite skladište.");
+  const f = a.firmaId;
+  await db.$transaction(async (tx) => {
+    const n = await zakljucajNalog(tx, f, id);
+    if (n.status !== "PRIJAVLJEN") throw new GreskaKorisniku("Uređaj je već zaprimljen.");
+    if (u.datum < dan(n.datum)) throw new GreskaKorisniku("Uređaj ne može biti zaprimljen prije prijave kvara.");
+    await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE id = ${n.uredajId}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
+    const ur = await tx.uredaj.findFirstOrThrow({ where: { id: n.uredajId, firmaId: f }, select: { stanje: true, partnerId: true } });
+    if (ur.partnerId !== n.partnerId) throw new GreskaKorisniku("Uređaj više nije kod ovog klijenta — otkažite prijavu.");
+    if (u.skladisteId && !(await tx.skladiste.count({ where: { id: u.skladisteId, firmaId: f, aktivan: true } })))
+      throw new GreskaKorisniku("Odaberite aktivno skladište.");
+    await promijeniStanje(tx, { firmaId: f, korisnikId: a.korisnikId }, [n.uredajId], "ulazNaServis", {
+      ...(u.skladisteId ? { skladisteId: u.skladisteId } : {}),
+      dokument: dokument(n),
+      opis: `Prijem na servis (prijava s portala): ${n.opisKvara.slice(0, 200)}`,
+    });
+    await tx.servisniNalog.update({
+      where: { id: n.id },
+      data: { status: "ZAPRIMLJEN", stanjePrije: ur.stanje, datum: d(u.datum), verzija: { increment: 1 } },
+    });
+    await dogadaj(tx, a, n.id, "Uređaj zaprimljen na servis", { status: "ZAPRIMLJEN" });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: a.korisnikId,
+      ip: a.ip,
+      radnja: "servis.zaprimi",
+      entitet: "ServisniNalog",
+      entitetId: n.id,
+      opis: `Servisni nalog ${n.broj}: zaprimljen uređaj ${n.uredaj.serijski} (prijava s portala)`,
+    });
+  });
+}
+
+/** Prilog naloga vidljiv klijentu na portalu ili ne (interni prilozi nikad ne idu klijentu). */
+export async function postaviJavnostPriloga(db: PrismaClient, a: Akter, nalogId: string, prilogId: string, javno: boolean) {
+  if (!jeUuid(nalogId) || !jeUuid(prilogId)) throw new GreskaKorisniku("Prilog ne postoji.");
+  await db.$transaction(async (tx) => {
+    const p = await tx.prilog.findFirst({
+      where: { id: prilogId, firmaId: a.firmaId, entitet: "ServisniNalog", entitetId: nalogId },
+      select: { naziv: true, javno: true },
+    });
+    if (!p) throw new GreskaKorisniku("Prilog ne postoji.");
+    await tx.prilog.update({ where: { id: prilogId }, data: { javno } });
+    await zapisiDnevnik(tx, {
+      firmaId: a.firmaId,
+      korisnikId: a.korisnikId,
+      ip: a.ip,
+      radnja: "servis.prilozi",
+      entitet: "ServisniNalog",
+      entitetId: nalogId,
+      opis: `Prilog „${p.naziv}“ ${javno ? "vidljiv klijentu" : "samo interno"}`,
+      staro: { javno: p.javno },
+      novo: { javno },
     });
   });
 }

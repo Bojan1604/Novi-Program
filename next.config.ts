@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
   // fontovi za PDF moraju biti uz program i u produkcijskoj instalaciji
   outputFileTracingIncludes: { "/**": ["./assets/fonts/**"] },
   experimental: {
-    // prilozi do 10 MB po datoteci, više datoteka odjednom (provjera veličine je i u src/domain/prilozi.ts)
-    serverActions: { bodySizeLimit: "30mb" },
-    proxyClientMaxBodySize: "30mb",
+    // prilozi do 10 MB po datoteci, više datoteka odjednom (npr. 4 fotografije kvara s portala; provjera je i u src/domain/prilozi.ts)
+    serverActions: { bodySizeLimit: "45mb" },
+    proxyClientMaxBodySize: "45mb",
   },
 };
 

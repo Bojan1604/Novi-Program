@@ -8,7 +8,17 @@ import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
 import { dodajPriloge, obrisiPrilog, type Datoteka } from "@/services/prilozi";
-import { izdajZamjenu, obrisiNalog, promijeniStatusServisa, spremiDijagnozu, vratiZamjenu, zaprimiNaServis, zavrsiNalog } from "@/services/servis";
+import {
+  izdajZamjenu,
+  obrisiNalog,
+  postaviJavnostPriloga,
+  promijeniStatusServisa,
+  spremiDijagnozu,
+  vratiZamjenu,
+  zaprimiNaServis,
+  zaprimiPrijavu,
+  zavrsiNalog,
+} from "@/services/servis";
 
 const ili = (fd: FormData, ime: string) => tekst(fd, ime) || null;
 const osvjezi = (id: string) => {
@@ -123,5 +133,21 @@ export async function obrisiPrilogAkcija(id: string, prilogId: string): Promise<
     await obrisiPrilog(db, k, "ServisniNalog", prilogId);
     revalidatePath(`/servis/${id}`);
     return { ok: true, poruka: "Prilog je obrisan." };
+  });
+}
+
+export async function zaprimiPrijavuAkcija(id: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("servis.zaprimi", async (k): Promise<Odgovor> => {
+    await zaprimiPrijavu(db, k, String(id), { datum: tekst(fd, "datum"), skladisteId: ili(fd, "skladisteId") });
+    osvjezi(id);
+    return { ok: true, poruka: "Uređaj je zaprimljen na servis." };
+  });
+}
+
+export async function javnostPrilogaAkcija(id: string, prilogId: string, javno: boolean): Promise<Odgovor> {
+  return akcija("servis.prilozi", async (k): Promise<Odgovor> => {
+    await postaviJavnostPriloga(db, k, String(id), String(prilogId), javno === true);
+    revalidatePath(`/servis/${id}`);
+    return { ok: true, poruka: javno ? "Prilog je vidljiv klijentu." : "Prilog je samo interni." };
   });
 }

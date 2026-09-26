@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GumbVeza } from "@/components/ui/gumb";
+import { GumbVeza, klaseGumba } from "@/components/ui/gumb";
 import { DodajPriloge, ObrisiPrilog } from "@/components/ui/prilozi";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
 import { danas } from "@/domain/datum";
@@ -12,7 +12,7 @@ import { STANJA, type Stanje } from "@/domain/stanja-uredaja";
 import { pristupStranici } from "@/lib/akcija";
 import { dodajPrilogeAkcija, obrisiPrilogAkcija } from "../akcije";
 import { bojaStatusa } from "../boje";
-import { Dijagnoza, IzdajZamjenu, ObrisiNalog, StatusNaloga, VratiZamjenu, Zavrsetak } from "../obrasci";
+import { Dijagnoza, IzdajZamjenu, JavnostPriloga, ObrisiNalog, StatusNaloga, VratiZamjenu, ZaprimiPrijavu, Zavrsetak } from "../obrasci";
 
 export const metadata = { title: "Servisni nalog · ERP-WMS" };
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
     k.db.prilog.findMany({
       where: { firmaId: k.firmaId, entitet: "ServisniNalog", entitetId: id },
       orderBy: { stvoreno: "desc" },
-      select: { id: true, naziv: true, velicina: true, korisnik: true, stvoreno: true },
+      select: { id: true, naziv: true, velicina: true, korisnik: true, stvoreno: true, javno: true },
     }),
     k.db.skladiste.findMany({
       where: { firmaId: k.firmaId, aktivan: true },
@@ -62,6 +62,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
   const aktivnaZamjena = !!n.zamjenskiUredajId && !n.zamjenaDo;
   const stanjePrije = n.stanjePrije as Stanje;
   const dan = danas();
+  const prijavljen = n.status === "PRIJAVLJEN";
   return (
     <Stranica sirina="5xl">
       <NaslovStranice
@@ -73,7 +74,14 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
             {aktivnaZamjena && <Znacka boja="plava">klijent ima zamjenski</Znacka>}
           </span>
         }
-        akcije={<GumbVeza href="/servis">Natrag</GumbVeza>}
+        akcije={
+          <>
+            <a href={`/api/servis/${n.id}/pdf`} target="_blank" rel="noopener" className={klaseGumba()}>
+              Otpremnica (PDF)
+            </a>
+            <GumbVeza href="/servis">Natrag</GumbVeza>
+          </>
+        }
       />
       <Kartica>
         <dl className="flex flex-col gap-2 text-sm">
@@ -119,7 +127,12 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
           )}
         </dl>
       </Kartica>
-      {otvoren && smije && (
+      {prijavljen && smije && (
+        <Kartica naslov="Zaprimanje">
+          <ZaprimiPrijavu id={n.id} danas={dan} skladista={skladista} />
+        </Kartica>
+      )}
+      {otvoren && !prijavljen && smije && (
         <Kartica naslov="Status">
           <StatusNaloga key={n.verzija} id={n.id} verzija={n.verzija} status={n.status} />
         </Kartica>
@@ -134,14 +147,21 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
           </dl>
         )}
       </Kartica>
-      {otvoren && smije && uredajKlijenta(stanjePrije) && (
+      {otvoren && !prijavljen && smije && uredajKlijenta(stanjePrije) && (
         <Kartica naslov="Zamjenski uređaj">
           {aktivnaZamjena ? <VratiZamjenu id={n.id} danas={dan} skladista={skladista} /> : <IzdajZamjenu id={n.id} danas={dan} />}
         </Kartica>
       )}
       {otvoren && smije && (
         <Kartica naslov="Završetak">
-          <Zavrsetak id={n.id} danas={dan} skladista={skladista} trebaSkladiste={aktivnaZamjena} smijeOtpis={puno && stanjePrije !== "PRODAN"} />
+          <Zavrsetak
+            id={n.id}
+            danas={dan}
+            skladista={skladista}
+            trebaSkladiste={aktivnaZamjena}
+            smijeOtpis={puno && stanjePrije !== "PRODAN"}
+            prijavljen={prijavljen}
+          />
           {puno && provjeriBrisanje({ status: n.status, imaoZamjenu: n.imaoZamjenu }) === null && (
             <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
               <ObrisiNalog id={n.id} />
@@ -173,10 +193,16 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
                     {p.naziv}
                   </a>
                   <div className="text-xs text-neutral-500">
-                    {velicinaZaPrikaz(p.velicina)} · {p.korisnik} · {vrijeme.format(p.stvoreno)}
+                    {velicinaZaPrikaz(p.velicina)} · {p.korisnik} · {vrijeme.format(p.stvoreno)}{" "}
+                    {p.javno ? <Znacka boja="zelena">vidi klijent</Znacka> : <Znacka>interno</Znacka>}
                   </div>
                 </div>
-                {smije && <ObrisiPrilog akcija={obrisiPrilogAkcija.bind(null, n.id, p.id)} naziv={p.naziv} />}
+                {smije && (
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    <JavnostPriloga id={n.id} prilogId={p.id} javno={p.javno} />
+                    <ObrisiPrilog akcija={obrisiPrilogAkcija.bind(null, n.id, p.id)} naziv={p.naziv} />
+                  </span>
+                )}
               </li>
             ))}
           </ul>

@@ -21,6 +21,12 @@ export default async function PortalLayout({ children }: LayoutProps<"/portal">)
               <Link href="/portal" className="hover:underline">
                 Uređaji
               </Link>
+              <Link href="/portal/nalozi" className="hover:underline">
+                Servis
+              </Link>
+              <Link href="/portal/prijava-kvara" className="hover:underline">
+                Prijava kvara
+              </Link>
               <form action={odjavaPortalaAkcija}>
                 <button type="submit" className="text-neutral-600 hover:underline dark:text-neutral-300">
                   Odjava
