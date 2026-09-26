@@ -17,7 +17,17 @@ export type PodaciPdf = {
   naslov: string;
   broj: string | null;
   nacrt: boolean;
-  firma: { naziv: string; oib: string; adresa: string; iban: string | null; banka: string | null; kontakt: string };
+  firma: {
+    naziv: string;
+    oib: string;
+    adresa: string;
+    iban: string | null;
+    banka: string | null;
+    kontakt: string;
+    /** boja firme (#rrggbb) za naslov i crtu zaglavlja */
+    boja?: string | null;
+    logo?: { vrsta: string; sadrzaj: Buffer } | null;
+  };
   kupac: { naziv: string; adresa: string; oib: string | null; pdvBroj: string | null } | null;
   poslovnica: string | null;
   podaci: [string, string][];
@@ -54,11 +64,21 @@ export async function pdfDokumenta(d: PodaciPdf): Promise<Buffer> {
   const W = doc.page.width - L - doc.page.margins.right;
   const DNO = doc.page.height - doc.page.margins.bottom - 24; // prostor za podnožje
 
-  // zaglavlje: firma lijevo, naslov desno
+  // zaglavlje: logo i firma lijevo, naslov desno (u boji firme)
+  let yFirme = 40;
+  if (d.firma.logo) {
+    try {
+      doc.image(d.firma.logo.sadrzaj, L, 40, { fit: [140, 44] });
+      yFirme = 90;
+    } catch {
+      // oštećena slika: dokument bez loga
+    }
+  }
+  const boja = d.firma.boja && /^#[0-9a-fA-F]{6}$/.test(d.firma.boja) ? d.firma.boja : "#000";
   doc
     .font("b")
     .fontSize(12)
-    .text(d.firma.naziv, L, 40, { width: W * 0.55 });
+    .text(d.firma.naziv, L, yFirme, { width: W * 0.55 });
   doc.font("o").fontSize(8).fillColor(SIVA);
   doc.text(
     [d.firma.adresa, `OIB: ${d.firma.oib}`, d.firma.iban ? `IBAN: ${d.firma.iban}${d.firma.banka ? ` (${d.firma.banka})` : ""}` : "", d.firma.kontakt]
@@ -70,15 +90,23 @@ export async function pdfDokumenta(d: PodaciPdf): Promise<Buffer> {
   );
   const krajFirme = doc.y;
   doc
-    .fillColor("#000")
+    .fillColor(boja)
     .font("b")
     .fontSize(15)
     .text(d.naslov, L + W * 0.55, 40, { width: W * 0.45, align: "right" });
+  doc.fillColor("#000");
   doc
     .font("b")
     .fontSize(11)
     .text(d.broj ?? "NACRT", { width: W * 0.45, align: "right" });
-  let y = Math.max(krajFirme, doc.y) + 14;
+  let y = Math.max(krajFirme, doc.y) + 8;
+  doc
+    .moveTo(L, y)
+    .lineTo(L + W, y)
+    .lineWidth(1.5)
+    .stroke(boja)
+    .lineWidth(1);
+  y += 8;
 
   // kupac i podaci dokumenta
   if (d.kupac) {

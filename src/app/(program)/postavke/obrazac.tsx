@@ -6,7 +6,7 @@ import { Obavijest } from "@/components/ui/obavijest";
 import { Obrazac } from "@/components/ui/obrazac";
 import { klaseUnosa, Kvacica, Odabir, Polje } from "@/components/ui/polje";
 import { NACINI_FISKALIZACIJE } from "@/domain/fiskalizacija";
-import { probnaPorukaAkcija, spremiFiskalizacijuAkcija, spremiPostavkeAkcija } from "./akcije";
+import { logoAkcija, pocetniBrojAkcija, probnaPorukaAkcija, spremiFiskalizacijuAkcija, spremiPostavkeAkcija } from "./akcije";
 
 export type Postavke = Record<string, string | number | boolean | null> & { imaLozinku: boolean };
 
@@ -48,6 +48,23 @@ export function ObrazacPostavki({ p, smije }: { p: Postavke; smije: boolean }) {
             placeholder="npr. Trgovački sud, MBS, temeljni kapital"
           />
         </label>
+
+        {naslov("Izgled i KPD")}
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium">Boja firme (sučelje i dokumenti)</span>
+          <input type="color" name="boja" defaultValue={t("boja") || "#0f766e"} className="h-10 w-20 rounded border border-neutral-300" />
+          {g("boja") && <span className="text-sm text-red-700">{g("boja")}</span>}
+        </label>
+        <Polje
+          oznaka="Zadani KPD za robu"
+          name="kpdRoba"
+          defaultValue={t("kpdRoba")}
+          greska={g("kpdRoba")}
+          placeholder="npr. 26.20.11"
+          opis="Kad model nema KPD"
+        />
+        <Polje oznaka="Zadani KPD za usluge" name="kpdUsluga" defaultValue={t("kpdUsluga")} greska={g("kpdUsluga")} />
+        <Polje oznaka="Zadani KPD za najam" name="kpdNajam" defaultValue={t("kpdNajam")} greska={g("kpdNajam")} />
 
         {naslov("Porez i fiskalizacija")}
         <Kvacica name="uSustavuPdv" oznaka="Firma je u sustavu PDV-a" defaultChecked={p["uSustavuPdv"] === true} />
@@ -150,5 +167,79 @@ export function ObrazacFiskalizacije({
         </div>
       )}
     </Obrazac>
+  );
+}
+
+export function ObrazacLoga({ logo, smije }: { logo: string | null; smije: boolean }) {
+  const [stanje, posalji, uTijeku] = useActionState(logoAkcija, undefined);
+  return (
+    <div className="flex flex-col gap-3">
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- logo iz baze (data URL)
+        <img src={logo} alt="Logo firme" className="max-h-16 max-w-60 object-contain" data-testid="logo-firme" />
+      ) : (
+        <p className="text-sm text-neutral-500">Logo nije postavljen.</p>
+      )}
+      {smije && (
+        <Obrazac akcija={posalji} className="flex flex-col gap-2 sm:flex-row sm:items-end" aria-label="Logo firme">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium">
+            Slika (PNG ili JPEG, do 500 KB)
+            <input type="file" name="logo" accept="image/png,image/jpeg" className={klaseUnosa} />
+          </label>
+          <Gumb type="submit" disabled={uTijeku}>
+            Spremi logo
+          </Gumb>
+          {logo && (
+            <Gumb type="submit" name="ukloni" value="1" varijanta="tihi" disabled={uTijeku}>
+              Ukloni
+            </Gumb>
+          )}
+        </Obrazac>
+      )}
+      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+    </div>
+  );
+}
+
+export function ObrazacBrojeva({
+  nizovi,
+  godina,
+  smije,
+}: {
+  nizovi: { vrsta: string; naziv: string; zadnji: number }[];
+  godina: number;
+  smije: boolean;
+}) {
+  const [stanje, posalji, uTijeku] = useActionState(pocetniBrojAkcija, undefined);
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="nizovi-brojeva">
+        {nizovi.map((n) => (
+          <li key={n.vrsta} className="flex justify-between gap-2 py-1.5">
+            <span>{n.naziv}</span>
+            <span className="text-neutral-500">
+              {godina}.: zadnji {n.zadnji || "—"}, sljedeći {n.zadnji + 1}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {smije && (
+        <Obrazac akcija={posalji} className="flex flex-col gap-2 sm:flex-row sm:items-end" aria-label="Početni broj">
+          <Odabir oznaka="Niz" name="vrsta">
+            {nizovi.map((n) => (
+              <option key={n.vrsta} value={n.vrsta}>
+                {n.naziv}
+              </option>
+            ))}
+          </Odabir>
+          <Polje oznaka="Godina" name="godina" inputMode="numeric" defaultValue={String(godina)} className="sm:w-24" />
+          <Polje oznaka="Sljedeći broj" name="pocetni" inputMode="numeric" required className="sm:w-32" />
+          <Gumb type="submit" disabled={uTijeku}>
+            Postavi
+          </Gumb>
+        </Obrazac>
+      )}
+      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+    </div>
   );
 }

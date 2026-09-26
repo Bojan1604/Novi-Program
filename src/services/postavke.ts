@@ -1,9 +1,10 @@
+import { procitajKpd } from "@/domain/kpd";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { procitajPrimatelje } from "@/domain/eposta";
 import { NACINI_FISKALIZACIJE, type NacinFiskalizacije } from "@/domain/fiskalizacija";
 import { jeIban } from "@/domain/hub3";
 import { ucitajP12, type Certifikat } from "@/lib/fiskalizacija/certifikat";
-import { provjeriOznakuProstora, provjeriOznakuUredaja } from "@/domain/numeracija";
+import { provjeriOznakuProstora, provjeriOznakuUredaja, vrstaBrojacaRacuna } from "@/domain/numeracija";
 import { GreskaKorisniku } from "@/lib/greske";
 import { sifriraj } from "@/lib/tajne";
 import { zapisiDnevnik } from "./dnevnik";
@@ -33,10 +34,17 @@ export type UlazPostavki = {
   smtpLozinka: string | null;
   epostaPosiljatelj: string | null;
   epostaKopija: string | null;
+  /** boja firme (#rrggbb) — sučelje i dokumenti */
+  boja: string | null;
+  /** zadani KPD (roba, usluga, najam) kad ga model/usluga nema */
+  kpdRoba: string | null;
+  kpdUsluga: string | null;
+  kpdNajam: string | null;
 };
 
 /** Postavke firme za dokumente i e-poštu. Izdani dokumenti ih pamte pa se promjena odnosi samo na nove. */
-export async function spremiPostavkeFirme(db: PrismaClient, akter: Akter, u: UlazPostavki): Promise<Record<string, string>> {
+export async function spremiPostavkeFirme(db: PrismaClient, akter: Akter, ulaz: UlazPostavki): Promise<Record<string, string>> {
+  let u = ulaz;
   const polja: Record<string, string> = {};
   if (u.iban && !jeIban(u.iban)) polja["iban"] = "IBAN nije ispravan (kontrolni broj).";
   const op = provjeriOznakuProstora(u.oznakaProstora);
@@ -49,6 +57,15 @@ export async function spremiPostavkeFirme(db: PrismaClient, akter: Akter, u: Ula
     if (u[k] && !procitajPrimatelje(u[k]).ok) polja[k] = "E-pošta nije ispravna.";
   }
   if (u.smtpPort !== null && (!Number.isInteger(u.smtpPort) || u.smtpPort < 1 || u.smtpPort > 65535)) polja["smtpPort"] = "Port: 1–65535.";
+  if (u.boja !== null && !/^#[0-9a-fA-F]{6}$/.test(u.boja)) polja["boja"] = "Boja mora biti u obliku #rrggbb.";
+  for (const k of ["kpdRoba", "kpdUsluga", "kpdNajam"] as const) {
+    const v = u[k];
+    if (v !== null) {
+      const r = procitajKpd(v);
+      if (!r.ok) polja[k] = r.greska;
+      else u = { ...u, [k]: r.vrijednost };
+    }
+  }
   if (Object.keys(polja).length) return polja;
 
   await db.$transaction(async (tx) => {
@@ -144,4 +161,52 @@ export async function spremiFiskalizaciju(db: PrismaClient, akter: Akter, u: Ula
     });
   });
   return {};
+}
+
+// ——— logo i brojevi (korak 6.5) ———
+
+export const NAJVECI_LOGO = 500 * 1024;
+
+/** Novi logo (PNG ili JPEG do 500 KB): novi zapis, pa već izdani dokumenti zadržavaju stari logo. */
+export async function postaviLogo(db: PrismaClient, akter: Akter, sadrzaj: Uint8Array | null): Promise<void> {
+  let vrsta: string | null = null;
+  if (sadrzaj) {
+    if (sadrzaj.byteLength === 0 || sadrzaj.byteLength > NAJVECI_LOGO) throw new GreskaKorisniku("Logo mora biti manji od 500 KB.");
+    vrsta = sadrzaj[0] === 0x89 && sadrzaj[1] === 0x50 ? "image/png" : sadrzaj[0] === 0xff && sadrzaj[1] === 0xd8 ? "image/jpeg" : null;
+    if (!vrsta) throw new GreskaKorisniku("Logo mora biti PNG ili JPEG.");
+  }
+  await db.$transaction(async (tx) => {
+    const logoId =
+      sadrzaj && vrsta
+        ? (await tx.logoFirme.create({ data: { firmaId: akter.firmaId, vrsta, sadrzaj: sadrzaj as Uint8Array<ArrayBuffer> }, select: { id: true } }))
+            .id
+        : null;
+    await tx.firma.update({ where: { id: akter.firmaId }, data: { logoId } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "postavke.spremi",
+      entitet: "Firma",
+      entitetId: akter.firmaId,
+      opis: logoId ? "Novi logo firme (vrijedi za nove dokumente)" : "Logo firme uklonjen",
+    });
+  });
+}
+
+/** Nizovi brojeva firme (za početni broj, npr. nastavak starog programa). */
+export function nizoviBrojeva(firma: { oznakaProstora: string; oznakaUredaja: string }): { vrsta: string; naziv: string }[] {
+  return [
+    {
+      vrsta: vrstaBrojacaRacuna("racun", firma.oznakaProstora, firma.oznakaUredaja),
+      naziv: `Računi (${firma.oznakaProstora}/${firma.oznakaUredaja})`,
+    },
+    { vrsta: "ponuda", naziv: "Ponude" },
+    { vrsta: "predracun", naziv: "Predračuni" },
+    { vrsta: "ugovorNajma", naziv: "Ugovori o najmu" },
+    { vrsta: "narudzbenica", naziv: "Narudžbenice" },
+    { vrsta: "primka", naziv: "Primke" },
+    { vrsta: "ulazniRacun", naziv: "Ulazni računi (interni broj)" },
+    { vrsta: "servis", naziv: "Servisni nalozi" },
+  ];
 }

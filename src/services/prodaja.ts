@@ -1,3 +1,4 @@
+import { zadaniKpd } from "@/domain/kpd";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { danas, datum as uDatum, dodajDane, jeDatum, usporedi } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
@@ -195,7 +196,7 @@ export async function spremiNacrt(
         uslugaId: s.uslugaId ?? null,
         naziv: s.naziv.trim(),
         opis: s.opis?.trim() || null,
-        kpd: s.kpd || null,
+        kpd: s.kpd || zadaniKpd(firma, s) || null,
         jedinica: s.jedinica || "kom",
         kolicina: s.kolicina,
         cijena: centiUDecimal(s.cijena),
@@ -244,6 +245,8 @@ export async function snimkaDokumenta(tx: Tx, firmaId: string, partnerId: string
       banka: firma.banka,
       uSustavuPdv: firma.uSustavuPdv,
       podnozje: firma.podnozje,
+      boja: firma.boja,
+      logoId: firma.logoId,
     },
     kupac: partner
       ? {

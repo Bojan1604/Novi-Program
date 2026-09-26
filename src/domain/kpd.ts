@@ -16,3 +16,13 @@ export function procitajKpd(upis: string): { ok: true; vrijednost: string } | { 
 export function jeKpd(v: unknown): boolean {
   return typeof v === "string" && /^\d{2}\.\d{2}\.\d{2}$/.test(v);
 }
+
+/** Zadani KPD firme kad ga stavka nema (6.5): najam, usluga ili roba; odbitak predujma i ručne stavke bez zadanog. */
+export function zadaniKpd(
+  firma: { kpdRoba: string | null; kpdUsluga: string | null; kpdNajam: string | null },
+  s: { vrsta: string; namjena: string; vrstaIsporuke: string },
+): string | null {
+  if (s.vrsta === "PREDUJAM") return null;
+  if (s.namjena === "NAJAM") return firma.kpdNajam;
+  return s.vrstaIsporuke === "USLUGA" ? firma.kpdUsluga : firma.kpdRoba;
+}

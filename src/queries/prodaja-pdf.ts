@@ -32,6 +32,8 @@ type Snimka = {
     iban: string | null;
     banka: string | null;
     podnozje: string | null;
+    boja?: string | null;
+    logoId?: string | null;
   };
   kupac?: {
     naziv: string;
@@ -66,6 +68,8 @@ export async function podaciZaPdf(db: DbFirme, firmaId: string, id: string): Pro
   const s = (nacrt ? {} : ((d.snimka as Snimka | null) ?? {})) as Snimka;
   const firmaUzivo = await db.firma.findUniqueOrThrow({ where: { id: firmaId } });
   const f = s.firma ?? firmaUzivo;
+  // izdani dokument: logo iz snimke (i kad je firma kasnije promijenila logo)
+  const logo = f.logoId ? await db.logoFirme.findFirst({ where: { firmaId, id: f.logoId }, select: { vrsta: true, sadrzaj: true } }) : null;
   const kupac = s.kupac !== undefined ? s.kupac : d.partner;
   const izvor = d.izvorId ? await db.prodajniDokument.findFirst({ where: { firmaId, id: d.izvorId }, select: { broj: true } }) : null;
   const jeRacun = ["RACUN", "PREDUJAM", "STORNO", "ODOBRENJE"].includes(d.vrsta);
@@ -135,6 +139,8 @@ export async function podaciZaPdf(db: DbFirme, firmaId: string, id: string): Pro
         iban: f.iban,
         banka: f.banka,
         kontakt: [f.telefon, f.email, f.web].filter(Boolean).join(" · "),
+        boja: f.boja ?? null,
+        logo: logo ? { vrsta: logo.vrsta, sadrzaj: Buffer.from(logo.sadrzaj) } : null,
       },
       kupac: kupac ? { naziv: kupac.naziv, adresa: adresa(kupac), oib: kupac.oib, pdvBroj: kupac.pdvBroj } : null,
       poslovnica: (s.poslovnica ?? d.poslovnica)?.naziv ?? null,

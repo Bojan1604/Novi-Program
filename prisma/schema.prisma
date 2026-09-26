@@ -44,6 +44,12 @@ model Firma {
   /// zadani rok plaćanja (dana) i tekst u podnožju dokumenata
   rokPlacanjaDana   Int       @default(15)
   podnozje          String?
+  /// logo na dokumentima (6.5): zapis u LogoFirme (nepromjenjiv) — izdani dokument pamti id loga iz snimke
+  logoId            String?   @db.Uuid
+  /// zadani KPD kad ga model/usluga nema (roba, usluga, najam)
+  kpdRoba           String?
+  kpdUsluga         String?
+  kpdNajam          String?
   /// e-pošta: SMTP (lozinka šifrirana, src/lib/tajne.ts); bez SMTP-a slanje ide preko programa za poštu (mailto)
   smtpHost          String?
   smtpPort          Int?
@@ -119,6 +125,7 @@ model Firma {
   mdmNaredbe           MdmNaredba[]
   mdmZapisi            MdmZapis[]
   mdmSnimke            MdmSnimka[]
+  logotipi             LogoFirme[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -1744,4 +1751,17 @@ model MdmSnimka {
 
   @@unique([firmaId, id])
   @@index([firmaId, mdmUredajId, vrijeme(sort: Desc)])
+}
+
+/// Logo firme (6.5) — svaka nova slika je novi zapis, pa stari dokumenti zadržavaju logo s kojim su izdani.
+model LogoFirme {
+  id       String   @id @default(uuid(7)) @db.Uuid
+  firmaId  String   @db.Uuid
+  vrsta    String
+  sadrzaj  Bytes
+  stvoreno DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@unique([firmaId, id])
 }

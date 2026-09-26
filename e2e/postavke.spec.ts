@@ -44,3 +44,18 @@ test("postavke: voditelj vidi, ne mijenja", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Spremi postavke" })).toHaveCount(0);
   await expect(page.getByLabel("IBAN")).toBeDisabled();
 });
+
+test("postavke: logo na dokumentima, nizovi brojeva", async ({ page }) => {
+  await prijaviSe(page);
+  await page.goto("/postavke");
+  const png = Buffer.from(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082",
+    "hex",
+  );
+  const f = page.getByRole("form", { name: "Logo firme" });
+  await f.getByLabel(/Slika/).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png });
+  await f.getByRole("button", { name: "Spremi logo" }).click();
+  await expect(page.getByTestId("logo-firme")).toBeVisible();
+  await expect(page.getByTestId("nizovi-brojeva")).toContainText("Računi (PP1/1)");
+  await bezVodoravnogPomicanja(page);
+});
