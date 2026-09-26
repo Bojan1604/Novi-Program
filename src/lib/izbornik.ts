@@ -2,7 +2,7 @@ import type { StavkaIzbornika } from "@/domain/izbornik";
 import { STRANICE, type PutanjaStranice } from "./akcije-prava";
 
 const GRUPE: { grupa: string; putanje: PutanjaStranice[] }[] = [
-  { grupa: "Pregled", putanje: ["/"] },
+  { grupa: "Pregled", putanje: ["/", "/izvjestaji"] },
   { grupa: "Prodaja", putanje: ["/racuni", "/ponude", "/eracuni", "/marze"] },
   { grupa: "Najam", putanje: ["/najam", "/najam/rate"] },
   { grupa: "Servis", putanje: ["/servis", "/mdm"] },

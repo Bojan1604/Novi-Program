@@ -1,6 +1,7 @@
 import { danas } from "@/domain/datum";
 import { imaPosebno } from "@/domain/prava";
 import { pristupApi } from "@/lib/akcija";
+import { zadovoljava } from "@/lib/akcije-prava";
 import { db } from "@/lib/db";
 import { uCsv } from "@/lib/izvoz/csv";
 import { IZVORI, NAJVISE_REDAKA, type Format } from "@/lib/izvoz/izvori";
@@ -25,6 +26,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/izvoz/[izvor
 
   const k = await pristupApi(izvor.pravo);
   if (k instanceof Response) return k;
+  if (izvor.prava && !izvor.prava.every((p) => zadovoljava(k.prava, p))) return Response.json({ greska: "Nemate pravo." }, { status: 403 });
 
   const url = new URL(request.url);
   const format = url.searchParams.get("format") as Format;

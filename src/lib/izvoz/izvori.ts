@@ -14,6 +14,10 @@ import { db as bazaBezFirme } from "@/lib/db";
 import { marzeDokumenata } from "@/queries/marze";
 import { uvjetPopisa } from "@/queries/prodaja";
 import type { StupacIzvoza } from "./stupci";
+import { danas } from "@/domain/datum";
+import { IZVJESTAJI } from "@/lib/izvjestaji";
+import { pokreni } from "@/lib/izvjestaji/izvrsi";
+import type { Redak } from "@/lib/izvjestaji/tipovi";
 
 export const NAJVISE_REDAKA = { csv: 100_000, xlsx: 100_000, pdf: 5_000 } as const;
 export type Format = keyof typeof NAJVISE_REDAKA;
@@ -21,6 +25,8 @@ export type Format = keyof typeof NAJVISE_REDAKA;
 type Izvor<R> = {
   naslov: string;
   pravo: PotrebnoPravo;
+  /** dodatna prava (sva moraju biti zadovoljena) */
+  prava?: PotrebnoPravo[];
   stupci: StupacIzvoza<R>[];
   /** isti filtri kao na ekranu (iz URL-a) */
   dohvati: (k: Kontekst, sp: ParametriUrl, najvise: number) => Promise<R[]>;
@@ -293,3 +299,17 @@ export const IZVORI: Record<string, Izvor<unknown>> = {
     dohvati: async (k, _sp, najvise) => (await popisClanova(k.db, k.firmaId)).slice(0, najvise),
   } satisfies Izvor<Awaited<ReturnType<typeof popisClanova>>[number]>),
 };
+
+// izvještaji (korak 6.1): svaki izvještaj ima izvoz s istim filtrima i retkom „Ukupno“ (zbroj iz baze)
+for (const iz of IZVJESTAJI)
+  IZVORI[`izvjestaj-${iz.kljuc}`] = izvor<Redak>({
+    naslov: iz.naziv,
+    pravo: iz.prava[0]!,
+    prava: iz.prava,
+    stupci: iz.stupci,
+    dohvati: async (k, sp, najvise) => {
+      const { rezultat } = await pokreni(iz, bazaBezFirme, k.firmaId, sp, { skip: 0, take: najvise }, danas());
+      const prvi = iz.stupci[0]!.kljuc;
+      return [...rezultat.redovi, { ...rezultat.zbroj, [prvi]: "Ukupno" }];
+    },
+  });

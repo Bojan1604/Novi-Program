@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { FilterVise, PoljePretrage } from "@/components/ui/filtri";
+import { FilterGodina, FilterVise, PoljePretrage } from "@/components/ui/filtri";
 import { GumbiIzvoza } from "@/components/ui/izvoz";
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
 import { Stranicenje } from "@/components/ui/stranicenje";
@@ -35,6 +35,10 @@ export default async function Komponente({ searchParams }: PageProps<"/razvoj/ko
   return (
     <Stranica sirina="7xl">
       <NaslovStranice naslov="Komponente" />
+      <Kartica naslov="Godina">
+        <FilterGodina godine={[2026, 2025, 2024]} zadano={2026} />
+        <p data-testid="odabrana-godina">{jedan(sp["godina"]) ?? "zadano"}</p>
+      </Kartica>
       <Kartica naslov="Pretraživač, dijalog, poruke">
         <DemoKomponente />
       </Kartica>

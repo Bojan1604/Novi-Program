@@ -180,3 +180,33 @@ export function FilterRazdoblja({ oznaka = "Razdoblje" }: { oznaka?: string }) {
     </fieldset>
   );
 }
+
+/** Godina izvještaja: „Sve“ ili jedna godina (?godina=2026|sve); zadana je tekuća godina (bez parametra). */
+export function FilterGodina({ godine, zadano }: { godine: number[]; zadano: number }) {
+  const router = useRouter();
+  const putanja = usePathname();
+  const sp = useSearchParams();
+  const [, zapocni] = useTransition();
+  const vrijednost = sp.get("godina") ?? String(zadano);
+  return (
+    <select
+      aria-label="Godina"
+      value={vrijednost}
+      onChange={(e) =>
+        zapocni(() =>
+          router.replace(urlPopisa(putanja, trenutniParametri(sp), { godina: e.target.value === String(zadano) ? null : e.target.value }), {
+            scroll: false,
+          }),
+        )
+      }
+      className={`${klaseUnosa} sm:w-32`}
+    >
+      <option value="sve">Sve godine</option>
+      {godine.map((g) => (
+        <option key={g} value={String(g)}>
+          {g}.
+        </option>
+      ))}
+    </select>
+  );
+}

@@ -15,7 +15,7 @@ export type StupacIzvoza<R> = {
   sirina?: number;
 };
 
-export function dopusteniStupci<R>(stupci: readonly StupacIzvoza<R>[], vidiNabavne: boolean): StupacIzvoza<R>[] {
+export function dopusteniStupci<S extends { osjetljivo?: boolean | undefined }>(stupci: readonly S[], vidiNabavne: boolean): S[] {
   return stupci.filter((s) => vidiNabavne || !s.osjetljivo);
 }
 

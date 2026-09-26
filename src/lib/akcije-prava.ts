@@ -86,6 +86,7 @@ export type KljucAkcije = keyof typeof AKCIJE;
 /** Stranice i koje pravo traže (za izbornik i provjeru pristupa). */
 export const STRANICE = {
   "/": { naziv: "Nadzorna ploča", modul: "nadzorna", razina: "pregled" },
+  "/izvjestaji": { naziv: "Izvještaji", modul: "izvjestaji", razina: "pregled" },
   "/korisnici": { naziv: "Korisnici", modul: "korisnici", razina: "pregled" },
   "/uloge": { naziv: "Uloge i prava", modul: "korisnici", razina: "pregled" },
   "/dnevnik": { naziv: "Dnevnik promjena", posebno: "log" },

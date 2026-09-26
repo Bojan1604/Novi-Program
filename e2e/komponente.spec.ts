@@ -30,21 +30,24 @@ test.describe("pretraživač (odabir partnera)", () => {
     await polje.pressSequentially("a");
     await page.waitForTimeout(250);
     await polje.fill("gama");
-    await expect(page.getByRole("option")).toHaveText(["Gama Trgovina d.o.o.OIB 00000000004"]);
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveText(["Gama Trgovina d.o.o.OIB 00000000004"]);
     await page.waitForTimeout(1200);
-    await expect(page.getByRole("option")).toHaveCount(1);
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(1);
   });
 
   test("strelice i Enter, klik mišem, čišćenje", async ({ page }) => {
     const polje = page.getByRole("combobox", { name: "Partner", exact: true });
     await polje.fill("alfa");
-    await expect(page.getByRole("option")).toHaveCount(3);
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(3);
     await polje.press("ArrowDown");
     await polje.press("ArrowDown");
     await polje.press("Enter");
     await expect(page.getByTestId("odabrano")).toHaveText("Alfa Informatika j.d.o.o.");
     await polje.fill("delta");
-    await page.getByRole("option", { name: /Delta Najam/ }).click();
+    await page
+      .getByRole("listbox")
+      .getByRole("option", { name: /Delta Najam/ })
+      .click();
     await expect(page.getByTestId("odabrano")).toHaveText("Delta Najam d.o.o.");
     await page.getByRole("button", { name: "Očisti" }).click();
     await expect(page.getByTestId("odabrano")).toHaveText("—");
@@ -52,7 +55,7 @@ test.describe("pretraživač (odabir partnera)", () => {
 
   test("hrvatska slova u pretrazi", async ({ page }) => {
     await page.getByRole("combobox", { name: "Partner", exact: true }).fill("čakovec");
-    await expect(page.getByRole("option")).toHaveCount(1);
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(1);
   });
 
   test("u dijalogu: Esc prvo zatvara popis, drugi Esc dijalog", async ({ page }) => {
@@ -103,8 +106,8 @@ test.describe("tablica", () => {
   test("filtar s više vrijednosti i pretraga (vraća na 1. stranicu)", async ({ page }) => {
     await page.goto("/razvoj/komponente?stranica=3");
     await page.getByRole("button", { name: /Status/ }).click();
-    await page.getByRole("option", { name: "U najmu" }).click();
-    await page.getByRole("option", { name: "Prodan" }).click();
+    await page.getByRole("listbox").getByRole("option", { name: "U najmu" }).click();
+    await page.getByRole("listbox").getByRole("option", { name: "Prodan" }).click();
     await expect(page).toHaveURL(/status=U\+najmu&status=Prodan|status=U%20najmu&status=Prodan/);
     await expect(page).not.toHaveURL(/stranica=/);
     await page.keyboard.press("Escape");
@@ -123,9 +126,9 @@ test.describe("tablica", () => {
       await r.continue();
     });
     await page.getByRole("button", { name: /Status/ }).click();
-    await page.getByRole("option", { name: "U najmu" }).click();
-    await page.getByRole("option", { name: "Prodan" }).click();
-    await expect(page.getByRole("option", { name: "U najmu" })).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("listbox").getByRole("option", { name: "U najmu" }).click();
+    await page.getByRole("listbox").getByRole("option", { name: "Prodan" }).click();
+    await expect(page.getByRole("listbox").getByRole("option", { name: "U najmu" })).toHaveAttribute("aria-selected", "true");
     await expect(page).toHaveURL(/status=U\+najmu&status=Prodan|status=U%20najmu&status=Prodan/, { timeout: 10_000 });
   });
 
@@ -187,5 +190,20 @@ test.describe("poruke, tema, boja firme, izvoz", () => {
     }
     await page.goto("/dnevnik?entitet=Izvoz");
     await expect(page.getByTestId("dnevnik")).toContainText("Izvoz: Korisnici (PDF");
+  });
+});
+
+test.describe("filtar godine", () => {
+  test("„Sve godine“ i jedna godina u URL-u; zadana godina briše parametar", async ({ page }) => {
+    await page.goto("/razvoj/komponente");
+    const g = page.getByLabel("Godina", { exact: true });
+    await expect(g).toHaveValue("2026");
+    await g.selectOption("sve");
+    await expect(page.getByTestId("odabrana-godina")).toHaveText("sve");
+    await expect(page).toHaveURL(/godina=sve/);
+    await g.selectOption("2024");
+    await expect(page.getByTestId("odabrana-godina")).toHaveText("2024");
+    await g.selectOption("2026");
+    await expect(page.getByTestId("odabrana-godina")).toHaveText("zadano");
   });
 });
