@@ -11,11 +11,11 @@ import { pristupStranici } from "@/lib/akcija";
 import { ugovorNajma } from "@/queries/najam";
 import { dodajPrilogeUgovoraAkcija, obrisiPrilogUgovoraAkcija } from "../akcije";
 import { ObrazacUgovora, OtkazUgovora } from "../obrazac";
-import { DodajUredaje, UredajiUgovora, type RedakPlana } from "../uredaji";
+import { DodajUredaje, PauzaUgovora, PovratUredaja, UredajiUgovora, type RedakPlana } from "../uredaji";
 import { cijenaUMjesecu, mjesecOd, prvaNeizdana, rateUredaja, sljedeciMjesec, zaIzdati } from "@/domain/najam";
 import { IzdajRate, IzvanPrograma } from "../rate";
 import { formatirajIznos } from "@/domain/novac";
-import { podaciZaNaplatu } from "@/services/najam";
+import { podaciZaNaplatu, visakUgovora } from "@/services/najam";
 import { db } from "@/lib/db";
 
 export const metadata = { title: "Ugovor o najmu · ERP-WMS" };
@@ -76,6 +76,15 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
       })
     ).map((x) => [x.id, x.broj]),
   );
+  const visakZaOdobrenje = visakUgovora(n);
+  const aktivni = n.planovi.filter((p) => !p.do).map((p) => ({ planId: p.id, serijski: p.uredaj.serijski }));
+  const skladista = aktivni.length
+    ? await k.db.skladiste.findMany({
+        where: { firmaId: k.firmaId, aktivan: true },
+        orderBy: [{ zadano: "desc" }, { naziv: "asc" }],
+        select: { id: true, naziv: true },
+      })
+    : [];
   const prva = n.motor.map((p) => prvaNeizdana(n.uvjeti, p, n.fakturirano)).sort()[0] ?? tekuci;
   return (
     <Stranica sirina="5xl">
@@ -120,6 +129,41 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
         <UredajiUgovora ugovorId={u.id} redovi={redovi} mjeseci={mjeseci} smije={smije} prvaNeizdana={prva > tekuci ? prva : tekuci} />
         {smije && <DodajUredaje ugovorId={u.id} od={d0 > dan(u.od)! ? d0 : dan(u.od)!} otvoreno={redovi.length === 0} />}
       </Kartica>
+      {visakZaOdobrenje.length > 0 && (
+        <Kartica naslov="Višak za odobrenje">
+          <p className="mb-2 text-sm">
+            Nakon povrata, otkaza ili pauze neke izdane rate su veće nego što bi sada trebale biti. Program ne mijenja izdane račune — za razliku
+            napravite odobrenje na računu.
+          </p>
+          <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="visak">
+            {visakZaOdobrenje.map((v) => (
+              <li key={`${v.serijski}-${v.mjesec}`} className="flex flex-wrap justify-between gap-2 py-1.5">
+                <span>
+                  <span className="font-mono">{v.serijski}</span> · {v.mjesec.slice(5)}/{v.mjesec.slice(0, 4)} · izdano{" "}
+                  {formatirajIznos(v.fakturirano)} €, treba {formatirajIznos(v.sada)} €
+                </span>
+                <span className="flex items-center gap-2 font-medium">
+                  višak {formatirajIznos(v.razlika)} €
+                  {v.dokumentId && (
+                    <Link href={`/racuni/${v.dokumentId}`} className="font-normal text-primarna hover:underline">
+                      račun {racuni.get(v.dokumentId)}
+                    </Link>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm font-medium">Ukupno višak: {formatirajIznos(visakZaOdobrenje.reduce((a, v) => a + v.razlika, 0))} € bez PDV-a</p>
+        </Kartica>
+      )}
+      {smije && aktivni.length > 0 && (
+        <Kartica naslov="Povrat uređaja i pauza">
+          <PovratUredaja ugovorId={u.id} uredaji={aktivni} skladista={skladista} danas={d0} />
+          <div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+            <PauzaUgovora ugovorId={u.id} mjesec={prva > tekuci ? prva : tekuci} />
+          </div>
+        </Kartica>
+      )}
       <Kartica naslov={`Rate za izdati (${zaIzdavanje.length})`}>
         {zaIzdavanje.length > 0 ? (
           <>

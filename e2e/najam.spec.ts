@@ -61,6 +61,13 @@ test("ugovor o najmu: otvaranje, izmjena kraja, prilog, otkaz", async ({ page })
   await bezVodoravnogPomicanja(page);
   await page.goto(adresa);
 
+  // povrat drugog uređaja danas: tekući mjesec je izdan cijeli, pa ostaje višak za odobrenje
+  const povrat = page.getByRole("form", { name: "Povrat uređaja" });
+  await povrat.getByLabel("Uređaj").selectOption({ label: `E2E-NAJAM-${p}-2` });
+  await povrat.getByRole("button", { name: "Vrati uređaj" }).click();
+  await expect(povrat.getByText(/Uređaj je vraćen/)).toBeVisible();
+  await expect(page.getByTestId("visak")).toContainText(`E2E-NAJAM-${p}-2`);
+
   await page
     .getByLabel(/Datoteke/)
     .setInputFiles({ name: "potpisan-ugovor.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF") });

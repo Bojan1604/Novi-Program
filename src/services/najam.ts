@@ -9,6 +9,8 @@ import {
   type Rata,
   jeMjesec,
   kljucRate,
+  mjeseci,
+  visak,
   mjesecOd,
   provjeriIzmjenuMjeseca,
   provjeriPromjenuCijene,
@@ -519,4 +521,102 @@ export async function postaviMjesec(db: PrismaClient, akter: Akter, ugovorId: st
       }`,
     });
   });
+}
+
+// ——— pauza, povrat, višak (korak 3.6) ———
+
+/**
+ * Povrat uređaja s ugovora do datuma (zadnji dan naplate): plan dobiva kraj, uređaj se vraća na skladište.
+ * Već izdane rate se ne mijenjaju — višak (npr. naplaćen cijeli mjesec) vraća se kao prijedlog za odobrenje.
+ */
+export async function vratiUredaj(
+  db: PrismaClient,
+  akter: Akter,
+  ugovorId: string,
+  planId: string,
+  datum: string,
+  skladisteId: string,
+): Promise<{ visak: number; mjeseci: { mjesec: Mjesec; razlika: number }[] }> {
+  if (!jeUuid(ugovorId) || !jeUuid(planId)) throw new GreskaKorisniku("Uređaj nije na ovom ugovoru.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) throw new GreskaKorisniku("Upišite datum povrata.");
+  if (!jeUuid(skladisteId)) throw new GreskaKorisniku("Odaberite skladište.");
+  const f = akter.firmaId;
+  return db.$transaction(async (tx) => {
+    const ug = await zakljucajUgovor(tx, f, ugovorId);
+    const plan = await tx.uredajNaUgovoru.findFirst({
+      where: { id: planId, firmaId: f, ugovorId },
+      include: { uredaj: { select: { id: true, serijski: true } } },
+    });
+    if (!plan) throw new GreskaKorisniku("Uređaj nije na ovom ugovoru.");
+    if (plan.do) throw new GreskaKorisniku(`Uređaj ${plan.uredaj.serijski} je već vraćen.`);
+    if (datum < dan(plan.od)!) throw new GreskaKorisniku("Povrat ne može biti prije početka naplate uređaja.");
+    if (!(await tx.skladiste.count({ where: { id: skladisteId, firmaId: f, aktivan: true } })))
+      throw new GreskaKorisniku("Odaberite aktivno skladište.");
+    await tx.uredajNaUgovoru.update({ where: { id: planId }, data: { do: d(datum) } });
+    await promijeniStanje(tx, { firmaId: f, korisnikId: akter.korisnikId }, [plan.uredaj.id], "povratIzNajma", {
+      skladisteId,
+      dokument: { vrsta: "Ugovor o najmu", id: ug.id, broj: ug.broj },
+      opis: `Povrat s ugovora ${ug.broj} (naplata do ${datum.split("-").reverse().join(".")}.)`,
+    });
+    const n = await podaciZaNaplatu(tx, f, ugovorId);
+    const v = visak(
+      n.uvjeti,
+      n.motor.find((p) => p.uredajId === planId)!,
+      n.fakturirano,
+    );
+    const ukupno = v.reduce((a, x) => a + x.razlika, 0);
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.povrat",
+      entitet: "UgovorNajma",
+      entitetId: ugovorId,
+      opis: `Ugovor ${ug.broj}: povrat ${plan.uredaj.serijski} do ${datum.split("-").reverse().join(".")}.${ukupno ? ` Višak za odobrenje: ${(ukupno / 100).toFixed(2)} €` : ""}`,
+    });
+    return { visak: ukupno, mjeseci: v.map((x) => ({ mjesec: x.mjesec, razlika: x.razlika })) };
+  });
+}
+
+/** Pauza cijelog ugovora za mjesece od–do (svi uređaji); izdani mjeseci se ne diraju (greška s popisom). */
+export async function pauzirajUgovor(db: PrismaClient, akter: Akter, ugovorId: string, od: Mjesec, doM: Mjesec, pauza: boolean): Promise<number> {
+  if (!jeUuid(ugovorId)) throw new GreskaKorisniku("Ugovor ne postoji.");
+  if (!jeMjesec(od) || !jeMjesec(doM) || doM < od) throw new GreskaKorisniku("Odaberite mjesece pauze (od – do).");
+  const lista = mjeseci(od, doM);
+  if (lista.length > 36) throw new GreskaKorisniku("Pauza može trajati najviše 36 mjeseci.");
+  const f = akter.firmaId;
+  return db.$transaction(async (tx) => {
+    const ug = await zakljucajUgovor(tx, f, ugovorId);
+    const n = await podaciZaNaplatu(tx, f, ugovorId);
+    const izdano = n.planovi.flatMap((p) =>
+      lista.filter((m) => n.fakturirano.has(kljucRate(p.id, m))).map((m) => `${p.uredaj.serijski} ${MJESECI_KRATKO(m)}`),
+    );
+    if (izdano.length) throw new GreskaKorisniku(`Neke rate su već izdane: ${izdano.slice(0, 5).join(", ")}${izdano.length > 5 ? " …" : ""}`);
+    const planIds = n.planovi.map((p) => p.id);
+    if (pauza) {
+      await tx.mjesecNajma.deleteMany({ where: { firmaId: f, planId: { in: planIds }, mjesec: { gte: mj(od), lte: mj(doM) } } });
+      await tx.mjesecNajma.createMany({ data: planIds.flatMap((planId) => lista.map((m) => ({ firmaId: f, planId, mjesec: mj(m), pauza: true }))) });
+    } else await tx.mjesecNajma.deleteMany({ where: { firmaId: f, planId: { in: planIds }, mjesec: { gte: mj(od), lte: mj(doM) }, pauza: true } });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.pauza",
+      entitet: "UgovorNajma",
+      entitetId: ugovorId,
+      opis: `Ugovor ${ug.broj}: ${pauza ? "pauza" : "ukinuta pauza"} ${MJESECI_KRATKO(od)} – ${MJESECI_KRATKO(doM)} (${planIds.length} uređaja)`,
+    });
+    return planIds.length;
+  });
+}
+
+/** Višak za odobrenje po ugovoru: izdane rate veće od onoga što bi sada trebalo (povrat, otkaz, pauza). */
+export function visakUgovora(n: Awaited<ReturnType<typeof podaciZaNaplatu>>) {
+  return n.planovi.flatMap((p, i) =>
+    visak(n.uvjeti, n.motor[i]!, n.fakturirano).map((x) => ({
+      ...x,
+      serijski: p.uredaj.serijski,
+      dokumentId: p.rate.find((r) => uMjesec(r.mjesec) === x.mjesec)?.dokumentId ?? null,
+    })),
+  );
 }

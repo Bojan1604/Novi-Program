@@ -5,8 +5,8 @@ import { useActionState, useState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Obrazac } from "@/components/ui/obrazac";
-import { klaseUnosa, Polje } from "@/components/ui/polje";
-import { dodajUredajeAkcija, postaviCijenuAkcija } from "./akcije";
+import { klaseUnosa, Odabir, Polje } from "@/components/ui/polje";
+import { dodajUredajeAkcija, pauzaUgovoraAkcija, postaviCijenuAkcija, vratiUredajAkcija } from "./akcije";
 
 export type RedakPlana = {
   id: string;
@@ -190,5 +190,63 @@ export function DodajUredaje({ ugovorId, od, otvoreno }: { ugovorId: string; od:
         </Obrazac>
       </div>
     </details>
+  );
+}
+
+export function PovratUredaja({
+  ugovorId,
+  uredaji,
+  skladista,
+  danas,
+}: {
+  ugovorId: string;
+  uredaji: { planId: string; serijski: string }[];
+  skladista: { id: string; naziv: string }[];
+  danas: string;
+}) {
+  const [stanje, posalji, uTijeku] = useActionState(vratiUredajAkcija.bind(null, ugovorId), undefined);
+  return (
+    <Obrazac akcija={posalji} className="flex flex-col gap-3" aria-label="Povrat uređaja">
+      <div className="grid gap-2 sm:grid-cols-4 sm:items-end">
+        <Odabir oznaka="Uređaj" name="planId" required>
+          {uredaji.map((u) => (
+            <option key={u.planId} value={u.planId}>
+              {u.serijski}
+            </option>
+          ))}
+        </Odabir>
+        <Polje oznaka="Naplata do (dan povrata)" name="datum" type="date" required defaultValue={danas} />
+        <Odabir oznaka="Na skladište" name="skladisteId" required>
+          {skladista.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.naziv}
+            </option>
+          ))}
+        </Odabir>
+        <Gumb type="submit" disabled={uTijeku}>
+          Vrati uređaj
+        </Gumb>
+      </div>
+      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+    </Obrazac>
+  );
+}
+
+export function PauzaUgovora({ ugovorId, mjesec }: { ugovorId: string; mjesec: string }) {
+  const [stanje, posalji, uTijeku] = useActionState(pauzaUgovoraAkcija.bind(null, ugovorId), undefined);
+  return (
+    <Obrazac akcija={posalji} className="flex flex-col gap-3" aria-label="Pauza ugovora">
+      <div className="grid gap-2 sm:grid-cols-4 sm:items-end">
+        <Polje oznaka="Pauza od mjeseca" name="od" type="month" required defaultValue={mjesec} />
+        <Polje oznaka="do mjeseca" name="do" type="month" defaultValue={mjesec} />
+        <Gumb type="submit" name="radnja" value="pauza" disabled={uTijeku}>
+          Pauziraj
+        </Gumb>
+        <Gumb type="submit" name="radnja" value="ukini" varijanta="tihi" disabled={uTijeku}>
+          Ukini pauzu
+        </Gumb>
+      </div>
+      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+    </Obrazac>
   );
 }

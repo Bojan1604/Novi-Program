@@ -53,6 +53,7 @@ export const AKCIJE = {
   "najam.prilozi": { modul: "najam", razina: "operativno" },
   "najam.izdaj": { modul: "najam", razina: "operativno" },
   "najam.izvan": { modul: "najam", razina: "operativno" },
+  "najam.povrat": { modul: "najam", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;

@@ -6,15 +6,17 @@ import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
-import { procitajIznos } from "@/domain/novac";
+import { formatirajIznos, procitajIznos } from "@/domain/novac";
 import {
   dodajUredajeNaUgovor,
   izdajRate,
   oznaciIzvanPrograma,
   otkaziUgovor,
   postaviCijenu,
+  pauzirajUgovor,
   postaviMjesec,
   spremiUgovor,
+  vratiUredaj,
   type IzmjenaMjeseca,
 } from "@/services/najam";
 import { dodajPriloge, obrisiPrilog, type Datoteka } from "@/services/prilozi";
@@ -140,5 +142,29 @@ export async function postaviMjesecAkcija(ugovorId: string, planId: string, mjes
     revalidatePath(`/najam/${ugovorId}`);
     revalidatePath(`/najam/${ugovorId}/raspored`);
     return { ok: true };
+  });
+}
+
+export async function vratiUredajAkcija(ugovorId: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("najam.povrat", async (k): Promise<Odgovor> => {
+    const r = await vratiUredaj(db, k, String(ugovorId), tekst(fd, "planId"), tekst(fd, "datum"), tekst(fd, "skladisteId"));
+    revalidatePath(`/najam/${ugovorId}`);
+    revalidatePath("/uredaji");
+    return {
+      ok: true,
+      poruka: r.visak
+        ? `Uređaj je vraćen. Naplaćeno je ${formatirajIznos(r.visak)} € više nego što treba (${r.mjeseci.map((m) => `${m.mjesec.slice(5)}/${m.mjesec.slice(0, 4)}`).join(", ")}) — izdajte odobrenje.`
+        : "Uređaj je vraćen na skladište.",
+    };
+  });
+}
+
+export async function pauzaUgovoraAkcija(ugovorId: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("najam.ugovor", async (k): Promise<Odgovor> => {
+    const pauza = fd.get("radnja") !== "ukini";
+    const n = await pauzirajUgovor(db, k, String(ugovorId), tekst(fd, "od"), tekst(fd, "do") || tekst(fd, "od"), pauza);
+    revalidatePath(`/najam/${ugovorId}`);
+    revalidatePath(`/najam/${ugovorId}/raspored`);
+    return { ok: true, poruka: pauza ? `Pauza je postavljena za ${n} uređaja.` : "Pauza je ukinuta." };
   });
 }

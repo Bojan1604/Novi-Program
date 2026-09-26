@@ -59,6 +59,7 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "najam.prilozi": ["Administrator", "Voditelj", "Prodavač"],
   "najam.izdaj": ["Administrator", "Voditelj", "Prodavač"],
   "najam.izvan": ["Administrator", "Voditelj", "Prodavač"],
+  "najam.povrat": ["Administrator", "Voditelj", "Prodavač"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
