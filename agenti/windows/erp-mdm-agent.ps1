@@ -17,7 +17,27 @@ $Mapa = Join-Path $env:ProgramData "ERP-WMS-MDM"
 $Postavke = Join-Path $Mapa "postavke.json"
 $Stanje = Join-Path $Mapa "stanje.json"
 $ZapisnikDat = Join-Path $Mapa "agent.log"
+$Radna = Join-Path $Mapa "radna"
+
+function Zastiti([string]$putanja) {
+  # samo SYSTEM i administratori (vlasnik Administrators) — obični korisnik ne smije čitati token
+  # ni podmetnuti datoteke (MSI, Wi-Fi) u mapu koju agent koristi pod SYSTEM-om
+  $acl = if (Test-Path $putanja -PathType Container) { New-Object System.Security.AccessControl.DirectorySecurity } else { New-Object System.Security.AccessControl.FileSecurity }
+  $acl.SetOwner([System.Security.Principal.NTAccount]"BUILTIN\Administrators")
+  $acl.SetAccessRuleProtection($true, $false)
+  $nasljedi = if (Test-Path $putanja -PathType Container) { "ContainerInherit,ObjectInherit" } else { "None" }
+  foreach ($tko in @("NT AUTHORITY\SYSTEM", "BUILTIN\Administrators")) {
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($tko, "FullControl", $nasljedi, "None", "Allow")))
+  }
+  Set-Acl -Path $putanja -AclObject $acl
+}
+
 New-Item -ItemType Directory -Force -Path $Mapa | Out-Null
+Zastiti $Mapa
+New-Item -ItemType Directory -Force -Path $Radna | Out-Null
+Zastiti $Radna
+# nasumičan naziv u zaštićenoj mapi (ne u C:\Windows\Temp gdje korisnik može unaprijed stvoriti datoteku)
+function Privremena([string]$nastavak) { Join-Path $Radna ("{0}{1}" -f [guid]::NewGuid().ToString("N"), $nastavak) }
 
 function Zapisi([string]$razina, [string]$poruka) {
   $red = "{0} [{1}] {2}" -f (Get-Date -Format o), $razina, $poruka
@@ -25,16 +45,6 @@ function Zapisi([string]$razina, [string]$poruka) {
   $script:ZaSlanje += , @{ razina = $razina; poruka = $poruka; vrijeme = (Get-Date).ToUniversalTime().ToString("o") }
 }
 $script:ZaSlanje = @()
-
-function Zastiti([string]$putanja) {
-  # samo SYSTEM i administratori smiju čitati token
-  $acl = New-Object System.Security.AccessControl.FileSecurity
-  $acl.SetAccessRuleProtection($true, $false)
-  foreach ($tko in @("NT AUTHORITY\SYSTEM", "BUILTIN\Administrators")) {
-    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($tko, "FullControl", "Allow")))
-  }
-  Set-Acl -Path $putanja -AclObject $acl
-}
 
 function Api([string]$metoda, [string]$put, $tijelo, [string]$token) {
   $h = @{}
@@ -93,15 +103,30 @@ function Preuzmi([string]$put, [string]$sha, [string]$odrediste) {
 }
 
 function Snimi-Zaslon([string]$naredbaId) {
-  # snimka radi samo u sesiji prijavljenog korisnika — zadatak SYSTEM-a pokreće pomoćni zadatak u toj sesiji
-  Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-  $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
-  $slika = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-  $g = [System.Drawing.Graphics]::FromImage($slika)
-  $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $slika.Size)
-  $ms = New-Object System.IO.MemoryStream
-  $slika.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-  Invoke-RestMethod -Method POST -Uri ($script:Konf.adresa.TrimEnd("/") + "/api/mdm/zaslon") -Headers @{ Authorization = "Bearer $($script:Konf.token)"; "X-Naredba" = $naredbaId } -Body $ms.ToArray() -ContentType "image/png" -UseBasicParsing | Out-Null
+  # SYSTEM (sesija 0) ne vidi zaslon: jednokratni zadatak u sesiji prijavljenog korisnika snima u njegovu mapu,
+  # SYSTEM zatim šalje snimku. Korisnik može podmetnuti samo sliku vlastitog zaslona — nema povećanja prava.
+  $korisnik = (Get-CimInstance Win32_ComputerSystem).UserName
+  if (-not $korisnik) { throw "Nitko nije prijavljen — nema zaslona za snimku." }
+  $profil = (Get-CimInstance Win32_UserProfile | Where-Object { $_.Loaded -and $_.LocalPath -and (Split-Path $_.LocalPath -Leaf) -eq ($korisnik -split "\\")[-1] } | Select-Object -First 1).LocalPath
+  if (-not $profil) { throw "Profil prijavljenog korisnika nije pronađen." }
+  $slikaPut = Join-Path $profil ("AppData\Local\Temp\erp-mdm-zaslon-{0}.png" -f [guid]::NewGuid().ToString("N"))
+  $skripta = "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;`$b=[System.Windows.Forms.SystemInformation]::VirtualScreen;`$s=New-Object System.Drawing.Bitmap `$b.Width,`$b.Height;[System.Drawing.Graphics]::FromImage(`$s).CopyFromScreen(`$b.Left,`$b.Top,0,0,`$s.Size);`$s.Save('$slikaPut',[System.Drawing.Imaging.ImageFormat]::Png)"
+  $kodirano = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($skripta))
+  $ime = "ERP-WMS MDM zaslon " + [guid]::NewGuid().ToString("N")
+  $akcija = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -EncodedCommand $kodirano"
+  $tko = New-ScheduledTaskPrincipal -UserId $korisnik -LogonType Interactive
+  Register-ScheduledTask -TaskName $ime -Action $akcija -Principal $tko -Force | Out-Null
+  try {
+    Start-ScheduledTask -TaskName $ime
+    for ($i = 0; $i -lt 30 -and -not (Test-Path $slikaPut); $i++) { Start-Sleep -Seconds 1 }
+    if (-not (Test-Path $slikaPut)) { throw "Snimka nije nastala (zaključan zaslon?)." }
+    Start-Sleep -Milliseconds 500
+    $bajtovi = [System.IO.File]::ReadAllBytes($slikaPut)
+    Invoke-RestMethod -Method POST -Uri ($script:Konf.adresa.TrimEnd("/") + "/api/mdm/zaslon") -Headers @{ Authorization = "Bearer $($script:Konf.token)"; "X-Naredba" = $naredbaId } -Body $bajtovi -ContentType "image/png" -UseBasicParsing | Out-Null
+  } finally {
+    Unregister-ScheduledTask -TaskName $ime -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-Item $slikaPut -Force -ErrorAction SilentlyContinue
+  }
 }
 
 function Izvrsi($n) {
@@ -117,7 +142,7 @@ function Izvrsi($n) {
     "INSTALIRAJ" {
       $a = $script:Odgovor.aplikacije | Where-Object { $_.id -eq $n.parametri.aplikacijaId } | Select-Object -First 1
       if (-not $a) { throw "Aplikacija nije u popisu dodijeljenih." }
-      $msi = Join-Path $env:TEMP "$($a.paket)-$($a.verzijaKod).msi"
+      $msi = Privremena ".msi"
       Preuzmi $a.adresa $a.sha256 $msi
       $p = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -PassThru
       Remove-Item $msi -Force -ErrorAction SilentlyContinue
@@ -153,12 +178,12 @@ function Primijeni-Profil($p) {
   Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\USBSTOR" -Name Start -Value $usb -Type DWord
   if ($p.wifiSsid -and $p.wifiLozinka) {
     $xml = @"
-<?xml version="1.0"?><WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1"><name>$($p.wifiSsid)</name>
-<SSIDConfig><SSID><name>$($p.wifiSsid)</name></SSID></SSIDConfig><connectionType>ESS</connectionType><connectionMode>auto</connectionMode>
+<?xml version="1.0"?><WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1"><name>$([System.Security.SecurityElement]::Escape($p.wifiSsid))</name>
+<SSIDConfig><SSID><name>$([System.Security.SecurityElement]::Escape($p.wifiSsid))</name></SSID></SSIDConfig><connectionType>ESS</connectionType><connectionMode>auto</connectionMode>
 <MSM><security><authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption>
 <sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>$([System.Security.SecurityElement]::Escape($p.wifiLozinka))</keyMaterial></sharedKey></security></MSM></WLANProfile>
 "@
-    $dat = Join-Path $env:TEMP "erp-wifi.xml"
+    $dat = Privremena ".xml"
     Set-Content -Path $dat -Value $xml -Encoding UTF8
     netsh wlan add profile filename="$dat" user=all | Out-Null
     Remove-Item $dat -Force

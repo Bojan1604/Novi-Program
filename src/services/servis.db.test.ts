@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { napraviFirmu, napraviKorisnika, ocistiBazu, testnaPrisma } from "@/test/baza";
 import { provjeriDosljednost } from "./dosljednost";
 import { pravaClana, type Akter } from "./korisnici";
-import { dodajUredajeNaUgovor, izdajRate, spremiUgovor } from "./najam";
+import { dodajUredajeNaUgovor, izdajRate, spremiUgovor, vratiUredaj } from "./najam";
 import { izdajZamjenu, obrisiNalog, promijeniStatusServisa, spremiDijagnozu, vratiZamjenu, zaprimiNaServis, zavrsiNalog } from "./servis";
 import { napraviZadaneSifrarnike } from "./sifrarnici";
 
@@ -195,6 +195,36 @@ describe("servis i najam — bez dvostruke naplate", () => {
     expect(r.visak).toBe(6429); // veljača: 10/28 × 100,00 = 35,71 → višak 64,29
     expect(await stanje("P-1")).toMatchObject({ stanje: "OTPISAN" });
     await expect(izdajRate(prisma, A, ugovorId, "2026-06", new Date("2026-06-01T09:00:00Z"))).rejects.toThrow("Nema rata");
+  });
+
+  it("najam završen dok je uređaj na servisu: povratak na skladište, zamjenski se vraća (nikad ostane „zamjenski“)", async () => {
+    const { A, skl, stanje, prijem, uredaj, ugovorId } = await najam();
+    await uredaj("Z-1");
+    const n = await prijem(A, "P-1");
+    await izdajZamjenu(prisma, A, n.id, { serijski: "Z-1", datum: "2026-02-10" });
+    const plan = await prisma.uredajNaUgovoru.findFirstOrThrow({ where: { ugovorId } });
+    await vratiUredaj(prisma, A, ugovorId, plan.id, "2026-02-12", skl.id);
+    expect(await stanje("P-1")).toMatchObject({ stanje: "NA_SERVISU" });
+    // otpis sa zamjenskim bez aktivnog plana: najam se ne prenosi, zamjenski na skladište
+    await expect(zavrsiNalog(prisma, A, n.id, { ishod: "OTPISAN", datum: "2026-02-20", skladisteId: null, napomena: null })).rejects.toThrow(
+      "skladište",
+    );
+    await zavrsiNalog(prisma, A, n.id, { ishod: "OTPISAN", datum: "2026-02-20", skladisteId: skl.id, napomena: null });
+    expect(await stanje("P-1")).toMatchObject({ stanje: "OTPISAN" });
+    expect(await stanje("Z-1")).toMatchObject({ stanje: "NA_SKLADISTU", partnerId: null });
+    expect(await prisma.uredajNaUgovoru.count({ where: { ugovorId } })).toBe(1);
+  });
+
+  it("povrat s servisa uređaja čiji je najam završio: na skladište, ne „u najmu“ bez ugovora", async () => {
+    const { A, skl, stanje, prijem, ugovorId } = await najam();
+    const n = await prijem(A, "P-1");
+    const plan = await prisma.uredajNaUgovoru.findFirstOrThrow({ where: { ugovorId } });
+    await vratiUredaj(prisma, A, ugovorId, plan.id, "2026-02-12", skl.id);
+    await expect(zavrsiNalog(prisma, A, n.id, { ishod: "VRACEN", datum: "2026-02-20", skladisteId: null, napomena: null })).rejects.toThrow(
+      "nije na ugovoru",
+    );
+    await zavrsiNalog(prisma, A, n.id, { ishod: "VRACEN", datum: "2026-02-20", skladisteId: skl.id, napomena: null });
+    expect(await stanje("P-1")).toMatchObject({ stanje: "NA_SKLADISTU", partnerId: null, skladisteId: skl.id });
   });
 
   it("uređaj na servisu bez naloga je nalaz provjere dosljednosti", async () => {

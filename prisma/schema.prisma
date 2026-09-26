@@ -1547,6 +1547,8 @@ model MdmUredaj {
   osVerzija      String?
   verzijaAgenta  String?
   tokenHash      String    @unique
+  /// zaposlenik je dopustio ponovni upis (i u drugu organizaciju) — jednokratno
+  ponovniUpis    Boolean   @default(false)
   /// AKTIVAN ili BLOKIRAN
   stanje         String    @default("AKTIVAN")
   zadnjiKontakt  DateTime? @db.Timestamptz(3)

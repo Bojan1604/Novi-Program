@@ -9,10 +9,38 @@ export function tokenAgenta(request: Request): string | null {
   return m ? m[1]! : null;
 }
 
-/** Tijelo JSON-a agenta (najviše 64 KB) ili null. */
+/**
+ * Tijelo zahtjeva s tvrdom granicom: čita tok i prekida čim prijeđe `najvise` bajtova
+ * (Content-Length se ne uzima zdravo za gotovo — „chunked“ zahtjev ga nema).
+ */
+export async function citajTijelo(request: Request, najvise: number): Promise<Uint8Array> {
+  if (Number(request.headers.get("content-length") ?? "0") > najvise) throw new GreskaKorisniku("Zahtjev je prevelik.");
+  const citac = request.body?.getReader();
+  if (!citac) return new Uint8Array(0);
+  const dijelovi: Uint8Array[] = [];
+  let ukupno = 0;
+  for (;;) {
+    const { done, value } = await citac.read();
+    if (done) break;
+    ukupno += value.byteLength;
+    if (ukupno > najvise) {
+      await citac.cancel();
+      throw new GreskaKorisniku("Zahtjev je prevelik.");
+    }
+    dijelovi.push(value);
+  }
+  const r = new Uint8Array(ukupno);
+  let i = 0;
+  for (const d of dijelovi) {
+    r.set(d, i);
+    i += d.byteLength;
+  }
+  return r;
+}
+
+/** Tijelo JSON-a agenta (najviše 64 KB). */
 export async function jsonAgenta(request: Request): Promise<unknown> {
-  const t = await request.text();
-  if (t.length > 65_536) throw new GreskaKorisniku("Zahtjev je prevelik.");
+  const t = new TextDecoder().decode(await citajTijelo(request, 65_536));
   try {
     return JSON.parse(t);
   } catch {

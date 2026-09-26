@@ -10,6 +10,8 @@ import { velicinaZaPrikaz } from "@/domain/prilozi";
 import { jeOtvoren, provjeriBrisanje, STATUSI_SERVISA, uredajKlijenta, type StatusServisa } from "@/domain/servis";
 import { STANJA, type Stanje } from "@/domain/stanja-uredaja";
 import { pristupStranici } from "@/lib/akcija";
+import { db } from "@/lib/db";
+import { aktivniPlan } from "@/services/servis";
 import { dodajPrilogeAkcija, obrisiPrilogAkcija } from "../akcije";
 import { bojaStatusa } from "../boje";
 import { Dijagnoza, IzdajZamjenu, JavnostPriloga, ObrisiNalog, StatusNaloga, VratiZamjenu, ZaprimiPrijavu, Zavrsetak } from "../obrasci";
@@ -158,7 +160,7 @@ export default async function Nalog({ params }: PageProps<"/servis/[id]">) {
             id={n.id}
             danas={dan}
             skladista={skladista}
-            trebaSkladiste={aktivnaZamjena}
+            trebaSkladiste={aktivnaZamjena || (stanjePrije === "U_NAJMU" && !(await aktivniPlan(db, k.firmaId, n.uredajId, dan)))}
             smijeOtpis={puno && stanjePrije !== "PRODAN"}
             prijavljen={prijavljen}
           />

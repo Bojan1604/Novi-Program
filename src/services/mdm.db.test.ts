@@ -4,6 +4,7 @@ import { napraviFirmu, napraviKorisnika, ocistiBazu, testnaPrisma } from "@/test
 import { pravaClana, type Akter } from "./korisnici";
 import {
   agentPoTokenu,
+  dopustiPonovniUpis,
   javiSe,
   noviKodUpisa,
   organizacijaPartnera,
@@ -62,13 +63,17 @@ describe("MDM osnove", () => {
     expect((await prisma.mdmUredaj.findUniqueOrThrow({ where: { id: u.id } })).izvjestaj).toEqual({ baterija: 81, slobodno: "12 GB" });
     expect(await javiSe(prisma, "krivi-token-krivi-token-krivi", {})).toBeNull();
 
+    await expect(upis(k1, "TAB-1")).rejects.toThrow("već upisan");
+    await dopustiPonovniUpis(prisma, A, u.id);
     const u2 = await upis(k1, "TAB-1");
+    await expect(upis(k1, "TAB-1")).rejects.toThrow("već upisan"); // jednokratno
     expect(u2.id).toBe(u.id);
     expect(await agentPoTokenu(prisma, u.token)).toBeNull();
     expect(await agentPoTokenu(prisma, u2.token)).not.toBeNull();
 
     await postaviStanjeMdmUredaja(prisma, A, u.id, "BLOKIRAN");
     expect(await javiSe(prisma, u2.token, {})).toBeNull();
+    await dopustiPonovniUpis(prisma, A, u.id);
     await expect(upis(k1, "TAB-1")).rejects.toThrow("blokiran");
 
     const stari = await kod(k1);
@@ -76,7 +81,15 @@ describe("MDM osnove", () => {
     const r = procitajUpis({ kod: stari, serijski: "TAB-2", platforma: "WINDOWS" });
     if (!r.ok) throw new Error(r.greska);
     await expect(upisiUredaj(prisma, r.vrijednost, null)).rejects.toThrow("Kod upisa nije ispravan");
-    expect(await prisma.dnevnik.count({ where: { firmaId: firma.id, entitet: "MdmUredaj" } })).toBe(3);
+    expect(await prisma.dnevnik.count({ where: { firmaId: firma.id, entitet: "MdmUredaj" } })).toBe(5);
+  });
+
+  it("napad: klijent A svojim kodom ne može preuzeti uređaj klijenta B (serijski nije tajna)", async () => {
+    const { k1, d2, upis } = await pripremi();
+    const b = await upis(d2, "B-LAPTOP");
+    await expect(upis(k1, "B-LAPTOP")).rejects.toThrow("već upisan");
+    expect((await prisma.mdmUredaj.findUniqueOrThrow({ where: { id: b.id } })).organizacijaId).toBe(d2);
+    expect(await agentPoTokenu(prisma, b.token)).not.toBeNull();
   });
 
   it("distributer vidi samo svoje organizacije i uređaje; klijent samo sebe; druga firma ništa", async () => {

@@ -7,7 +7,7 @@ import { Obrazac } from "@/components/ui/obrazac";
 import { Kvacica, Odabir, Polje } from "@/components/ui/polje";
 import { VRSTE_ORGANIZACIJA } from "@/domain/mdm";
 import type { Odgovor } from "@/lib/greske";
-import { noviKodAkcija, spremiOrganizacijuAkcija, stanjeUredajaAkcija } from "./akcije";
+import { noviKodAkcija, ponovniUpisAkcija, spremiOrganizacijuAkcija, stanjeUredajaAkcija } from "./akcije";
 
 type Opcija = { id: string; naziv: string };
 
@@ -105,6 +105,22 @@ export function StanjeMdmUredaja({ id, blokiran }: { id: string; blokiran: boole
           }}
         >
           {blokiran ? "Odblokiraj" : "Blokiraj"}
+        </Gumb>
+      </div>
+      <Poruka s={s} />
+    </div>
+  );
+}
+
+export function PonovniUpis({ id, dopusten }: { id: string; dopusten: boolean }) {
+  const [s, setS] = useState<Odgovor | null>(null);
+  const [uTijeku, zapocni] = useTransition();
+  if (dopusten && !s) return <p className="text-sm text-neutral-500">Ponovni upis je dopušten (jednom).</p>;
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <Gumb disabled={uTijeku || !!s?.ok} onClick={() => zapocni(async () => setS(await ponovniUpisAkcija(id)))}>
+          Dopusti ponovni upis
         </Gumb>
       </div>
       <Poruka s={s} />

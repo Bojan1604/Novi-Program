@@ -7,7 +7,7 @@ import { naVezi, PLATFORME, type Platforma } from "@/domain/mdm";
 import { instaliraneIzIzvjestaja, STATUSI_NAREDBI, VRSTE_NAREDBI, type StatusNaredbe, type VrstaNaredbe } from "@/domain/mdm-upravljanje";
 import { imaPravo } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
-import { StanjeMdmUredaja } from "../../obrasci";
+import { PonovniUpis, StanjeMdmUredaja } from "../../obrasci";
 import { NaredbaUredaju, OtkaziNaredbu } from "../../upravljanje";
 
 export const metadata = { title: "MDM uređaj · ERP-WMS" };
@@ -183,7 +183,10 @@ export default async function MdmUredaj({ params }: PageProps<"/mdm/uredaji/[id]
       </Kartica>
       {imaPravo(k.prava, "mdm", "operativno") && (
         <Kartica naslov="Pristup">
-          <StanjeMdmUredaja id={u.id} blokiran={u.stanje === "BLOKIRAN"} />
+          <div className="flex flex-col gap-4">
+            <StanjeMdmUredaja id={u.id} blokiran={u.stanje === "BLOKIRAN"} />
+            <PonovniUpis id={u.id} dopusten={u.ponovniUpis} />
+          </div>
         </Kartica>
       )}
     </Stranica>

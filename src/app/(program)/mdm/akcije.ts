@@ -7,7 +7,7 @@ import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
-import { noviKodUpisa, postaviStanjeMdmUredaja, spremiOrganizaciju } from "@/services/mdm";
+import { dopustiPonovniUpis, noviKodUpisa, postaviStanjeMdmUredaja, spremiOrganizaciju } from "@/services/mdm";
 import { dodajDatoteku, dodijeliAplikaciju, obrisiDatoteku, otkaziNaredbu, posaljiNaredbu, spremiProfil } from "@/services/mdm-upravljanje";
 
 export async function spremiOrganizacijuAkcija(id: string | null, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
@@ -118,5 +118,13 @@ export async function otkaziNaredbuAkcija(mdmUredajId: string, id: string): Prom
     await otkaziNaredbu(db, k, String(id));
     revalidatePath(`/mdm/uredaji/${mdmUredajId}`);
     return { ok: true, poruka: "Naredba je otkazana." };
+  });
+}
+
+export async function ponovniUpisAkcija(id: string): Promise<Odgovor> {
+  return akcija("mdm.uredaji", async (k): Promise<Odgovor> => {
+    await dopustiPonovniUpis(db, k, String(id));
+    revalidatePath(`/mdm/uredaji/${id}`);
+    return { ok: true, poruka: "Uređaj se može jednom ponovno upisati (i kodom druge organizacije)." };
   });
 }

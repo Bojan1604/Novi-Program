@@ -312,12 +312,22 @@ export async function zavrsiNalog(db: PrismaClient, a: Akter, id: string, u: Ula
           dokument: dokument(n),
           opis: `Servis: ${STATUSI_SERVISA[u.ishod].toLowerCase()}`,
         });
+      // uređaj iz najma koji više nije ni na jednom ugovoru (plan završen dok je bio na servisu) ide na skladište
+      if (i.uredaj === "izlazSaServisa" && n.stanjePrije === "U_NAJMU" && !(await aktivniPlan(tx, f, n.uredajId, u.datum))) {
+        if (!u.skladisteId) throw new GreskaKorisniku("Uređaj više nije na ugovoru o najmu — odaberite skladište za povrat.");
+        await promijeniStanje(tx, izv, [n.uredajId], "povratIzNajma", {
+          skladisteId: u.skladisteId,
+          dokument: dokument(n),
+          opis: "Nakon servisa na skladište (najam je završen)",
+        });
+      }
       let visakNajma = 0;
       let opisNajma = "";
+      let preneseno = false;
       if (i.najam && n.ugovorNajmaId) {
         await tx.$queryRaw`SELECT id FROM "UgovorNajma" WHERE id = ${n.ugovorNajmaId}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
         const plan = await tx.uredajNaUgovoru.findFirst({
-          where: { firmaId: f, ugovorId: n.ugovorNajmaId, uredajId: n.uredajId, do: null },
+          where: { firmaId: f, ugovorId: n.ugovorNajmaId, uredajId: n.uredajId, OR: [{ do: null }, { do: { gte: d(u.datum) } }] },
           include: { cijene: { orderBy: { od: "asc" } }, rate: { select: { mjesec: true }, orderBy: { mjesec: "desc" }, take: 1 } },
         });
         if (plan) {
@@ -329,16 +339,18 @@ export async function zavrsiNalog(db: PrismaClient, a: Akter, id: string, u: Ula
             const zadnji = plan.rate[0] ? plan.rate[0].mjesec.toISOString().slice(0, 7) : null;
             const kraj = krajNaplateOriginala(u.datum < dan(plan.od) ? dan(plan.od) : u.datum, zadnji);
             await tx.uredajNaUgovoru.update({ where: { id: plan.id }, data: { do: d(kraj) } });
-            await promijeniStanje(tx, izv, [n.zamjenskiUredajId], "zamjenaUNajam", {
-              dokument: { vrsta: "Ugovor o najmu", id: n.ugovorNajmaId, broj: ug.broj },
-              opis: `Zamjena za otpisani ${n.uredaj.serijski}`,
-            });
             const od = sljedeciDan(kraj);
             const krajUgovora = [ug.do, ug.otkazan]
               .filter((x): x is Date => !!x)
               .map(dan)
               .sort()[0];
+            // zamjenski ostaje u najmu samo ako ugovor još traje (inače se vraća na skladište)
             if (!krajUgovora || od <= krajUgovora) {
+              preneseno = true;
+              await promijeniStanje(tx, izv, [n.zamjenskiUredajId], "zamjenaUNajam", {
+                dokument: { vrsta: "Ugovor o najmu", id: n.ugovorNajmaId, broj: ug.broj },
+                opis: `Zamjena za otpisani ${n.uredaj.serijski}`,
+              });
               const novi = await tx.uredajNaUgovoru.create({
                 data: {
                   firmaId: f,
@@ -360,8 +372,10 @@ export async function zavrsiNalog(db: PrismaClient, a: Akter, id: string, u: Ula
               if (nove.length)
                 await tx.cijenaNajma.createMany({ data: nove.map((c) => ({ firmaId: f, planId: novi.id, od: d(`${c.od}-01`), iznos: c.iznos })) });
             }
-            await tx.servisniNalog.update({ where: { id: n.id }, data: { zamjenaDo: d(u.datum) } });
-            opisNajma = ` Najam ${ug.broj} prenesen na ${n.zamjenski?.serijski} od ${hr(od)}`;
+            if (preneseno) {
+              await tx.servisniNalog.update({ where: { id: n.id }, data: { zamjenaDo: d(u.datum) } });
+              opisNajma = ` Najam ${ug.broj} prenesen na ${n.zamjenski?.serijski} od ${hr(od)}`;
+            }
           } else {
             const kraj = u.datum < dan(plan.od) ? dan(plan.od) : u.datum;
             await tx.uredajNaUgovoru.update({ where: { id: plan.id }, data: { do: d(kraj) } });
@@ -375,7 +389,8 @@ export async function zavrsiNalog(db: PrismaClient, a: Akter, id: string, u: Ula
           }
         }
       }
-      if (i.zamjena === "povratZamjene") await povratZamjene(tx, a, n, u.skladisteId, u.datum);
+      // zamjenski se vraća na skladište i kad se najam nije mogao prenijeti (nema aktivnog plana ili je ugovor završio)
+      if (i.zamjena === "povratZamjene" || (i.zamjena === "zamjenaUNajam" && !preneseno)) await povratZamjene(tx, a, n, u.skladisteId, u.datum);
       await tx.servisniNalog.update({ where: { id: n.id }, data: { status: u.ishod, zatvoren: d(u.datum), verzija: { increment: 1 } } });
       await dogadaj(tx, a, n.id, u.napomena?.trim() ? `${STATUSI_SERVISA[u.ishod]}: ${u.napomena.trim()}` : STATUSI_SERVISA[u.ishod], {
         status: u.ishod,
@@ -582,5 +597,13 @@ export async function postaviJavnostPriloga(db: PrismaClient, a: Akter, nalogId:
       staro: { javno: p.javno },
       novo: { javno },
     });
+  });
+}
+
+/** Aktivni plan najma uređaja na datum (bilo koji ugovor) ili null. */
+export async function aktivniPlan(tx: Tx | PrismaClient, firmaId: string, uredajId: string, datum: string) {
+  return tx.uredajNaUgovoru.findFirst({
+    where: { firmaId, uredajId, OR: [{ do: null }, { do: { gte: d(datum) } }] },
+    select: { id: true, ugovorId: true },
   });
 }

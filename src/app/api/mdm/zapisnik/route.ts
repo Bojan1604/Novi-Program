@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { jsonAgenta, odgovorGreske, tokenAgenta } from "@/lib/mdm-api";
+import { agentPoTokenu } from "@/services/mdm";
 import { zapisnikAgenta } from "@/services/mdm-upravljanje";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 /** POST /api/mdm/zapisnik { zapisi: [{ razina, poruka, vrijeme }] } */
 export async function POST(request: Request) {
   try {
+    if (!(await agentPoTokenu(db, tokenAgenta(request)))) return Response.json({ greska: "Uređaj nije upisan ili je blokiran." }, { status: 401 });
     const t = (await jsonAgenta(request)) as { zapisi?: unknown } | null;
     const n = await zapisnikAgenta(db, tokenAgenta(request), t?.zapisi);
     return n === null ? Response.json({ greska: "Uređaj nije upisan ili je blokiran." }, { status: 401 }) : Response.json({ spremljeno: n });

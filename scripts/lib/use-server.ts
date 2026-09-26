@@ -107,10 +107,10 @@ export function provjeriZastituAkcija(tekst: string, ime = "datoteka.ts"): strin
       const komentari = (ts.getLeadingCommentRanges(tekst, cvor.getFullStart()) ?? []).map((r) => tekst.slice(r.pos, r.end));
       if (komentari.some((k) => /javna akcija:\s*\S/.test(k))) continue;
       const { line } = izvor.getLineAndCharacterOfPosition(cvor.getStart(izvor));
-      // program: akcija(…); portal klijenata: akcijaPortala(…)
-      const zastita = tijelo && poziva(tijelo, "akcijaPortala") ? "akcijaPortala" : "akcija";
+      // program: akcija(…) (prava zaposlenika); portal klijenata (src/app/portal/): akcijaPortala(…) — nikad obrnuto
+      const zastita = /(^|\/)src\/app\/portal\//.test(ime) ? "akcijaPortala" : "akcija";
       if (!tijelo || !poziva(tijelo, zastita)) {
-        greske.push(`${ime}:${line + 1} — akcija „${naziv}“ ne poziva akcija(…) (provjera prava) niti je označena „// javna akcija: razlog“.`);
+        greske.push(`${ime}:${line + 1} — akcija „${naziv}“ ne poziva ${zastita}(…) (provjera prava) niti je označena „// javna akcija: razlog“.`);
         continue;
       }
       // ništa se ne smije izvršiti prije provjere prava: nijedan await prije naredbe s akcija(…)
@@ -182,14 +182,16 @@ export function provjeriUnutarnjiUseServer(tekst: string, ime = "datoteka.ts"): 
 export function provjeriPristupStranice(tekst: string, ime: string, vrsta: "stranica" | "ruta", portal = false): string[] {
   const oznaka = vrsta === "stranica" ? /javna stranica:\s*\S/ : /javna ruta:\s*\S/;
   if (oznaka.test(tekst)) return [];
-  const provjere = portal
+  const imena = portal
     ? vrsta === "stranica"
-      ? /\bpristupPortalu\(/
-      : /\bpristupPortalApi\(/
+      ? ["pristupPortalu"]
+      : ["pristupPortalApi"]
     : vrsta === "stranica"
-      ? /\b(pristupStranici|trenutniKontekst)\(/
-      : /\bpristupApi\(/;
-  if (provjere.test(tekst)) return [];
+      ? ["pristupStranici", "trenutniKontekst"]
+      : ["pristupApi"];
+  // stvarni poziv u kodu (ne u komentaru ili tekstu)
+  const izvor = ts.createSourceFile(ime, tekst, ts.ScriptTarget.Latest, true, ime.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  if (imena.some((i) => poziva(izvor, i))) return [];
   const treba = portal
     ? vrsta === "stranica"
       ? "pristupPortalu(…)"

@@ -121,8 +121,23 @@ describe("stranice i rute provjeravaju pristup", () => {
     expect(provjeriPristupStranice('const k = await pristupApi({ posebno: "log" });', "r.ts", "ruta", true)).toHaveLength(1);
   });
 
-  it("akcija portala s akcijaPortala je zaštićena; await prije nje nije dopušten", () => {
-    expect(provjeriZastituAkcija('"use server";\nexport async function a() { return akcijaPortala(async (k) => 1); }')).toEqual([]);
-    expect(provjeriZastituAkcija('"use server";\nexport async function a() { await x(); return akcijaPortala(async (k) => 1); }')).toHaveLength(1);
+  it("akcija portala s akcijaPortala je zaštićena; await prije nje nije dopušten; zaštita ovisi o mapi", () => {
+    const portal = "src/app/portal/x/akcije.ts";
+    const program = "src/app/(program)/x/akcije.ts";
+    const sPortalom = '"use server";\nexport async function a() { return akcijaPortala(async (k) => 1); }';
+    const sAkcijom = '"use server";\nexport async function a() { return akcija("x", async (k) => 1); }';
+    expect(provjeriZastituAkcija(sPortalom, portal)).toEqual([]);
+    expect(
+      provjeriZastituAkcija('"use server";\nexport async function a() { await x(); return akcijaPortala(async (k) => 1); }', portal),
+    ).toHaveLength(1);
+    // program s akcijaPortala (bez provjere prava zaposlenika) i portal s akcija — oboje greška
+    expect(provjeriZastituAkcija(sPortalom, program)).toHaveLength(1);
+    expect(provjeriZastituAkcija(sAkcijom, portal)).toHaveLength(1);
+    expect(provjeriZastituAkcija(sAkcijom, program)).toEqual([]);
+  });
+
+  it("poziv u komentaru ne vrijedi kao provjera pristupa", () => {
+    expect(provjeriPristupStranice('// pristupStranici("/x")\nexport default function P() {}', "p.tsx", "stranica")).toHaveLength(1);
+    expect(provjeriPristupStranice('const s = "pristupApi(";', "r.ts", "ruta")).toHaveLength(1);
   });
 });

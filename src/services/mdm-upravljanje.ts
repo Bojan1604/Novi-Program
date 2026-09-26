@@ -295,11 +295,25 @@ export async function posaljiNaredbu(
 
 export async function otkaziNaredbu(db: PrismaClient, a: Akter, id: string) {
   if (!jeUuid(id)) throw new GreskaKorisniku("Naredba ne postoji.");
-  const r = await db.mdmNaredba.updateMany({
-    where: { id, firmaId: a.firmaId, status: { in: ["CEKA", "POSLANA"] } },
-    data: { status: "OTKAZANA", zavrseno: new Date() },
+  await db.$transaction(async (tx) => {
+    const n = await tx.mdmNaredba.findFirst({
+      where: { id, firmaId: a.firmaId, status: { in: ["CEKA", "POSLANA"] } },
+      select: { vrsta: true, status: true, mdmUredajId: true, uredaj: { select: { serijski: true } } },
+    });
+    if (!n) throw new GreskaKorisniku("Naredba je već izvršena ili ne postoji.");
+    await tx.mdmNaredba.update({ where: { id }, data: { status: "OTKAZANA", zavrseno: new Date() } });
+    await zapisiDnevnik(tx, {
+      firmaId: a.firmaId,
+      korisnikId: a.korisnikId,
+      ip: a.ip,
+      radnja: "mdm.naredbe",
+      entitet: "MdmUredaj",
+      entitetId: n.mdmUredajId,
+      opis: `MDM ${n.uredaj.serijski}: otkazana naredba „${VRSTE_NAREDBI[n.vrsta as keyof typeof VRSTE_NAREDBI]?.naziv ?? n.vrsta}“`,
+      staro: { status: n.status },
+      novo: { status: "OTKAZANA" },
+    });
   });
-  if (!r.count) throw new GreskaKorisniku("Naredba je već izvršena ili ne postoji.");
 }
 
 // ——— agent ———
@@ -348,7 +362,12 @@ export async function javljanjeAgenta(db: PrismaClient, token: string | null, iz
       where: { firmaId: f, mdmUredajId: m.id, vrsta: "INSTALIRAJ", status: { in: ["CEKA", "POSLANA"] } },
       select: { parametri: true },
     });
-    const cekajuId = new Set(cekaju.map((n) => String((n.parametri as Record<string, unknown>)["aplikacijaId"])));
+    // neuspjela instalacija ne ponavlja se sama 24 sata (inače svako javljanje = novo preuzimanje)
+    const neuspjele = await tx.mdmNaredba.findMany({
+      where: { firmaId: f, mdmUredajId: m.id, vrsta: "INSTALIRAJ", status: "GRESKA", zavrseno: { gte: new Date(sada.getTime() - 864e5) } },
+      select: { parametri: true },
+    });
+    const cekajuId = new Set([...cekaju, ...neuspjele].map((n) => String((n.parametri as Record<string, unknown>)["aplikacijaId"])));
     // izvještaj bez popisa aplikacija ne pokreće instalacije (agent još nije poslao popis)
     if (spremi && typeof spremi === "object" && "aplikacije" in spremi) {
       for (const ap of potrebneInstalacije(zeljene, instaliraneIzIzvjestaja(spremi), cekajuId))
@@ -365,10 +384,15 @@ export async function javljanjeAgenta(db: PrismaClient, token: string | null, iz
     const nove = naredbe.filter((n) => n.status === "CEKA").map((n) => n.id);
     if (nove.length) await tx.mdmNaredba.updateMany({ where: { id: { in: nove } }, data: { status: "POSLANA", poslano: sada } });
     const p = vazeciProfil(profili, lanac, platforma);
+    // ručna instalacija bilo koje verzije: agent treba i podatke za preuzimanje aplikacija iz naredbi
+    const izNaredbi = new Set(
+      naredbe.filter((n) => n.vrsta === "INSTALIRAJ").map((n) => String((n.parametri as Record<string, unknown>)["aplikacijaId"])),
+    );
+    const zaPreuzeti = [...zeljene, ...aplikacije.filter((x) => izNaredbi.has(x.id) && !zeljene.some((z) => z.id === x.id))];
     return {
       naredbe: naredbe.map((n) => ({ id: n.id, vrsta: n.vrsta, parametri: n.parametri })),
       profil: p ? { ...(p.postavke as PostavkeProfila), verzija: p.verzija, wifiLozinka: desifriraj(p.wifiLozinka) } : null,
-      aplikacije: zeljene.map((x) => ({
+      aplikacije: zaPreuzeti.map((x) => ({
         id: x.id,
         paket: x.paket,
         verzija: x.verzija,
@@ -413,6 +437,10 @@ export async function zapisnikAgenta(db: PrismaClient, token: string | null, zap
       vrijeme: typeof z["vrijeme"] === "string" && !Number.isNaN(Date.parse(z["vrijeme"])) ? new Date(z["vrijeme"]) : new Date(),
     }))
     .filter((z) => z.poruka);
+  // najviše 2.000 redaka na sat po uređaju; stariji od 90 dana se brišu
+  const sat = await db.mdmZapis.count({ where: { firmaId: m.firmaId, mdmUredajId: m.id, primljeno: { gte: new Date(Date.now() - 3600_000) } } });
+  if (sat + redovi.length > 2000) throw new GreskaKorisniku("Previše zapisa — pokušajte kasnije.");
+  await db.mdmZapis.deleteMany({ where: { firmaId: m.firmaId, mdmUredajId: m.id, vrijeme: { lt: new Date(Date.now() - 90 * 864e5) } } });
   if (redovi.length) await db.mdmZapis.createMany({ data: redovi });
   return redovi.length;
 }
@@ -426,21 +454,26 @@ export async function snimkaAgenta(db: PrismaClient, token: string | null, nared
   const jpg = slika[0] === 0xff && slika[1] === 0xd8;
   if (!png && !jpg) throw new GreskaKorisniku("Snimka mora biti PNG ili JPEG.");
   await db.$transaction(async (tx) => {
+    // snimka se prima samo kao odgovor na vlastitu naredbu koja još čeka (inače bi agent mogao puniti bazu)
     const n =
       naredbaId && jeUuid(naredbaId)
-        ? await tx.mdmNaredba.findFirst({ where: { id: naredbaId, mdmUredajId: m.id, vrsta: "SNIMI_ZASLON" }, select: { id: true } })
+        ? await tx.mdmNaredba.findFirst({
+            where: { id: naredbaId, firmaId: m.firmaId, mdmUredajId: m.id, vrsta: "SNIMI_ZASLON", status: { in: ["CEKA", "POSLANA"] } },
+            select: { id: true },
+          })
         : null;
+    if (!n) throw new GreskaKorisniku("Nema naredbe za snimku zaslona.");
     await tx.mdmSnimka.create({
       data: {
         firmaId: m.firmaId,
         mdmUredajId: m.id,
-        naredbaId: n?.id ?? null,
+        naredbaId: n.id,
         vrsta: png ? "image/png" : "image/jpeg",
         slika: slika as Uint8Array<ArrayBuffer>,
         velicina: slika.byteLength,
       },
     });
-    if (n) await tx.mdmNaredba.update({ where: { id: n.id }, data: { status: "IZVRSENA", zavrseno: new Date() } });
+    await tx.mdmNaredba.update({ where: { id: n.id }, data: { status: "IZVRSENA", zavrseno: new Date() } });
   });
   return true;
 }

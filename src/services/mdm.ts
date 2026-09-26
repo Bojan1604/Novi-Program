@@ -99,8 +99,13 @@ export async function upisiUredaj(db: PrismaClient, u: PodaciUpisa, ip: string |
     const f = o.firmaId;
     await zakljucajKljuc(tx, `mdm-upis:${f}:${u.serijski}`);
     const token = randomBytes(32).toString("base64url");
-    const postoji = await tx.mdmUredaj.findFirst({ where: { firmaId: f, serijski: u.serijski }, select: { id: true, stanje: true } });
+    const postoji = await tx.mdmUredaj.findFirst({
+      where: { firmaId: f, serijski: u.serijski },
+      select: { id: true, stanje: true, ponovniUpis: true, organizacija: { select: { naziv: true } } },
+    });
     if (postoji?.stanje === "BLOKIRAN") throw new GreskaKorisniku("Uređaj je blokiran — javite se administratoru.");
+    // serijski nije tajna: već upisan uređaj ne može se preoteti tuđim kodom — ponovni upis dopušta zaposlenik (jednokratno)
+    if (postoji && !postoji.ponovniUpis) throw new GreskaKorisniku("Uređaj je već upisan — za ponovni upis javite se administratoru.");
     const skladisni = await tx.uredaj.findFirst({ where: { firmaId: f, serijski: u.serijski }, select: { id: true } });
     const podaci = {
       organizacijaId: o.id,
@@ -114,7 +119,7 @@ export async function upisiUredaj(db: PrismaClient, u: PodaciUpisa, ip: string |
       zadnjiKontakt: new Date(),
     };
     const m = postoji
-      ? await tx.mdmUredaj.update({ where: { id: postoji.id }, data: { ...podaci, upisan: new Date() }, select: { id: true } })
+      ? await tx.mdmUredaj.update({ where: { id: postoji.id }, data: { ...podaci, ponovniUpis: false, upisan: new Date() }, select: { id: true } })
       : await tx.mdmUredaj.create({ data: { firmaId: f, serijski: u.serijski, ...podaci }, select: { id: true } });
     await zapisiDnevnik(tx, {
       firmaId: f,
@@ -123,7 +128,7 @@ export async function upisiUredaj(db: PrismaClient, u: PodaciUpisa, ip: string |
       radnja: "mdm.upis",
       entitet: "MdmUredaj",
       entitetId: m.id,
-      opis: `MDM: ${postoji ? "ponovno upisan" : "upisan"} ${u.serijski} (${u.platforma}) u ${o.naziv}`,
+      opis: `MDM: ${postoji ? `ponovno upisan (prije: ${postoji.organizacija.naziv})` : "upisan"} ${u.serijski} (${u.platforma}) u ${o.naziv}`,
     });
     return { id: m.id, token };
   });
@@ -211,4 +216,23 @@ export async function organizacijaPartnera(db: PrismaClient, firmaId: string, pa
     select: { id: true, serijski: true, naziv: true, platforma: true, zadnjiKontakt: true, stanje: true, osVerzija: true },
   });
   return { ...o, podredene: vidljive.filter((x) => x.nadredenaId === id), uredaji };
+}
+
+/** Zaposlenik dopušta jednokratni ponovni upis uređaja (npr. nova instalacija agenta ili premještaj u drugu organizaciju). */
+export async function dopustiPonovniUpis(db: PrismaClient, a: Akter, id: string): Promise<void> {
+  if (!jeUuid(id)) throw new GreskaKorisniku("Uređaj ne postoji.");
+  await db.$transaction(async (tx) => {
+    const m = await tx.mdmUredaj.findFirst({ where: { id, firmaId: a.firmaId }, select: { serijski: true } });
+    if (!m) throw new GreskaKorisniku("Uređaj ne postoji.");
+    await tx.mdmUredaj.update({ where: { id }, data: { ponovniUpis: true } });
+    await zapisiDnevnik(tx, {
+      firmaId: a.firmaId,
+      korisnikId: a.korisnikId,
+      ip: a.ip,
+      radnja: "mdm.uredaji",
+      entitet: "MdmUredaj",
+      entitetId: id,
+      opis: `MDM ${m.serijski}: dopušten ponovni upis`,
+    });
+  });
 }

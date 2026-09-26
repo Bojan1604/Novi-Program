@@ -96,6 +96,16 @@ describe("MDM: nova verzija aplikacije stiže na uređaje", () => {
     expect(o3.naredbe).toEqual([expect.objectContaining({ vrsta: "INSTALIRAJ", parametri: { aplikacijaId: v2 } })]);
     expect(o3.aplikacije.map((a) => a.verzija)).toEqual(["2.0"]);
     expect((await javljanjeAgenta(prisma, tudji.token, { aplikacije: [] }))!.naredbe).toEqual([]);
+
+    // neuspjela instalacija ne ponavlja se odmah
+    await rezultatNaredbe(prisma, t.token, { naredbaId: o3.naredbe[0]!.id, uspjeh: false, poruka: "Nema prostora" });
+    expect((await javljanjeAgenta(prisma, t.token, { aplikacije: [{ paket: "com.firma.app", verzijaKod: 1 }] }))!.naredbe).toEqual([]);
+
+    // ručna instalacija starije verzije: agent dobiva i podatke za preuzimanje
+    const rucno = await posaljiNaredbu(prisma, A, t.id, "INSTALIRAJ", { aplikacijaId: v1 });
+    const o4 = (await javljanjeAgenta(prisma, t.token, { aplikacije: [] }))!;
+    expect(o4.naredbe.map((n) => n.id)).toContain(rucno);
+    expect(o4.aplikacije.map((a) => a.id).sort()).toEqual([v1, v2].sort());
   });
 });
 
@@ -143,9 +153,12 @@ describe("MDM: profili, naredbe, datoteke, zaslon, zapisnik", () => {
     expect(await snimkaAgenta(prisma, "lazni-token-lazni-token-lazni", snimi, PNG)).toBe(false);
     expect(await snimkaAgenta(prisma, w.token, snimi, PNG)).toBe(true);
     expect((await prisma.mdmNaredba.findUniqueOrThrow({ where: { id: snimi } })).status).toBe("IZVRSENA");
-    // snimka tuđe naredbe se sprema uz uređaj koji ju je poslao, a tuđa naredba ostaje netaknuta
-    expect(await snimkaAgenta(prisma, t.token, snimi, PNG)).toBe(true);
-    expect(await prisma.mdmSnimka.count({ where: { mdmUredajId: t.id, naredbaId: null } })).toBe(1);
+    // snimka bez vlastite naredbe koja čeka (tuđa, izvršena ili bez naredbe) se odbija
+    await expect(snimkaAgenta(prisma, t.token, snimi, PNG)).rejects.toThrow("Nema naredbe");
+    await expect(snimkaAgenta(prisma, w.token, snimi, PNG)).rejects.toThrow("Nema naredbe");
+    await expect(snimkaAgenta(prisma, w.token, null, PNG)).rejects.toThrow("Nema naredbe");
+    expect(await prisma.mdmSnimka.count()).toBe(1);
+    expect(await prisma.dnevnik.count({ where: { opis: { contains: "otkazana naredba" } } })).toBe(1);
 
     expect(await zapisnikAgenta(prisma, t.token, [{ razina: "GRESKA", poruka: "Instalacija nije uspjela" }, { poruka: "" }, 5])).toBe(1);
     expect(await zapisnikAgenta(prisma, "lazni-token-lazni-token-lazni", [{ poruka: "x" }])).toBeNull();
