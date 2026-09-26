@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GumbVeza } from "@/components/ui/gumb";
+import { GumbVeza, klaseGumba } from "@/components/ui/gumb";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
 import { danas, dodajDane } from "@/domain/datum";
 import { centiIzDecimala, formatirajIznos } from "@/domain/novac";
@@ -111,6 +111,9 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
             <>
               <IzdajDokument id={d.id} naziv={naziv.toLowerCase()} />
               <ObrisiNacrt id={d.id} />
+              <a href={`/api/prodaja/${d.id}/pdf`} target="_blank" rel="noopener" className={klaseGumba()}>
+                PDF
+              </a>
               <GumbVeza href={putanja(d.vrsta)}>Natrag</GumbVeza>
             </>
           }
@@ -175,6 +178,9 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
                 {skladista.length > 0 && <Storniraj id={d.id} skladista={skladista} />}
               </>
             )}
+            <a href={`/api/prodaja/${d.id}/pdf`} target="_blank" rel="noopener" className={klaseGumba()}>
+              PDF
+            </a>
             <GumbVeza href={putanja(d.vrsta)}>Natrag</GumbVeza>
           </>
         }

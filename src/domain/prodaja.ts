@@ -29,6 +29,8 @@ export const PRETVORBE: Record<VrstaProdaje, VrstaProdaje[]> = {
   PREDUJAM: [],
 };
 
+export const NACINI_PLACANJA: Record<string, string> = { T: "Transakcijski račun", G: "Gotovina", K: "Kartica", O: "Ostalo" };
+
 export const VRSTE_STAVKI = { UREDAJ: "Uređaj", MODEL: "Model", USLUGA: "Usluga", RUCNA: "Ručna stavka", PREDUJAM: "Odbitak predujma" } as const;
 export type VrstaStavke = keyof typeof VRSTE_STAVKI;
 export type Namjena = "PRODAJA" | "NAJAM";

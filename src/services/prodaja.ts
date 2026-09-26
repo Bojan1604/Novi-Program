@@ -423,7 +423,7 @@ export async function obrisiNacrt(db: PrismaClient, akter: Akter, id: string): P
 /** Cijene stavki za kupca (pri promjeni kupca na nacrtu): cjenik → popust cjenika → preporučena. */
 export { cijenaZaKupca } from "./partneri";
 
-export const NACINI_PLACANJA: Record<string, string> = { T: "Transakcijski račun", G: "Gotovina", K: "Kartica", O: "Ostalo" };
+export { NACINI_PLACANJA } from "@/domain/prodaja";
 
 /**
  * Izdavanje računa: broj redni/prostor/uređaj (bez rupa, datumi po pravilima), KPD na svakoj stavci,

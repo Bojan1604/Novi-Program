@@ -75,6 +75,9 @@ test("račun: skenirani uređaj, izdavanje s brojem, uređaj prodan, izdani se n
   await page.getByRole("button", { name: "Izdaj račun" }).click();
   await expect(page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ })).toBeVisible();
   await expect(page.getByTestId("stavke-dokumenta")).toContainText(`S/N: ${serijski}`);
+  const pdf = await page.request.get((await page.getByRole("link", { name: "PDF" }).getAttribute("href"))!);
+  expect(pdf.headers()["content-type"]).toBe("application/pdf");
+  expect((await pdf.body()).toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   await expect(page.getByRole("button", { name: "Spremi nacrt" })).toHaveCount(0);
 
   // plaćanje: djelomično 1.000,00 → otvoreno 250,00; zatim 300,00 → preplata 50,00; povrat 50,00 → plaćen
