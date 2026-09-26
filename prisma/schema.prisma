@@ -83,6 +83,7 @@ model Firma {
   prodajniDokumenti  ProdajniDokument[]
   eRacuni            ERacun[]
   eIzvjestaji        EIzvjestaj[]
+  ugovoriNajma       UgovorNajma[]
   stavkeDokumenata   StavkaSkladisnogDokumenta[]
   odobrenja          Odobrenje[]
   inventure          Inventura[]
@@ -376,6 +377,7 @@ model Partner {
   primke             Primka[]
   skladisniDokumenti SkladisniDokument[]
   prodajniDokumenti  ProdajniDokument[]
+  ugovoriNajma       UgovorNajma[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -401,6 +403,8 @@ model Poslovnica {
   partner           Partner            @relation(fields: [firmaId, partnerId], references: [firmaId, id])
   uredaji           Uredaj[]
   prodajniDokumenti ProdajniDokument[]
+
+  ugovoriNajma UgovorNajma[]
 
   @@unique([firmaId, id])
   @@index([partnerId])
@@ -980,4 +984,43 @@ model EIzvjestaj {
   @@unique([firmaId, id])
   @@unique([firmaId, uplataId])
   @@index([firmaId, status])
+}
+
+/// Ugovor o najmu (korak 3.2). Broj iz brojača ili ručni (ručni ne troši i ne blokira numeraciju).
+model UgovorNajma {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  firmaId         String    @db.Uuid
+  broj            String
+  /// iz brojača (null = ručni broj)
+  redni           Int?
+  godina          Int?
+  partnerId       String    @db.Uuid
+  poslovnicaId    String?   @db.Uuid
+  od              DateTime  @db.Date
+  /// kraj ugovora (null = na neodređeno); promjena samo kraja ne dira planove uređaja
+  do              DateTime? @db.Date
+  otkazan         DateTime? @db.Date
+  razlogOtkaza    String?
+  rokPlacanjaDana Int       @default(15)
+  nacinPlacanja   String    @default("T")
+  /// uvjeti ugovora (slobodan tekst) i napomena koja ide na račune za najam
+  uvjeti          String?
+  napomenaRacuna  String?
+  /// automatsko izdavanje rata (korak 3.7) od tog dana
+  automatski      Boolean   @default(false)
+  automatskiOd    DateTime? @db.Date
+  verzija         Int       @default(0)
+  korisnikId      String?   @db.Uuid
+  korisnik        String    @default("Sustav")
+  stvoreno        DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano       DateTime  @updatedAt @db.Timestamptz(3)
+
+  firma      Firma       @relation(fields: [firmaId], references: [id])
+  partner    Partner     @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  poslovnica Poslovnica? @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, broj])
+  @@index([firmaId, partnerId])
+  @@index([firmaId, od(sort: Desc)])
 }

@@ -48,6 +48,9 @@ export const AKCIJE = {
   "uplate.ponisti": { modul: "prodaja", razina: "puno" },
   "eracun.posalji": { modul: "prodaja", razina: "operativno" },
   "eracun.izvjestaji": { modul: "prodaja", razina: "puno" },
+  "najam.ugovor": { modul: "najam", razina: "operativno" },
+  "najam.otkaz": { modul: "najam", razina: "puno" },
+  "najam.prilozi": { modul: "najam", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -71,6 +74,7 @@ export const STRANICE = {
   "/ponude": { naziv: "Ponude i predračuni", modul: "prodaja", razina: "pregled" },
   "/racuni": { naziv: "Računi", modul: "prodaja", razina: "pregled" },
   "/eracuni": { naziv: "eRačuni", modul: "prodaja", razina: "pregled" },
+  "/najam": { naziv: "Ugovori o najmu", modul: "najam", razina: "pregled" },
   "/marze": { naziv: "Marže", modul: "prodaja", razina: "pregled", posebno: "costs" },
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
@@ -80,4 +84,5 @@ export type PutanjaStranice = keyof typeof STRANICE;
 /** Tko smije preuzeti prilog, po vrsti zapisa uz koji je (isto pravo kao za pregled tog zapisa). */
 export const PRAVA_PRILOGA: Record<string, PotrebnoPravo> = {
   Uredaj: { modul: "uredaji", razina: "pregled" },
+  UgovorNajma: { modul: "najam", razina: "pregled" },
 };
