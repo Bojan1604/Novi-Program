@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { danas, dodajDane } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
+import { imaPravo } from "@/domain/prava";
 import type { UlaznaStavka } from "@/domain/prodaja";
 import {
   cijenaUMjesecu,
@@ -25,7 +26,7 @@ import { brojUgovora, provjeriUgovor, type UnosUgovora } from "@/domain/ugovor-n
 import { GreskaKorisniku } from "@/lib/greske";
 import { sljedeciBroj } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
-import type { Akter } from "./korisnici";
+import { pravaClana, type Akter } from "./korisnici";
 import { izdajRacunUBazi, porukaFiskalizacije, spremiNacrt } from "./prodaja";
 import { promijeniStanje } from "./uredaji";
 
@@ -392,6 +393,8 @@ export async function izdajRate(
   ugovorId: string,
   doMjeseca: Mjesec,
   sada = new Date(),
+  /** automatsko izdavanje: samo rate od mjeseca uključivanja (starije zaostale izdaje korisnik) */
+  odMjeseca: Mjesec | null = null,
 ): Promise<{ id: string; broj: string; fiskal: string | null }> {
   if (!jeUuid(ugovorId)) throw new GreskaKorisniku("Ugovor ne postoji.");
   if (!jeMjesec(doMjeseca)) throw new GreskaKorisniku("Mjesec nije ispravan.");
@@ -400,7 +403,7 @@ export async function izdajRate(
     async (tx) => {
       const ug = await zakljucajUgovor(tx, f, ugovorId);
       const n = await podaciZaNaplatu(tx, f, ugovorId);
-      const rate = zaIzdati(n.uvjeti, n.motor, n.fakturirano, doMjeseca);
+      const rate = zaIzdati(n.uvjeti, n.motor, n.fakturirano, doMjeseca).filter((r) => !odMjeseca || r.mjesec >= odMjeseca);
       if (!rate.length) throw new GreskaKorisniku("Nema rata za izdati.");
       const { stavke, greska } = stavkeRata(n, rate);
       if (greska) throw new GreskaKorisniku(greska);
@@ -619,4 +622,70 @@ export function visakUgovora(n: Awaited<ReturnType<typeof podaciZaNaplatu>>) {
       dokumentId: p.rate.find((r) => uMjesec(r.mjesec) === x.mjesec)?.dokumentId ?? null,
     })),
   );
+}
+
+// ——— automatsko izdavanje (korak 3.7) ———
+
+/** Uključivanje/isključivanje automatskog izdavanja: vrijedi od danas (ranije rate izdaje korisnik). */
+export async function postaviAutomatsko(db: PrismaClient, akter: Akter, ugovorId: string, ukljuci: boolean, sada = new Date()) {
+  if (!jeUuid(ugovorId)) throw new GreskaKorisniku("Ugovor ne postoji.");
+  await db.$transaction(async (tx) => {
+    const ug = await zakljucajUgovor(tx, akter.firmaId, ugovorId);
+    if (ug.automatski === ukljuci) return;
+    await tx.ugovorNajma.update({
+      where: { id: ugovorId },
+      data: {
+        automatski: ukljuci,
+        automatskiOd: ukljuci ? d(danas(sada)) : null,
+        automatskiKorisnikId: ukljuci ? akter.korisnikId : null,
+        verzija: { increment: 1 },
+      },
+    });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.automatski",
+      entitet: "UgovorNajma",
+      entitetId: ugovorId,
+      opis: `Ugovor ${ug.broj}: automatsko izdavanje ${ukljuci ? `uključeno od ${danas(sada).split("-").reverse().join(".")}.` : "isključeno"}`,
+    });
+  });
+}
+
+/**
+ * Pozadinski posao (jednom na sat; ponovno pokretanje ne izdaje ništa): za ugovore s automatskim izdavanjem
+ * izdaje rate tekućeg mjeseca (i propuštene od dana uključivanja) u ime korisnika koji ga je uključio.
+ */
+export async function automatskoIzdavanje(db: PrismaClient, sada = new Date()): Promise<{ izdano: number; greske: string[] }> {
+  const ugovori = await db.ugovorNajma.findMany({
+    where: { automatski: true, automatskiOd: { lte: d(danas(sada)) }, uredaji: { some: {} } },
+    select: { id: true, firmaId: true, broj: true, automatskiOd: true, automatskiKorisnikId: true },
+  });
+  let izdano = 0;
+  const greske: string[] = [];
+  const tekuci = mjesecOd(danas(sada));
+  for (const u of ugovori) {
+    try {
+      if (!u.automatskiKorisnikId) throw new GreskaKorisniku("nije poznato tko je uključio izdavanje");
+      const prava = await pravaClana(db, u.firmaId, u.automatskiKorisnikId);
+      if (!prava || !imaPravo(prava, "najam", "operativno")) throw new GreskaKorisniku("korisnik koji je uključio izdavanje više nema pravo");
+      await izdajRate(
+        db,
+        { firmaId: u.firmaId, korisnikId: u.automatskiKorisnikId, prava, ip: null },
+        u.id,
+        tekuci,
+        sada,
+        mjesecOd(dan(u.automatskiOd)!),
+      );
+      izdano++;
+      await db.ugovorNajma.updateMany({ where: { id: u.id, firmaId: u.firmaId, automatskiGreska: { not: null } }, data: { automatskiGreska: null } });
+    } catch (e) {
+      if (e instanceof GreskaKorisniku && e.message === "Nema rata za izdati.") continue;
+      const poruka = e instanceof Error ? e.message : "greška";
+      greske.push(`${u.broj}: ${poruka}`);
+      await db.ugovorNajma.updateMany({ where: { id: u.id, firmaId: u.firmaId }, data: { automatskiGreska: poruka.slice(0, 500) } });
+    }
+  }
+  return { izdano, greske };
 }

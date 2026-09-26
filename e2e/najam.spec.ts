@@ -68,6 +68,13 @@ test("ugovor o najmu: otvaranje, izmjena kraja, prilog, otkaz", async ({ page })
   await expect(povrat.getByText(/Uređaj je vraćen/)).toBeVisible();
   await expect(page.getByTestId("visak")).toContainText(`E2E-NAJAM-${p}-2`);
 
+  // automatsko izdavanje: uključi pa isključi
+  const auto = page.getByTestId("automatsko");
+  await auto.getByRole("button", { name: "Uključi automatsko izdavanje" }).click();
+  await expect(auto).toContainText("Automatsko izdavanje uključeno od");
+  await auto.getByRole("button", { name: "Isključi automatsko izdavanje" }).click();
+  await expect(auto.getByRole("button", { name: "Uključi automatsko izdavanje" })).toBeVisible();
+
   await page
     .getByLabel(/Datoteke/)
     .setInputFiles({ name: "potpisan-ugovor.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF") });

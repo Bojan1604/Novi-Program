@@ -5,7 +5,7 @@ import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Polje } from "@/components/ui/polje";
 import type { Odgovor } from "@/lib/greske";
-import { izdajRateAkcija, izvanProgramaAkcija } from "./akcije";
+import { automatskoAkcija, izdajRateAkcija, izvanProgramaAkcija } from "./akcije";
 
 function Poruka({ s }: { s: Odgovor | undefined }) {
   return s ? s.ok ? <Obavijest vrsta="uspjeh">{s.poruka}</Obavijest> : <Obavijest vrsta="greska">{s.greska}</Obavijest> : null;
@@ -42,6 +42,36 @@ export function IzvanPrograma({ ugovorId, planId, mjesec, izvan }: { ugovorId: s
       <Gumb type="submit" malen varijanta="tihi" disabled={uTijeku}>
         {izvan ? "Izdano izvan programa" : "Vrati"}
       </Gumb>
+    </form>
+  );
+}
+
+export function AutomatskoIzdavanje({
+  ugovorId,
+  ukljuceno,
+  od,
+  greska,
+}: {
+  ugovorId: string;
+  ukljuceno: boolean;
+  od: string | null;
+  greska: string | null;
+}) {
+  const [stanje, posalji, uTijeku] = useActionState(() => automatskoAkcija(ugovorId, !ukljuceno), undefined);
+  return (
+    <form action={posalji} className="flex flex-col gap-2" data-testid="automatsko">
+      <p className="text-sm">
+        {ukljuceno
+          ? `Automatsko izdavanje uključeno od ${od?.split("-").reverse().join(".")}. — rate se izdaju same (tekući mjesec, jednom).`
+          : "Rate se izdaju ručno. Automatsko izdavanje izdaje samo rate od dana uključivanja."}
+      </p>
+      {ukljuceno && greska && <Obavijest vrsta="greska">Zadnji pokušaj nije uspio: {greska}</Obavijest>}
+      <div>
+        <Gumb type="submit" disabled={uTijeku}>
+          {ukljuceno ? "Isključi automatsko izdavanje" : "Uključi automatsko izdavanje"}
+        </Gumb>
+      </div>
+      <Poruka s={stanje} />
     </form>
   );
 }

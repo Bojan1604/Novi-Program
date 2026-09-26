@@ -13,7 +13,7 @@ import { dodajPrilogeUgovoraAkcija, obrisiPrilogUgovoraAkcija } from "../akcije"
 import { ObrazacUgovora, OtkazUgovora } from "../obrazac";
 import { DodajUredaje, PauzaUgovora, PovratUredaja, UredajiUgovora, type RedakPlana } from "../uredaji";
 import { cijenaUMjesecu, mjesecOd, prvaNeizdana, rateUredaja, sljedeciMjesec, zaIzdati } from "@/domain/najam";
-import { IzdajRate, IzvanPrograma } from "../rate";
+import { AutomatskoIzdavanje, IzdajRate, IzvanPrograma } from "../rate";
 import { formatirajIznos } from "@/domain/novac";
 import { podaciZaNaplatu, visakUgovora } from "@/services/najam";
 import { db } from "@/lib/db";
@@ -191,6 +191,11 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
           <p className="mb-3 text-sm text-neutral-500">Sve rate do tekućeg mjeseca su izdane.</p>
         )}
         {smije && n.planovi.length > 0 && <IzdajRate ugovorId={u.id} mjesec={tekuci} />}
+        {smije && (
+          <div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+            <AutomatskoIzdavanje ugovorId={u.id} ukljuceno={u.automatski} od={dan(u.automatskiOd)} greska={u.automatskiGreska} />
+          </div>
+        )}
         {izdane.length > 0 && (
           <details className="mt-4">
             <summary className="cursor-pointer text-sm font-medium">Izdane rate ({izdane.length})</summary>

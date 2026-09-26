@@ -997,32 +997,36 @@ model EIzvjestaj {
 
 /// Ugovor o najmu (korak 3.2). Broj iz brojača ili ručni (ručni ne troši i ne blokira numeraciju).
 model UgovorNajma {
-  id              String    @id @default(uuid(7)) @db.Uuid
-  firmaId         String    @db.Uuid
-  broj            String
+  id                   String    @id @default(uuid(7)) @db.Uuid
+  firmaId              String    @db.Uuid
+  broj                 String
   /// iz brojača (null = ručni broj)
-  redni           Int?
-  godina          Int?
-  partnerId       String    @db.Uuid
-  poslovnicaId    String?   @db.Uuid
-  od              DateTime  @db.Date
+  redni                Int?
+  godina               Int?
+  partnerId            String    @db.Uuid
+  poslovnicaId         String?   @db.Uuid
+  od                   DateTime  @db.Date
   /// kraj ugovora (null = na neodređeno); promjena samo kraja ne dira planove uređaja
-  do              DateTime? @db.Date
-  otkazan         DateTime? @db.Date
-  razlogOtkaza    String?
-  rokPlacanjaDana Int       @default(15)
-  nacinPlacanja   String    @default("T")
+  do                   DateTime? @db.Date
+  otkazan              DateTime? @db.Date
+  razlogOtkaza         String?
+  rokPlacanjaDana      Int       @default(15)
+  nacinPlacanja        String    @default("T")
   /// uvjeti ugovora (slobodan tekst) i napomena koja ide na račune za najam
-  uvjeti          String?
-  napomenaRacuna  String?
+  uvjeti               String?
+  napomenaRacuna       String?
   /// automatsko izdavanje rata (korak 3.7) od tog dana
-  automatski      Boolean   @default(false)
-  automatskiOd    DateTime? @db.Date
-  verzija         Int       @default(0)
-  korisnikId      String?   @db.Uuid
-  korisnik        String    @default("Sustav")
-  stvoreno        DateTime  @default(now()) @db.Timestamptz(3)
-  azurirano       DateTime  @updatedAt @db.Timestamptz(3)
+  automatski           Boolean   @default(false)
+  automatskiOd         DateTime? @db.Date
+  /// korisnik koji je uključio automatsko izdavanje (u njegovo ime se izdaje; bez prava → ne izdaje)
+  automatskiKorisnikId String?   @db.Uuid
+  /// zadnja greška automatskog izdavanja (prikazuje se na ugovoru; briše se kad izdavanje uspije)
+  automatskiGreska     String?
+  verzija              Int       @default(0)
+  korisnikId           String?   @db.Uuid
+  korisnik             String    @default("Sustav")
+  stvoreno             DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano            DateTime  @updatedAt @db.Timestamptz(3)
 
   firma      Firma       @relation(fields: [firmaId], references: [id])
   partner    Partner     @relation(fields: [firmaId, partnerId], references: [firmaId, id])

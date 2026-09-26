@@ -14,6 +14,7 @@ import {
   otkaziUgovor,
   postaviCijenu,
   pauzirajUgovor,
+  postaviAutomatsko,
   postaviMjesec,
   spremiUgovor,
   vratiUredaj,
@@ -166,5 +167,13 @@ export async function pauzaUgovoraAkcija(ugovorId: string, _p: Odgovor | undefin
     revalidatePath(`/najam/${ugovorId}`);
     revalidatePath(`/najam/${ugovorId}/raspored`);
     return { ok: true, poruka: pauza ? `Pauza je postavljena za ${n} uređaja.` : "Pauza je ukinuta." };
+  });
+}
+
+export async function automatskoAkcija(ugovorId: string, ukljuci: boolean): Promise<Odgovor> {
+  return akcija("najam.izdaj", async (k): Promise<Odgovor> => {
+    await postaviAutomatsko(db, k, String(ugovorId), ukljuci === true);
+    revalidatePath(`/najam/${ugovorId}`);
+    return { ok: true, poruka: ukljuci ? "Automatsko izdavanje je uključeno od danas." : "Automatsko izdavanje je isključeno." };
   });
 }
