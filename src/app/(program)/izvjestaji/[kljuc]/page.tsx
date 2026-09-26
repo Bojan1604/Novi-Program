@@ -33,7 +33,7 @@ export default async function Izvjestaj({ params, searchParams }: PageProps<"/iz
   const vel = velicina(sp["velicina"]);
   const dan = danas();
   const [{ sort, rezultat }, prvi, opcije] = await Promise.all([
-    pokreni(iz, db, k.firmaId, sp, { skip: (str - 1) * vel, take: vel }, dan),
+    pokreni(iz, db, k.firmaId, k.prava, sp, { skip: (str - 1) * vel, take: vel }, dan),
     k.db.prodajniDokument.findFirst({ where: { firmaId: k.firmaId }, orderBy: { datum: "asc" }, select: { datum: true } }),
     Promise.all((iz.vise ?? []).map(async (v) => ({ ...v, lista: await v.opcije(db, k.firmaId) }))),
   ]);

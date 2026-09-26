@@ -16,6 +16,7 @@ export async function pokreni(
   iz: Izvjestaj,
   db: PrismaClient,
   firmaId: string,
+  prava: Prava,
   sp: ParametriUrl,
   str: { skip: number; take: number },
   danas: string,
@@ -28,6 +29,11 @@ export async function pokreni(
   const smjer = sort.smjer === "desc" ? Prisma.sql`DESC NULLS LAST` : Prisma.sql`ASC NULLS FIRST`;
   const trazi = iz.trazi ? (jedan(sp["trazi"])?.slice(0, 100) ?? null) : null;
   const viseF = Object.fromEntries((iz.vise ?? []).map((v) => [v.kljuc, vise(sp[v.kljuc]).slice(0, 50)]));
-  const rezultat = await iz.upit(db, firmaId, { od: g.od, do: g.do, trazi, vise: viseF }, { ...str, sort: Prisma.sql`${stupac.sort!} ${smjer}` });
+  const rezultat = await iz.upit(
+    db,
+    firmaId,
+    { od: g.od, do: g.do, trazi, vise: viseF, prava, sort },
+    { ...str, sort: Prisma.sql`${stupac.sort!} ${smjer}` },
+  );
   return { razdoblje, sort, rezultat };
 }

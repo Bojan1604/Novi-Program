@@ -308,7 +308,7 @@ for (const iz of IZVJESTAJI)
     prava: iz.prava,
     stupci: iz.stupci,
     dohvati: async (k, sp, najvise) => {
-      const { rezultat } = await pokreni(iz, bazaBezFirme, k.firmaId, sp, { skip: 0, take: najvise }, danas());
+      const { rezultat } = await pokreni(iz, bazaBezFirme, k.firmaId, k.prava, sp, { skip: 0, take: najvise }, danas());
       const prvi = iz.stupci[0]!.kljuc;
       return [...rezultat.redovi, { ...rezultat.zbroj, [prvi]: "Ukupno" }];
     },

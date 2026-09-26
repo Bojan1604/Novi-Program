@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { punaPrava } from "@/domain/prava";
 import { napraviFirmu, ocistiBazu, testnaPrisma } from "@/test/baza";
 import { IZVJESTAJI, izvjestaj } from ".";
 import { pokreni } from "./izvrsi";
@@ -8,6 +9,7 @@ afterAll(() => prisma.$disconnect());
 beforeEach(() => ocistiBazu(prisma));
 
 const DANAS = "2026-09-26";
+const PRAVA = punaPrava();
 
 async function pripremi() {
   const firma = await napraviFirmu(prisma);
@@ -83,7 +85,7 @@ async function pripremi() {
 
 const sve = async (kljuc: string, firmaId: string, sp: Record<string, string>) => {
   const iz = izvjestaj(kljuc)!;
-  const r = await pokreni(iz, prisma, firmaId, sp, { skip: 0, take: 1000 }, DANAS);
+  const r = await pokreni(iz, prisma, firmaId, PRAVA, sp, { skip: 0, take: 1000 }, DANAS);
   return r.rezultat;
 };
 
@@ -135,11 +137,11 @@ describe("izvještaji prodaje", () => {
     for (const iz of IZVJESTAJI) {
       for (const s of iz.stupci.filter((x) => x.sort))
         for (const smjer of ["asc", "desc"]) {
-          const r = await pokreni(iz, prisma, firma.id, { godina: "sve", sort: s.kljuc, smjer }, { skip: 0, take: 2 }, DANAS);
+          const r = await pokreni(iz, prisma, firma.id, PRAVA, { godina: "sve", sort: s.kljuc, smjer }, { skip: 0, take: 2 }, DANAS);
           expect(r.sort).toEqual({ kljuc: s.kljuc, smjer });
           expect(r.rezultat.redovi.length).toBeLessThanOrEqual(2);
         }
-      const str2 = await pokreni(iz, prisma, firma.id, { godina: "sve" }, { skip: 2, take: 2 }, DANAS);
+      const str2 = await pokreni(iz, prisma, firma.id, PRAVA, { godina: "sve" }, { skip: 2, take: 2 }, DANAS);
       expect(str2.rezultat.ukupno).toBeGreaterThanOrEqual(str2.rezultat.redovi.length);
     }
   });

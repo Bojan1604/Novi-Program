@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import type { Prava } from "@/domain/prava";
 import type { PotrebnoPravo } from "@/lib/akcije-prava";
 import type { StupacIzvoza } from "@/lib/izvoz/stupci";
 
@@ -22,6 +23,10 @@ export type FiltriUpita = {
   do: string | null;
   trazi: string | null;
   vise: Record<string, string[]>;
+  /** prava korisnika (npr. trošak robe samo uz „costs“) */
+  prava: Prava;
+  /** odabrano sortiranje (za izvještaje koji slažu u memoriji) */
+  sort: { kljuc: string; smjer: "asc" | "desc" };
 };
 
 export type StranicaUpita = { skip: number; take: number; sort: Prisma.Sql };
