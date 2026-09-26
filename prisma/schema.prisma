@@ -64,42 +64,45 @@ model Firma {
   uloge    Uloga[]
   dnevnik  Dnevnik[]
 
-  kategorije         Kategorija[]
-  proizvodjaci       Proizvodjac[]
-  modeli             ModelUredaja[]
-  skladista          Skladiste[]
-  stanjaRobe         StanjeRobe[]
-  usluge             Usluga[]
-  partneri           Partner[]
-  poslovnice         Poslovnica[]
-  cjenici            Cjenik[]
-  stavkeCjenika      StavkaCjenika[]
-  uredaji            Uredaj[]
-  dogadaji           DogadajUredaja[]
-  brojaci            Brojac[]
-  primke             Primka[]
-  prilozi            Prilog[]
-  skladisniDokumenti SkladisniDokument[]
-  prodajniDokumenti  ProdajniDokument[]
-  eRacuni            ERacun[]
-  eIzvjestaji        EIzvjestaj[]
-  ugovoriNajma       UgovorNajma[]
-  planoviNajma       UredajNaUgovoru[]
-  cijeneNajma        CijenaNajma[]
-  mjeseciNajma       MjesecNajma[]
-  rateNajma          RataNajma[]
-  narudzbenice       Narudzbenica[]
-  stavkeNarudzbenica StavkaNarudzbenice[]
-  stavkeDokumenata   StavkaSkladisnogDokumenta[]
-  odobrenja          Odobrenje[]
-  inventure          Inventura[]
-  stavkeInventure    StavkaInventure[]
-  stavkeProdaje      StavkaProdajnogDokumenta[]
-  uredajiNaStavkama  UredajNaStavci[]
-  uplate             Uplata[]
-  slanjaEposte       SlanjeEposte[]
-  placanjaUlaznih    PlacanjeUlaznog[]
-  ulazniRacuni       UlazniRacun[]
+  kategorije           Kategorija[]
+  proizvodjaci         Proizvodjac[]
+  modeli               ModelUredaja[]
+  skladista            Skladiste[]
+  stanjaRobe           StanjeRobe[]
+  usluge               Usluga[]
+  partneri             Partner[]
+  poslovnice           Poslovnica[]
+  cjenici              Cjenik[]
+  stavkeCjenika        StavkaCjenika[]
+  uredaji              Uredaj[]
+  dogadaji             DogadajUredaja[]
+  brojaci              Brojac[]
+  primke               Primka[]
+  prilozi              Prilog[]
+  skladisniDokumenti   SkladisniDokument[]
+  prodajniDokumenti    ProdajniDokument[]
+  eRacuni              ERacun[]
+  eIzvjestaji          EIzvjestaj[]
+  ugovoriNajma         UgovorNajma[]
+  planoviNajma         UredajNaUgovoru[]
+  cijeneNajma          CijenaNajma[]
+  mjeseciNajma         MjesecNajma[]
+  rateNajma            RataNajma[]
+  narudzbenice         Narudzbenica[]
+  stavkeNarudzbenica   StavkaNarudzbenice[]
+  stavkeDokumenata     StavkaSkladisnogDokumenta[]
+  odobrenja            Odobrenje[]
+  inventure            Inventura[]
+  stavkeInventure      StavkaInventure[]
+  stavkeProdaje        StavkaProdajnogDokumenta[]
+  uredajiNaStavkama    UredajNaStavci[]
+  uplate               Uplata[]
+  slanjaEposte         SlanjeEposte[]
+  placanjaUlaznih      PlacanjeUlaznog[]
+  kategorijeTroska     KategorijaTroska[]
+  troskovi             Trosak[]
+  ponavljajuciTroskovi PonavljajuciTrosak[]
+  ulazniRacuni         UlazniRacun[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -1263,4 +1266,73 @@ model PlacanjeUlaznog {
 
   @@unique([firmaId, id])
   @@index([firmaId, ulazniRacunId])
+}
+
+/// Kategorija troška (korak 4.5).
+model KategorijaTroska {
+  id      String  @id @default(uuid(7)) @db.Uuid
+  firmaId String  @db.Uuid
+  naziv   String
+  aktivna Boolean @default(true)
+
+  firma        Firma                @relation(fields: [firmaId], references: [id])
+  troskovi     Trosak[]
+  ponavljajuci PonavljajuciTrosak[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, naziv])
+}
+
+/// Ručni ili ponavljajući trošak (troškovi robe, primki i ulaznih računa računaju se iz svojih dokumenata).
+model Trosak {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  firmaId        String    @db.Uuid
+  datum          DateTime  @db.Date
+  kategorijaId   String    @db.Uuid
+  opis           String
+  /// bez PDV-a; PDV zasebno (pretporez)
+  iznos          Decimal   @db.Decimal(14, 2)
+  pdv            Decimal   @default(0) @db.Decimal(14, 2)
+  /// plaćeno (može se i vratiti na neplaćeno)
+  placeno        Boolean   @default(false)
+  datumPlacanja  DateTime? @db.Date
+  ponavljajuciId String?   @db.Uuid
+  /// mjesec ponavljajućeg troška (jedan trošak po mjesecu)
+  mjesec         DateTime? @db.Date
+  korisnikId     String?   @db.Uuid
+  korisnik       String    @default("Sustav")
+  stvoreno       DateTime  @default(now()) @db.Timestamptz(3)
+
+  firma        Firma               @relation(fields: [firmaId], references: [id])
+  kategorija   KategorijaTroska    @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
+  ponavljajuci PonavljajuciTrosak? @relation(fields: [firmaId, ponavljajuciId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, ponavljajuciId, mjesec])
+  @@index([firmaId, datum(sort: Desc)])
+}
+
+/// Ponavljajući mjesečni trošak (npr. najam prostora): stvara se sam, jednom po mjesecu.
+model PonavljajuciTrosak {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  firmaId      String    @db.Uuid
+  kategorijaId String    @db.Uuid
+  opis         String
+  iznos        Decimal   @db.Decimal(14, 2)
+  pdv          Decimal   @default(0) @db.Decimal(14, 2)
+  dan          Int
+  od           DateTime  @db.Date
+  do           DateTime? @db.Date
+  /// zadnji mjesec za koji je trošak stvoren
+  zadnji       DateTime? @db.Date
+  aktivan      Boolean   @default(true)
+  korisnikId   String?   @db.Uuid
+  korisnik     String    @default("Sustav")
+  stvoreno     DateTime  @default(now()) @db.Timestamptz(3)
+
+  firma      Firma            @relation(fields: [firmaId], references: [id])
+  kategorija KategorijaTroska @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
+  troskovi   Trosak[]
+
+  @@unique([firmaId, id])
 }

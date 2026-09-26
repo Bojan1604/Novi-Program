@@ -62,6 +62,9 @@ export const AKCIJE = {
   "ulazni.prilozi": { modul: "nabava", razina: "operativno" },
   "ulazni.eracun": { modul: "nabava", razina: "operativno" },
   "ulazni.plati": { modul: "nabava", razina: "operativno" },
+  "troskovi.spremi": { modul: "troskovi", razina: "operativno" },
+  "troskovi.obrisi": { modul: "troskovi", razina: "puno" },
+  "troskovi.prilozi": { modul: "troskovi", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -89,6 +92,7 @@ export const STRANICE = {
   "/najam/rate": { naziv: "Rate za izdati", modul: "najam", razina: "operativno" },
   "/nabava": { naziv: "Narudžbenice", modul: "nabava", razina: "pregled" },
   "/ulazni": { naziv: "Ulazni računi", modul: "nabava", razina: "pregled" },
+  "/troskovi": { naziv: "Troškovi", modul: "troskovi", razina: "pregled" },
   "/marze": { naziv: "Marže", modul: "prodaja", razina: "pregled", posebno: "costs" },
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
@@ -100,4 +104,5 @@ export const PRAVA_PRILOGA: Record<string, PotrebnoPravo> = {
   Uredaj: { modul: "uredaji", razina: "pregled" },
   UgovorNajma: { modul: "najam", razina: "pregled" },
   UlazniRacun: { modul: "nabava", razina: "pregled" },
+  Trosak: { modul: "troskovi", razina: "pregled" },
 };

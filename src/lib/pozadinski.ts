@@ -1,5 +1,6 @@
 import { posaljiIzvjestaje } from "@/services/eracun";
 import { automatskoIzdavanje } from "@/services/najam";
+import { stvoriPonavljajuce } from "@/services/troskovi";
 import { dostaviNaknadno } from "@/services/fiskalizacija";
 import { db } from "./db";
 
@@ -18,6 +19,7 @@ export function pokreniPozadinskePoslove() {
       await dostaviNaknadno(db);
       if (krugova++ % 60 === 0) {
         await posaljiIzvjestaje(db, null);
+        await stvoriPonavljajuce(db, null);
         const a = await automatskoIzdavanje(db);
         if (a.greske.length) console.error("Automatsko izdavanje najma:", a.greske.join("; "));
       }
