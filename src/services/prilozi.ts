@@ -16,6 +16,12 @@ const VLASNICI: Record<string, (tx: Tx, firmaId: string, id: string) => Promise<
     >`SELECT serijski FROM "Uredaj" WHERE id = ${id}::uuid AND "firmaId" = ${firmaId}::uuid FOR UPDATE`;
     return r[0] ? `uređaj ${r[0].serijski}` : null;
   },
+  UlazniRacun: async (tx, firmaId, id) => {
+    const r = await tx.$queryRaw<
+      { interni: string }[]
+    >`SELECT interni FROM "UlazniRacun" WHERE id = ${id}::uuid AND "firmaId" = ${firmaId}::uuid FOR UPDATE`;
+    return r[0] ? `ulazni račun ${r[0].interni}` : null;
+  },
   UgovorNajma: async (tx, firmaId, id) => {
     const r = await tx.$queryRaw<
       { broj: string }[]

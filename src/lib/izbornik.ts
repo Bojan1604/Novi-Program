@@ -5,7 +5,7 @@ const GRUPE: { grupa: string; putanje: PutanjaStranice[] }[] = [
   { grupa: "Pregled", putanje: ["/"] },
   { grupa: "Prodaja", putanje: ["/racuni", "/ponude", "/eracuni", "/marze"] },
   { grupa: "Najam", putanje: ["/najam", "/najam/rate"] },
-  { grupa: "Nabava", putanje: ["/nabava"] },
+  { grupa: "Nabava", putanje: ["/nabava", "/ulazni"] },
   { grupa: "Partneri", putanje: ["/partneri", "/cjenici"] },
   { grupa: "Skladište", putanje: ["/uredaji", "/skeniranje", "/primke", "/skladisni", "/odobrenja", "/inventure", "/sifrarnici"] },
   { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik", "/postavke", "/moj-racun"] },

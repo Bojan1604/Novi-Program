@@ -98,6 +98,7 @@ model Firma {
   uredajiNaStavkama  UredajNaStavci[]
   uplate             Uplata[]
   slanjaEposte       SlanjeEposte[]
+  ulazniRacuni       UlazniRacun[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -387,6 +388,7 @@ model Partner {
   prodajniDokumenti  ProdajniDokument[]
   narudzbenice       Narudzbenica[]
   ugovoriNajma       UgovorNajma[]
+  ulazniRacuni       UlazniRacun[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -615,6 +617,7 @@ model Primka {
   skladiste    Skladiste     @relation(fields: [firmaId, skladisteId], references: [firmaId, id])
   narudzbenica Narudzbenica? @relation(fields: [firmaId, narudzbenicaId], references: [firmaId, id])
   uredaji      Uredaj[]
+  ulazniRacuni UlazniRacun[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, godina, redni])
@@ -1156,10 +1159,11 @@ model Narudzbenica {
   stvoreno    DateTime @default(now()) @db.Timestamptz(3)
   azurirano   DateTime @updatedAt @db.Timestamptz(3)
 
-  firma     Firma                @relation(fields: [firmaId], references: [id])
-  dobavljac Partner              @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
-  stavke    StavkaNarudzbenice[]
-  primke    Primka[]
+  firma        Firma                @relation(fields: [firmaId], references: [id])
+  dobavljac    Partner              @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
+  stavke       StavkaNarudzbenice[]
+  primke       Primka[]
+  ulazniRacuni UlazniRacun[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, godina, redni])
@@ -1186,4 +1190,54 @@ model StavkaNarudzbenice {
 
   @@unique([firmaId, id])
   @@index([firmaId, narudzbenicaId])
+}
+
+/// Ulazni račun dobavljača (korak 4.3 ručni, 4.4 eRačun). Oznaka „račun za robu“ ulazi u pravilo troška robe (domain/trosak-robe.ts).
+model UlazniRacun {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  firmaId         String    @db.Uuid
+  /// URA-4/2026 (interni broj knjige ulaznih računa)
+  interni         String
+  godina          Int
+  redni           Int
+  /// broj računa kod dobavljača
+  broj            String
+  datum           DateTime  @db.Date
+  dospijece       DateTime? @db.Date
+  /// dobavljač iz šifrarnika ili slobodnim tekstom (npr. jednokratni)
+  dobavljacId     String?   @db.Uuid
+  dobavljacTekst  String?
+  dobavljacOib    String?   @db.Char(11)
+  narudzbenicaId  String?   @db.Uuid
+  primkaId        String?   @db.Uuid
+  /// „račun za robu“ (inače prijevoz/usluga — uvijek zaseban trošak)
+  zaRobu          Boolean   @default(false)
+  osnovica        Decimal   @db.Decimal(14, 2)
+  pdv             Decimal   @db.Decimal(14, 2)
+  ukupno          Decimal   @db.Decimal(14, 2)
+  placeno         Decimal   @default(0) @db.Decimal(14, 2)
+  opis            String?
+  /// RUCNI ili ERACUN
+  izvor           String    @default("RUCNI")
+  /// EVIDENTIRAN, STORNIRAN; eRačun: PRIMLJEN (čeka prihvat), PRIHVACEN, ODBIJEN
+  status          String    @default("EVIDENTIRAN")
+  razlogOdbijanja String?
+  eRacunId        String?
+  xml             String?
+  verzija         Int       @default(0)
+  korisnikId      String?   @db.Uuid
+  korisnik        String    @default("Sustav")
+  stvoreno        DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano       DateTime  @updatedAt @db.Timestamptz(3)
+
+  firma        Firma         @relation(fields: [firmaId], references: [id])
+  dobavljac    Partner?      @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
+  narudzbenica Narudzbenica? @relation(fields: [firmaId, narudzbenicaId], references: [firmaId, id])
+  primka       Primka?       @relation(fields: [firmaId, primkaId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, godina, redni])
+  @@index([firmaId, datum(sort: Desc)])
+  @@index([firmaId, narudzbenicaId])
+  @@index([firmaId, eRacunId])
 }

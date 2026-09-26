@@ -9,6 +9,8 @@ import { centiIzDecimala, formatirajIznos } from "@/domain/novac";
 import { imaPosebno, imaPravo } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
 import { StatusNarudzbenice, Zaprimanje } from "../obrasci";
+import { trosakPoNarudzbenici } from "@/services/ulazni-racuni";
+import { db } from "@/lib/db";
 
 export const metadata = { title: "Narudžbenica · ERP-WMS" };
 export const dynamic = "force-dynamic";
@@ -29,6 +31,12 @@ export default async function Narudzbenica({ params }: PageProps<"/nabava/[id]">
   });
   if (!n) notFound();
   const vidiCijene = imaPosebno(k.prava, "costs");
+  const trosak = vidiCijene ? await trosakPoNarudzbenici(db, k.firmaId, n.id) : null;
+  const racuni = await k.db.ulazniRacun.findMany({
+    where: { firmaId: k.firmaId, narudzbenicaId: n.id },
+    orderBy: { datum: "asc" },
+    select: { id: true, interni: true, broj: true, zaRobu: true, status: true },
+  });
   const osnovica = centiIzDecimala(n.osnovica.toFixed(2));
   const pdv = pdvNabave(n.pdvRezim as PdvRezim, osnovica);
   const otvorena = n.status === "OTVORENA" || n.status === "DJELOMICNO";
@@ -116,6 +124,44 @@ export default async function Narudzbenica({ params }: PageProps<"/nabava/[id]">
           />
         </Kartica>
       )}
+      <Kartica naslov={`Ulazni računi (${racuni.length})`}>
+        {racuni.length > 0 && (
+          <ul className="mb-3 flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="racuni-narudzbenice">
+            {racuni.map((r) => (
+              <li key={r.id} className="flex justify-between gap-2 py-1.5">
+                <Link href={`/ulazni/${r.id}`} className="text-primarna hover:underline">
+                  {r.interni} · {r.broj}
+                </Link>
+                <span>
+                  {r.zaRobu ? "roba" : "prijevoz / usluga"}
+                  {r.status === "STORNIRAN" || r.status === "ODBIJEN" ? " · ne računa se" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {imaPravo(k.prava, "nabava", "operativno") && <GumbVeza href={`/ulazni/novi?narudzbenica=${n.id}`}>Upiši ulazni račun</GumbVeza>}
+        {trosak && (
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4" data-testid="trosak-robe">
+            <div>
+              <dt className="text-xs text-neutral-500">Primke</dt>
+              <dd>{formatirajIznos(trosak.primke)} €</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">Računi za robu</dt>
+              <dd>{formatirajIznos(trosak.racuniRobe)} €</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">Trošak robe (veći)</dt>
+              <dd className="font-medium">{formatirajIznos(trosak.roba)} €</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">Prijevoz i usluge</dt>
+              <dd>{formatirajIznos(trosak.zasebno)} €</dd>
+            </div>
+          </dl>
+        )}
+      </Kartica>
       <Kartica naslov={`Primke (${n.primke.length})`}>
         {n.primke.length ? (
           <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="primke-narudzbenice">
