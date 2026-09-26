@@ -16,6 +16,7 @@ const MATRICA: Record<VrstaRadnje, Record<Stanje | "novi", Stanje | "—">> = {
   stornoProdaje:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "NA_SKLADISTU", U_NAJMU: "—",         NA_SERVISU: "—",   OTPISAN: "—" },
   najam:            { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "U_NAJMU",    REZERVIRAN: "U_NAJMU",     PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "—",   OTPISAN: "—" },
   povratIzNajma:    { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "NA_SKLADISTU", NA_SERVISU: "—", OTPISAN: "—" },
+  najamKodKlijenta: { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "U_NAJMU",     U_NAJMU: "U_NAJMU",    NA_SERVISU: "—",   OTPISAN: "—" },
   ulazNaServis:     { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "NA_SERVISU", REZERVIRAN: "NA_SERVISU",  PRODAN: "NA_SERVISU",  U_NAJMU: "NA_SERVISU", NA_SERVISU: "—",   OTPISAN: "—" },
   izlazSaServisa:   { novi: "—",            U_DOLASKU: "—",            NA_SKLADISTU: "—",          REZERVIRAN: "—",           PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "NA_SKLADISTU", OTPISAN: "—" },
   otpis:            { novi: "—",            U_DOLASKU: "OTPISAN",      NA_SKLADISTU: "OTPISAN",    REZERVIRAN: "OTPISAN",     PRODAN: "—",           U_NAJMU: "—",          NA_SERVISU: "OTPISAN", OTPISAN: "—" },

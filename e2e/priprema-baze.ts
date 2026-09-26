@@ -29,6 +29,7 @@ async function priprema(): Promise<void> {
         kategorijaId: kategorija.id,
         preporucenaCijena: "1000.00",
         kpdProdaja: "26.20.11",
+        kpdNajam: "77.33.11",
       },
     });
     const skladiste = await prisma.skladiste.findFirstOrThrow({ where: { firmaId: firma.id } });
@@ -49,6 +50,11 @@ async function priprema(): Promise<void> {
       ["E2E-PRODAJA-MOBITEL", "NA_SKLADISTU", "Intel i5"],
       ["E2E-STORNO-RACUNALO", "NA_SKLADISTU", "Intel i5"],
       ["E2E-STORNO-MOBITEL", "NA_SKLADISTU", "Intel i5"],
+      // najam: po dva za svaki projekt
+      ["E2E-NAJAM-RACUNALO-1", "NA_SKLADISTU", "Intel i5"],
+      ["E2E-NAJAM-RACUNALO-2", "NA_SKLADISTU", "Intel i5"],
+      ["E2E-NAJAM-MOBITEL-1", "NA_SKLADISTU", "Intel i5"],
+      ["E2E-NAJAM-MOBITEL-2", "NA_SKLADISTU", "Intel i5"],
     ] as const) {
       await prisma.uredaj.create({
         data: {

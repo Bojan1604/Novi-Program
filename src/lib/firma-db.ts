@@ -7,6 +7,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
  */
 export const MODELI_S_FIRMOM = [
   "Brojac",
+  "CijenaNajma",
   "Cjenik",
   "ClanstvoFirme",
   "Dnevnik",
@@ -25,6 +26,9 @@ export const MODELI_S_FIRMOM = [
   "StavkaSkladisnogDokumenta",
   "Odobrenje",
   "Inventura",
+  "MjesecNajma",
+  "RataNajma",
+  "UredajNaUgovoru",
   "StavkaInventure",
   "StavkaProdajnogDokumenta",
   "Sesija",
@@ -81,6 +85,10 @@ export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
     "eRacuni",
     "eIzvjestaji",
     "ugovoriNajma",
+    "planoviNajma",
+    "cijeneNajma",
+    "mjeseciNajma",
+    "rateNajma",
     "stavkeProdaje",
     "uredajiNaStavkama",
     "uplate",

@@ -11,6 +11,11 @@ import { pristupStranici } from "@/lib/akcija";
 import { ugovorNajma } from "@/queries/najam";
 import { dodajPrilogeUgovoraAkcija, obrisiPrilogUgovoraAkcija } from "../akcije";
 import { ObrazacUgovora, OtkazUgovora } from "../obrazac";
+import { DodajUredaje, UredajiUgovora, type RedakPlana } from "../uredaji";
+import { cijenaUMjesecu, mjesecOd, prvaNeizdana, rateUredaja, sljedeciMjesec } from "@/domain/najam";
+import { formatirajIznos } from "@/domain/novac";
+import { podaciZaNaplatu } from "@/services/najam";
+import { db } from "@/lib/db";
 
 export const metadata = { title: "Ugovor o najmu · ERP-WMS" };
 export const dynamic = "force-dynamic";
@@ -26,6 +31,29 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
   const d0 = danas();
   const s = statusUgovora({ od: dan(u.od)!, do: dan(u.do), otkazan: dan(u.otkazan) }, d0);
   const smije = imaPravo(k.prava, "najam", "operativno");
+  // uređaji: prethodni, tekući i sljedeći mjesec (fakturirani s iznosom s računa)
+  const n = await podaciZaNaplatu(db, k.firmaId, u.id);
+  const tekuci = mjesecOd(d0);
+  const mjeseci = [sljedeciMjesec(tekuci, -1), tekuci, sljedeciMjesec(tekuci)];
+  const redovi: RedakPlana[] = n.planovi.map((p, i) => {
+    const plan = n.motor[i]!;
+    const rate = new Map(rateUredaja(n.uvjeti, plan, n.fakturirano, mjeseci[2]!).map((r) => [r.mjesec, r]));
+    return {
+      id: p.id,
+      uredajId: p.uredaj.id,
+      serijski: p.uredaj.serijski,
+      naziv: `${p.uredaj.model.proizvodjac.naziv} ${p.uredaj.model.naziv}`,
+      od: dan(p.od)!,
+      do: dan(p.do),
+      izvor: p.izvor,
+      cijena: formatirajIznos(cijenaUMjesecu(plan.cijene, tekuci)),
+      rate: mjeseci.map((m) => {
+        const r = rate.get(m);
+        return [m, r ? (r.izvor === "PAUZA" ? "pauza" : formatirajIznos(r.iznos)) : "—", r?.izvor === "FAKTURIRANO"];
+      }),
+    };
+  });
+  const prva = n.motor.map((p) => prvaNeizdana(n.uvjeti, p, n.fakturirano)).sort()[0] ?? tekuci;
   return (
     <Stranica sirina="5xl">
       <NaslovStranice
@@ -59,6 +87,17 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
             napomenaRacuna: u.napomenaRacuna ?? "",
           }}
         />
+      </Kartica>
+      <Kartica naslov={`Uređaji (${redovi.length})`}>
+        <UredajiUgovora ugovorId={u.id} redovi={redovi} mjeseci={mjeseci} smije={smije} prvaNeizdana={prva > tekuci ? prva : tekuci} />
+        {smije && (
+          <details className="mt-4 rounded-md border border-neutral-200 p-3 dark:border-neutral-800" open={redovi.length === 0}>
+            <summary className="cursor-pointer text-sm font-medium">Dodaj uređaje</summary>
+            <div className="mt-3">
+              <DodajUredaje ugovorId={u.id} od={d0 > dan(u.od)! ? d0 : dan(u.od)!} />
+            </div>
+          </details>
+        )}
       </Kartica>
       <Kartica naslov={`Prilozi (${u.prilozi.length})`}>
         {u.prilozi.length > 0 && (

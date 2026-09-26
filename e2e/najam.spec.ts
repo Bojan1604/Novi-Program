@@ -21,7 +21,7 @@ test("ugovor o najmu: otvaranje, izmjena kraja, prilog, otkaz", async ({ page })
   await page
     .getByLabel(/Datoteke/)
     .setInputFiles({ name: "potpisan-ugovor.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF") });
-  await page.getByRole("button", { name: "Dodaj" }).click();
+  await page.getByRole("button", { name: "Dodaj", exact: true }).click();
   await expect(page.getByTestId("prilozi")).toContainText("potpisan-ugovor.pdf");
 
   await page.getByLabel("Otkaz od (zadnji dan naplate)").fill("2026-12-31");

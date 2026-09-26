@@ -84,6 +84,10 @@ model Firma {
   eRacuni            ERacun[]
   eIzvjestaji        EIzvjestaj[]
   ugovoriNajma       UgovorNajma[]
+  planoviNajma       UredajNaUgovoru[]
+  cijeneNajma        CijenaNajma[]
+  mjeseciNajma       MjesecNajma[]
+  rateNajma          RataNajma[]
   stavkeDokumenata   StavkaSkladisnogDokumenta[]
   odobrenja          Odobrenje[]
   inventure          Inventura[]
@@ -508,6 +512,8 @@ model Uredaj {
   stavkeInventure  StavkaInventure[]
   stavkeProdaje    StavkaProdajnogDokumenta[]
   naStavkama       UredajNaStavci[]
+
+  naUgovorima UredajNaUgovoru[]
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -1019,8 +1025,88 @@ model UgovorNajma {
   partner    Partner     @relation(fields: [firmaId, partnerId], references: [firmaId, id])
   poslovnica Poslovnica? @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
 
+  uredaji UredajNaUgovoru[]
+
   @@unique([firmaId, id])
   @@unique([firmaId, broj])
   @@index([firmaId, partnerId])
   @@index([firmaId, od(sort: Desc)])
+}
+
+/// Uređaj na ugovoru o najmu = plan naplate uređaja (korak 3.3). Isti uređaj može biti na više ugovora u različitim razdobljima.
+model UredajNaUgovoru {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  firmaId    String    @db.Uuid
+  ugovorId   String    @db.Uuid
+  uredajId   String    @db.Uuid
+  /// početak naplate i povrat (null = do kraja ugovora)
+  od         DateTime  @db.Date
+  do         DateTime? @db.Date
+  /// SKLADISTE ili KLIJENT (uređaj je već bio kod klijenta)
+  izvor      String    @default("SKLADISTE")
+  napomena   String?
+  korisnikId String?   @db.Uuid
+  korisnik   String    @default("Sustav")
+  stvoreno   DateTime  @default(now()) @db.Timestamptz(3)
+
+  firma   Firma         @relation(fields: [firmaId], references: [id])
+  ugovor  UgovorNajma   @relation(fields: [firmaId, ugovorId], references: [firmaId, id])
+  uredaj  Uredaj        @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+  cijene  CijenaNajma[]
+  mjeseci MjesecNajma[]
+  rate    RataNajma[]
+
+  @@unique([firmaId, id])
+  @@index([firmaId, ugovorId])
+  @@index([firmaId, uredajId])
+}
+
+/// Mjesečna cijena plana od mjeseca (prvi dan mjeseca); vrijedi do sljedeće promjene.
+model CijenaNajma {
+  id      String   @id @default(uuid(7)) @db.Uuid
+  firmaId String   @db.Uuid
+  planId  String   @db.Uuid
+  od      DateTime @db.Date
+  iznos   Decimal  @db.Decimal(14, 2)
+
+  firma Firma           @relation(fields: [firmaId], references: [id])
+  plan  UredajNaUgovoru @relation(fields: [firmaId, planId], references: [firmaId, id], onDelete: Cascade)
+
+  @@unique([firmaId, planId, od])
+}
+
+/// Iznimka za mjesec: pauza ili ručni iznos.
+model MjesecNajma {
+  id      String   @id @default(uuid(7)) @db.Uuid
+  firmaId String   @db.Uuid
+  planId  String   @db.Uuid
+  mjesec  DateTime @db.Date
+  pauza   Boolean  @default(false)
+  iznos   Decimal? @db.Decimal(14, 2)
+
+  firma Firma           @relation(fields: [firmaId], references: [id])
+  plan  UredajNaUgovoru @relation(fields: [firmaId, planId], references: [firmaId, id], onDelete: Cascade)
+
+  @@unique([firmaId, planId, mjesec])
+}
+
+/// Izdana (fakturirana) rata: jedinstvena po planu i mjesecu — ista rata se ne može naplatiti dvaput.
+model RataNajma {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  planId     String   @db.Uuid
+  mjesec     DateTime @db.Date
+  iznos      Decimal  @db.Decimal(14, 2)
+  /// račun (stavka) kojim je naplaćena; null = „izdano izvan programa“
+  dokumentId String?  @db.Uuid
+  stavkaId   String?  @db.Uuid
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+  stvoreno   DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma           @relation(fields: [firmaId], references: [id])
+  plan  UredajNaUgovoru @relation(fields: [firmaId, planId], references: [firmaId, id])
+
+  @@unique([firmaId, planId, mjesec])
+  @@index([firmaId, dokumentId])
 }

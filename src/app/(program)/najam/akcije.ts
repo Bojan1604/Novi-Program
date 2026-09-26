@@ -6,7 +6,8 @@ import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
-import { otkaziUgovor, spremiUgovor } from "@/services/najam";
+import { procitajIznos } from "@/domain/novac";
+import { dodajUredajeNaUgovor, otkaziUgovor, postaviCijenu, spremiUgovor } from "@/services/najam";
 import { dodajPriloge, obrisiPrilog, type Datoteka } from "@/services/prilozi";
 
 const ili = (fd: FormData, ime: string) => tekst(fd, ime) || null;
@@ -63,5 +64,37 @@ export async function obrisiPrilogUgovoraAkcija(id: string, prilogId: string): P
     await obrisiPrilog(db, k, "UgovorNajma", prilogId);
     revalidatePath(`/najam/${id}`);
     return { ok: true, poruka: "Prilog je obrisan." };
+  });
+}
+
+export async function dodajUredajeAkcija(id: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("najam.ugovor", async (k): Promise<Odgovor> => {
+    const c = procitajIznos(tekst(fd, "cijena"));
+    if (!c.ok) return { ok: false, greska: "Provjerite označena polja.", polja: { cijena: c.greska } };
+    const n = await dodajUredajeNaUgovor(db, k, id, {
+      serijski: tekst(fd, "serijski").split(/[\s,;]+/),
+      od: tekst(fd, "od"),
+      cijena: c.vrijednost,
+      izvor: fd.get("izvor") === "KLIJENT" ? "KLIJENT" : "SKLADISTE",
+    });
+    revalidatePath(`/najam/${id}`);
+    revalidatePath("/uredaji");
+    return { ok: true, poruka: n === 1 ? "Uređaj je dodan na ugovor." : `Dodano uređaja: ${n}.` };
+  });
+}
+
+export async function postaviCijenuAkcija(id: string, planIds: string[], _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("najam.ugovor", async (k): Promise<Odgovor> => {
+    const c = procitajIznos(tekst(fd, "iznos"));
+    if (!c.ok) return { ok: false, greska: c.greska, polja: { iznos: c.greska } };
+    const doM = tekst(fd, "doMjeseca");
+    await postaviCijenu(db, k, id, {
+      planIds: planIds.slice(0, 5000).map(String),
+      od: tekst(fd, "odMjeseca"),
+      iznos: c.vrijednost,
+      doMjeseca: doM || null,
+    });
+    revalidatePath(`/najam/${id}`);
+    return { ok: true, poruka: `Cijena je postavljena za ${planIds.length} uređaja.` };
   });
 }

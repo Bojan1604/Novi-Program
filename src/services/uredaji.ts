@@ -81,14 +81,14 @@ export async function promijeniStanje(
             ? podaci.skladisteId
             : u.skladisteId;
     if (r.naSkladistu === true && !skladisteId) throw new GreskaKorisniku(`Za uređaj ${u.serijski} odaberite skladište.`);
-    const partner = ["prodaja", "najam"].includes(radnja)
+    const partner = ["prodaja", "najam", "najamKodKlijenta"].includes(radnja)
       ? { partnerId: podaci.partnerId ?? null, poslovnicaId: podaci.poslovnicaId ?? null }
       : ["stornoProdaje", "povratIzNajma", "otpis", "zaprimanje"].includes(radnja)
         ? { partnerId: null, poslovnicaId: null }
         : r.novo === "PRODAN" || r.novo === "U_NAJMU"
           ? { partnerId: u.partnerId, poslovnicaId: u.poslovnicaId }
           : { partnerId: podaci.partnerId !== undefined ? podaci.partnerId : u.partnerId, poslovnicaId: u.poslovnicaId };
-    if ((radnja === "prodaja" || radnja === "najam") && !partner.partnerId)
+    if ((radnja === "prodaja" || radnja === "najam" || radnja === "najamKodKlijenta") && !partner.partnerId)
       throw new GreskaKorisniku(`Za ${radnja === "prodaja" ? "prodaju" : "najam"} odaberite kupca.`);
 
     await tx.uredaj.update({

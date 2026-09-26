@@ -34,6 +34,8 @@ export const RADNJE = {
   stornoProdaje: { naziv: "storno prodaje", iz: ["PRODAN"], u: "NA_SKLADISTU", naSkladistu: true },
   najam: { naziv: "davanje u najam", iz: ["NA_SKLADISTU", "REZERVIRAN"], u: "U_NAJMU", naSkladistu: false },
   povratIzNajma: { naziv: "povrat iz najma", iz: ["U_NAJMU"], u: "NA_SKLADISTU", naSkladistu: true },
+  // uređaj koji je već kod klijenta (iz ranijeg ugovora ili otkupljen pa dan u najam) ulazi na ugovor bez povratka na skladište
+  najamKodKlijenta: { naziv: "najam uređaja kod klijenta", iz: ["U_NAJMU", "PRODAN"], u: "U_NAJMU", naSkladistu: false },
   // servis zadržava lokaciju (uređaj iz najma nema skladište), a može se i upisati
   ulazNaServis: { naziv: "prijem na servis", iz: ["NA_SKLADISTU", "U_NAJMU", "PRODAN", "REZERVIRAN"], u: "NA_SERVISU", naSkladistu: "isto" },
   izlazSaServisa: { naziv: "završetak servisa", iz: ["NA_SERVISU"], u: "prethodno", naSkladistu: "isto" },
