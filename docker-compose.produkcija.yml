@@ -1,0 +1,73 @@
+# Produkcija na poslužitelju (Linux s Dockerom): baza, program, HTTPS (Caddy) i noćne kopije.
+#   ./instaliraj.sh   (prvi put: .env s lozinkama i domenom, pa pokretanje)
+#   ./azuriraj.sh     (nova verzija: git pull + izgradnja + migracije)
+# Upute: docs/INSTALACIJA.md
+name: erp-wms
+services:
+  baza:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: ${BAZA_LOZINKA:?Postavite BAZA_LOZINKA u .env}
+      POSTGRES_DB: erp_wms
+      TZ: Europe/Zagreb
+      PGTZ: Europe/Zagreb
+    volumes:
+      - baza-podaci:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp_wms"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    # baza nema otvoren port — dostupna je samo programu i kopijama
+
+  program:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      baza:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://erp:${BAZA_LOZINKA}@baza:5432/erp_wms
+      TAJNI_KLJUC: ${TAJNI_KLJUC:?Postavite TAJNI_KLJUC u .env}
+      # HTTPS radi Caddy; programu vjeruje samo za adresu klijenta i protokol
+      HTTPS: "0"
+      VJERUJ_PROXYJU: "1"
+
+  https:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [program]
+    environment:
+      DOMENA: ${DOMENA:?Postavite DOMENA u .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/https/Caddyfile:/etc/caddy/Caddyfile:ro
+      - https-podaci:/data
+      - https-postavke:/config
+
+  kopije:
+    build: ./docker/kopije
+    restart: unless-stopped
+    depends_on:
+      baza:
+        condition: service_healthy
+    environment:
+      BAZA_LOZINKA: ${BAZA_LOZINKA}
+      TZ: Europe/Zagreb
+      KOPIJE_SAT: ${KOPIJE_SAT:-03:15}
+      KOPIJE_DANA: ${KOPIJE_DANA:-30}
+      KOPIJE_CILJ: ${KOPIJE_CILJ:-}
+    env_file:
+      - path: ./kopije.env
+        required: false
+    volumes:
+      - ./kopije:/kopije
+
+volumes:
+  baza-podaci:
+  https-podaci:
+  https-postavke:

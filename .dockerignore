@@ -1,0 +1,13 @@
+.git
+node_modules
+.next
+.env
+.env.*
+!.env.example
+.https
+test-results
+playwright-report
+snimke
+kopije
+kopije.env
+tsconfig.tsbuildinfo

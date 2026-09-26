@@ -21,3 +21,10 @@ npm run dev
 ```
 
 Prije svakog commita: `npm run verify`. Pravila i arhitektura su u [CLAUDE.md](CLAUDE.md).
+
+## Dokumentacija
+
+- [Instalacija za svakodnevni rad](docs/INSTALACIJA.md) — poslužitelj (Docker, HTTPS, kopije izvan poslužitelja, ažuriranje jednom naredbom) ili jedno Windows računalo
+- [Uvoz iz starog programa](docs/UVOZ.md) — format JSON-a i postupak
+- [Brzina na velikoj bazi](docs/BRZINA.md) — mjerenje svih stranica
+- Demo: `npx prisma db seed` u praznu bazu, prijava `admin@demo.hr` / `Demo-lozinka-2026` (portal: `klijent1@demo.hr` / `Portal-lozinka-2026`)

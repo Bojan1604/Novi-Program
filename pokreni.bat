@@ -38,6 +38,17 @@ if not exist ".env" (
   )
 )
 
+rem kljuc za sifriranje tajni (SMTP lozinka, fiskalni certifikat, prijava u dva koraka): jednom, nikad se ne mijenja
+findstr /r /c:"^TAJNI_KLJUC=\"..*\"" .env >nul 2>nul
+if errorlevel 1 (
+  echo Postavljam slucajni TAJNI_KLJUC u .env - spremite kopiju datoteke .env na sigurno mjesto.
+  powershell -NoProfile -Command "$k = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 48 | ForEach-Object {[char]$_}); $s = Get-Content '.env'; if ($s -match '^TAJNI_KLJUC=') { $s = $s -replace '^TAJNI_KLJUC=.*$', ('TAJNI_KLJUC=\"' + $k + '\"') } else { $s += ('TAJNI_KLJUC=\"' + $k + '\"') }; $s | Set-Content -Encoding utf8 '.env'"
+  if errorlevel 1 (
+    echo Nije uspjelo postaviti TAJNI_KLJUC.
+    goto :greska
+  )
+)
+
 echo [1/6] Baza podataka (Docker)...
 docker compose up -d --wait baza
 if errorlevel 1 (

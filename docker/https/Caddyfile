@@ -1,0 +1,13 @@
+# HTTPS ispred programa. DOMENA iz .env:
+#  - javna domena (erp.firma.hr) → Caddy sam dobiva i obnavlja Let's Encrypt certifikat (portovi 80 i 443 otvoreni prema internetu)
+#  - lokalna adresa (192.168.1.10, erp.lan) → vlastiti certifikat Caddyja (preglednik jednom upozori)
+{$DOMENA} {
+	encode zstd gzip
+	reverse_proxy program:3000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+}
