@@ -156,3 +156,41 @@ test("odobrenje za dio usluge; ostatak se ne može prijeći", async ({ page }) =
   await expect(page.getByTestId("zbrojevi")).toContainText("-50,00 €");
   await expect(page.getByTestId("stanje-placanja")).toContainText("Za povrat kupcu50,00 €");
 });
+
+test("račun za predujam i odbitak na konačnom računu", async ({ page }) => {
+  await prijaviSe(page);
+  const rucna = async (naziv: string, cijena: string) => {
+    await page.getByRole("button", { name: "Ručna stavka" }).click();
+    await page.getByLabel("Naziv stavke 1").fill(naziv);
+    await page.getByLabel("Cijena stavke 1").fill(cijena);
+    await page.getByLabel("KPD stavke 1").fill("26.20.11");
+  };
+  await page.goto("/racuni");
+  await page.getByRole("link", { name: "Račun za predujam" }).click();
+  await expect(page.getByRole("heading", { name: "Novi račun za predujam" })).toBeVisible();
+  await page.getByRole("combobox", { name: "Kupac" }).fill("E2E Kupac");
+  await page.getByRole("option", { name: /E2E Kupac d\.o\.o\./ }).click();
+  await rucna("Predujam za opremu", "400");
+  await page.getByRole("button", { name: "Spremi nacrt" }).click();
+  await expect(page).toHaveURL(/\/racuni\/[0-9a-f-]{36}$/);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Izdaj račun za predujam" }).click();
+  const naslov = page.getByRole("heading", { name: /Račun za predujam \d+\/PP1\/1/ });
+  await expect(naslov).toBeVisible();
+  const brojPredujma = ((await naslov.textContent()) ?? "").replace("Račun za predujam ", "");
+
+  await page.goto("/racuni/nova");
+  await page.getByRole("combobox", { name: "Kupac" }).fill("E2E Kupac");
+  await page.getByRole("option", { name: /E2E Kupac d\.o\.o\./ }).click();
+  await rucna("Oprema", "1000");
+  await page.getByRole("button", { name: "Spremi nacrt" }).click();
+  await expect(page).toHaveURL(/\/racuni\/[0-9a-f-]{36}$/);
+  await page.getByRole("button", { name: `Odbij predujam ${brojPredujma}` }).click();
+  await expect(page.getByLabel("Naziv stavke 2")).toHaveValue(`Predujam po računu ${brojPredujma}`);
+  // 1.000 − 400 = 600 + PDV 150 = 750
+  await expect(page.getByTestId("zbrojevi")).toContainText("750,00 €");
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Izdaj račun" }).click();
+  await expect(page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ })).toBeVisible();
+  await expect(page.getByTestId("zbrojevi")).toContainText("750,00 €");
+});

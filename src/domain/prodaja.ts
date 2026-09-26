@@ -11,6 +11,7 @@ export const VRSTE_PRODAJE = {
   RACUN: { naziv: "Račun", prefiks: "", brojac: "racun" },
   STORNO: { naziv: "Storno računa", prefiks: "", brojac: "racun" },
   ODOBRENJE: { naziv: "Odobrenje", prefiks: "", brojac: "racun" },
+  PREDUJAM: { naziv: "Račun za predujam", prefiks: "", brojac: "racun" },
 } as const;
 export type VrstaProdaje = keyof typeof VRSTE_PRODAJE;
 
@@ -20,14 +21,15 @@ export function jeVrstaProdaje(v: unknown): v is VrstaProdaje {
 
 /** Iz čega se smije napraviti što (sve se prenosi bez gubitka). */
 export const PRETVORBE: Record<VrstaProdaje, VrstaProdaje[]> = {
-  PONUDA: ["PREDRACUN", "RACUN"],
-  PREDRACUN: ["RACUN"],
+  PONUDA: ["PREDRACUN", "RACUN", "PREDUJAM"],
+  PREDRACUN: ["RACUN", "PREDUJAM"],
   RACUN: [],
   STORNO: [],
   ODOBRENJE: [],
+  PREDUJAM: [],
 };
 
-export const VRSTE_STAVKI = { UREDAJ: "Uređaj", MODEL: "Model", USLUGA: "Usluga", RUCNA: "Ručna stavka" } as const;
+export const VRSTE_STAVKI = { UREDAJ: "Uređaj", MODEL: "Model", USLUGA: "Usluga", RUCNA: "Ručna stavka", PREDUJAM: "Odbitak predujma" } as const;
 export type VrstaStavke = keyof typeof VRSTE_STAVKI;
 export type Namjena = "PRODAJA" | "NAJAM";
 
@@ -67,7 +69,11 @@ export function provjeriStavku(s: UlaznaStavka, i: number, dopustiNegativno = fa
   const r = `Stavka ${i + 1}`;
   if (!s.naziv.trim()) return `${r}: upišite naziv.`;
   if (s.naziv.length > 300) return `${r}: naziv je predug.`;
-  if (!Number.isSafeInteger(s.kolicina) || s.kolicina === 0 || (!dopustiNegativno && s.kolicina < 0)) return `${r}: količina mora biti veća od 0.`;
+  if (s.vrsta === "PREDUJAM") {
+    if (!s.izvornaStavkaId) return `${r}: predujam nije odabran s popisa.`;
+    if (s.kolicina !== -1000) return `${r}: odbitak predujma ima količinu -1.`;
+  } else if (!Number.isSafeInteger(s.kolicina) || s.kolicina === 0 || (!dopustiNegativno && s.kolicina < 0))
+    return `${r}: količina mora biti veća od 0.`;
   if (s.vrsta === "UREDAJ" && Math.abs(s.kolicina) !== 1000) return `${r}: uređaj sa serijskim brojem ima količinu 1.`;
   if (!Number.isSafeInteger(s.cijena) || s.cijena < 0) return `${r}: cijena nije ispravna.`;
   if (!Number.isInteger(s.popust) || s.popust < 0 || s.popust > 10000) return `${r}: popust mora biti između 0 i 100 %.`;

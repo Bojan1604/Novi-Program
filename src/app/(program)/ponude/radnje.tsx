@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { klaseUnosa } from "@/components/ui/polje";
-import { izdajAkcija, obrisiNacrtAkcija, odobrenjeAkcija, pretvoriAkcija, stornoAkcija } from "./akcije";
+import { dodajPredujamAkcija, izdajAkcija, obrisiNacrtAkcija, odobrenjeAkcija, pretvoriAkcija, stornoAkcija } from "./akcije";
 
 function Radnja({
   akcija,
@@ -79,4 +79,8 @@ export function Storniraj({ id, skladista }: { id: string; skladista: { id: stri
       />
     </div>
   );
+}
+
+export function OdbijPredujam({ racunId, predujamId, broj }: { racunId: string; predujamId: string; broj: string }) {
+  return <Radnja akcija={() => dodajPredujamAkcija(racunId, predujamId)} oznaka={`Odbij predujam ${broj}`} />;
 }

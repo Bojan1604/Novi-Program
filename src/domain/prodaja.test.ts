@@ -63,7 +63,7 @@ describe("izračun dokumenta", () => {
     expect(izracunajDokument([st({})], { ...domaci, firmaUSustavuPdv: false }).zbrojevi.pdv).toBe(0);
   });
   it("pretvorbe", () => {
-    expect(PRETVORBE.PONUDA).toEqual(["PREDRACUN", "RACUN"]);
+    expect(PRETVORBE.PONUDA).toEqual(["PREDRACUN", "RACUN", "PREDUJAM"]);
     expect(PRETVORBE.RACUN).toEqual([]);
   });
 });

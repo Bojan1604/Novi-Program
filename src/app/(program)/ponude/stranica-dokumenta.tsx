@@ -8,16 +8,17 @@ import { imaPravo } from "@/domain/prava";
 import { formatirajKolicinu, jeVrstaProdaje, PRETVORBE, VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
 import type { Kontekst } from "@/lib/akcija";
 import { prodajniDokument } from "@/queries/prodaja";
-import { NACINI_PLACANJA, postavkeFirme, statusKupca, uUlaznu } from "@/services/prodaja";
+import { dostupniPredujmovi, NACINI_PLACANJA, postavkeFirme, statusKupca, uUlaznu } from "@/services/prodaja";
+import { preostalo } from "@/domain/predujam";
 import { ukupnoZaPlacanje } from "@/domain/odobrenja";
 import { NAZIVI_STATUSA, stanjePlacanja } from "@/domain/uplate";
 import { PonistiUplatu, UnosUplate } from "../racuni/placanje";
-import { IzdajDokument, ObrisiNacrt, Odobrenje, Pretvori, Storniraj } from "./radnje";
+import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, Pretvori, Storniraj } from "./radnje";
 import { UredjivacDokumenta, type PocetniDokument } from "./uredjivac";
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
 const dan = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
-const putanja = (vrsta: string) => (vrsta === "RACUN" ? "/racuni" : "/ponude");
+const putanja = (vrsta: string) => (["RACUN", "STORNO", "ODOBRENJE", "PREDUJAM"].includes(vrsta) ? "/racuni" : "/ponude");
 
 export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrstaNovog: string | string[] | undefined; k: Kontekst }) {
   const smije = imaPravo(k.prava, "prodaja", "operativno");
@@ -47,7 +48,7 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
     return (
       <Stranica sirina="7xl">
         <NaslovStranice
-          naslov={v === "PONUDA" ? "Nova ponuda" : v === "RACUN" ? "Novi račun" : "Novi predračun"}
+          naslov={v === "PONUDA" ? "Nova ponuda" : v === "RACUN" ? "Novi račun" : v === "PREDUJAM" ? "Novi račun za predujam" : "Novi predračun"}
           akcije={<GumbVeza href={putanja(v)}>Natrag</GumbVeza>}
         />
         <Kartica>
@@ -84,6 +85,7 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
   );
 
   if (nacrt && smije) {
+    const predujmovi = d.vrsta === "RACUN" ? await dostupniPredujmovi(k.db as never, k.firmaId, d.partnerId, d.id) : [];
     const pocetno: PocetniDokument = {
       id: d.id,
       vrsta,
@@ -114,8 +116,25 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
           }
         />
         <Kartica>
-          <UredjivacDokumenta pocetno={pocetno} firma={f} danas={d0} />
+          <UredjivacDokumenta key={d.verzija} pocetno={pocetno} firma={f} danas={d0} />
         </Kartica>
+        {d.vrsta === "RACUN" && predujmovi.length > 0 && (
+          <Kartica naslov="Predujmovi kupca">
+            <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="predujmovi">
+              {[...new Map(predujmovi.map((p) => [p.dokumentId, p])).values()].map((p) => {
+                const slobodno = predujmovi.filter((x) => x.dokumentId === p.dokumentId).reduce((a, x) => a + preostalo(x), 0);
+                return (
+                  <li key={p.dokumentId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span>
+                      Račun za predujam {p.broj} · preostalo {formatirajIznos(slobodno)} € bez PDV-a
+                    </span>
+                    {slobodno > 0 && <OdbijPredujam racunId={d.id} predujamId={p.dokumentId} broj={p.broj} />}
+                  </li>
+                );
+              })}
+            </ul>
+          </Kartica>
+        )}
       </Stranica>
     );
   }

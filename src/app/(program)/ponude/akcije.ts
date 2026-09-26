@@ -18,9 +18,10 @@ import {
   spremiNacrt,
   statusKupca,
   stornirajRacun,
+  dodajPredujam,
 } from "@/services/prodaja";
 
-const putanja = (vrsta: string) => (["RACUN", "STORNO", "ODOBRENJE"].includes(vrsta) ? "/racuni" : "/ponude");
+const putanja = (vrsta: string) => (["RACUN", "STORNO", "ODOBRENJE", "PREDUJAM"].includes(vrsta) ? "/racuni" : "/ponude");
 
 const id = z.string().max(40).nullable().optional();
 const STAVKA = z.object({
@@ -79,7 +80,7 @@ export async function izdajAkcija(dokId: string) {
   return akcija("prodaja.izdaj", async (k) => {
     const dok = jeUuid(dokId) ? await k.db.prodajniDokument.findFirst({ where: { id: dokId, firmaId: k.firmaId }, select: { vrsta: true } }) : null;
     if (!dok) return { ok: false as const, greska: "Dokument ne postoji." };
-    const { broj } = dok.vrsta === "RACUN" || dok.vrsta === "ODOBRENJE" ? await izdajRacun(db, k, dokId) : await izdajPonudu(db, k, dokId);
+    const { broj } = ["RACUN", "ODOBRENJE", "PREDUJAM"].includes(dok.vrsta) ? await izdajRacun(db, k, dokId) : await izdajPonudu(db, k, dokId);
     revalidatePath(`${putanja(dok.vrsta)}/${dokId}`);
     revalidatePath(putanja(dok.vrsta));
     revalidatePath("/uredaji");
@@ -229,4 +230,12 @@ export async function stornoAkcija(racunId: string, skladisteId: string) {
   });
   if (r.ok) redirect(`/racuni/${r.podaci.id}`);
   return r;
+}
+
+export async function dodajPredujamAkcija(racunId: string, predujamId: string) {
+  return akcija("prodaja.spremi", async (k) => {
+    await dodajPredujam(db, k, racunId, predujamId);
+    revalidatePath(`/racuni/${racunId}`);
+    return { ok: true as const, poruka: "Predujam je odbijen na računu." };
+  });
 }

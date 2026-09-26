@@ -455,7 +455,7 @@ export function UredjivacDokumenta({
                   <input
                     className={klaseUnosa}
                     value={r.kolicina}
-                    disabled={r.vrsta === "UREDAJ"}
+                    disabled={r.vrsta === "UREDAJ" || r.vrsta === "PREDUJAM"}
                     inputMode="decimal"
                     onChange={(e) => promijeni(r.kljuc, { kolicina: e.target.value })}
                     aria-label={`Količina stavke ${i + 1}`}

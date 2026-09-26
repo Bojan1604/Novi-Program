@@ -13,7 +13,7 @@ import { popisProdaje } from "@/queries/prodaja";
 export const metadata = { title: "Računi · ERP-WMS" };
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
-const VRSTE = ["RACUN", "STORNO", "ODOBRENJE"];
+const VRSTE = ["RACUN", "PREDUJAM", "STORNO", "ODOBRENJE"];
 
 export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
   const k = await pristupStranici("/racuni");
@@ -37,9 +37,12 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
         naslov="Računi"
         akcije={
           smije && (
-            <GumbVeza href="/racuni/nova" varijanta="primarni">
-              Novi račun
-            </GumbVeza>
+            <>
+              <GumbVeza href="/racuni/nova" varijanta="primarni">
+                Novi račun
+              </GumbVeza>
+              <GumbVeza href="/racuni/nova?vrsta=PREDUJAM">Račun za predujam</GumbVeza>
+            </>
           )
         }
       />
