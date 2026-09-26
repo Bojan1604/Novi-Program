@@ -504,10 +504,12 @@ model DogadajUredaja {
 /// Brojač dokumenata po vrsti i godini: broj se uzima u istoj transakciji kao dokument,
 /// pa neuspjela radnja ne ostavlja rupu, a dva istovremena dokumenta ne dobiju isti broj.
 model Brojac {
-  firmaId String @db.Uuid
-  vrsta   String
-  godina  Int
-  zadnji  Int    @default(0)
+  firmaId     String    @db.Uuid
+  vrsta       String
+  godina      Int
+  zadnji      Int       @default(0)
+  /// datum zadnjeg izdanog dokumenta (sljedeći ne smije biti raniji)
+  zadnjiDatum DateTime? @db.Date
 
   firma Firma @relation(fields: [firmaId], references: [id])
 
