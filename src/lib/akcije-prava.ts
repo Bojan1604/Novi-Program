@@ -77,6 +77,8 @@ export const AKCIJE = {
   "portal.upravljaj": { modul: "portal", razina: "operativno" },
   "mdm.organizacije": { modul: "mdm", razina: "operativno" },
   "mdm.uredaji": { modul: "mdm", razina: "operativno" },
+  "mdm.upravljanje": { modul: "mdm", razina: "operativno" },
+  "mdm.naredbe": { modul: "mdm", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;

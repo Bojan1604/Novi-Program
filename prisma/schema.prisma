@@ -112,6 +112,13 @@ model Firma {
   sesijePortala        SesijaPortala[]
   mdmOrganizacije      MdmOrganizacija[]
   mdmUredaji           MdmUredaj[]
+  mdmProfili           MdmProfil[]
+  mdmAplikacije        MdmAplikacija[]
+  mdmDodjele           MdmDodjela[]
+  mdmDatoteke          MdmDatoteka[]
+  mdmNaredbe           MdmNaredba[]
+  mdmZapisi            MdmZapis[]
+  mdmSnimke            MdmSnimka[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -1516,6 +1523,9 @@ model MdmOrganizacija {
   podredene MdmOrganizacija[] @relation("MdmStablo")
   partner   Partner?          @relation(fields: [firmaId, partnerId], references: [firmaId, id])
   uredaji   MdmUredaj[]
+  profili   MdmProfil[]
+  dodjele   MdmDodjela[]
+  datoteke  MdmDatoteka[]
 
   @@unique([firmaId, id])
   @@index([firmaId, nadredenaId])
@@ -1548,8 +1558,153 @@ model MdmUredaj {
   firma        Firma           @relation(fields: [firmaId], references: [id])
   organizacija MdmOrganizacija @relation(fields: [firmaId, organizacijaId], references: [firmaId, id])
   uredaj       Uredaj?         @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+  naredbe      MdmNaredba[]
+  zapisi       MdmZapis[]
+  snimke       MdmSnimka[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, serijski])
   @@index([firmaId, organizacijaId])
+}
+
+/// MDM profil (konfiguracija) za platformu; organizacija null = za sve. Agent dobiva važeći (najbliži) profil.
+model MdmProfil {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  firmaId        String   @db.Uuid
+  organizacijaId String?  @db.Uuid
+  naziv          String
+  platforma      String
+  /// PostavkeProfila (src/domain/mdm-upravljanje.ts)
+  postavke       Json     @default("{}")
+  /// lozinka Wi-Fi mreže, šifrirana (src/lib/tajne.ts) — nikad u preglednik ni dnevnik
+  wifiLozinka    String?
+  verzija        Int      @default(1)
+  aktivan        Boolean  @default(true)
+  korisnikId     String?  @db.Uuid
+  korisnik       String   @default("Sustav")
+  stvoreno       DateTime @default(now()) @db.Timestamptz(3)
+  azurirano      DateTime @updatedAt @db.Timestamptz(3)
+
+  firma        Firma            @relation(fields: [firmaId], references: [id])
+  organizacija MdmOrganizacija? @relation(fields: [firmaId, organizacijaId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, organizacijaId])
+}
+
+/// Verzija aplikacije (APK za Android, MSI za Windows); svaka nova verzija je novi redak.
+model MdmAplikacija {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  firmaId       String   @db.Uuid
+  naziv         String
+  /// Android: naziv paketa; Windows: kod proizvoda MSI ili dogovoreni naziv
+  paket         String
+  platforma     String
+  verzija       String
+  /// raste sa svakom verzijom (Android versionCode)
+  verzijaKod    Int
+  nazivDatoteke String
+  sadrzaj       Bytes
+  velicina      Int
+  sha256        String
+  korisnikId    String?  @db.Uuid
+  korisnik      String   @default("Sustav")
+  stvoreno      DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, paket, platforma, verzijaKod])
+}
+
+/// Aplikacija (paket) dodijeljena organizaciji — uređaji dobivaju uvijek najnoviju verziju.
+model MdmDodjela {
+  id             String @id @default(uuid(7)) @db.Uuid
+  firmaId        String @db.Uuid
+  organizacijaId String @db.Uuid
+  paket          String
+  platforma      String
+
+  firma        Firma           @relation(fields: [firmaId], references: [id])
+  organizacija MdmOrganizacija @relation(fields: [firmaId, organizacijaId], references: [firmaId, id], onDelete: Cascade)
+
+  @@unique([firmaId, organizacijaId, paket, platforma])
+}
+
+/// Datoteka koju agent sprema u zadanu mapu na uređajima organizacije.
+model MdmDatoteka {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  firmaId        String   @db.Uuid
+  organizacijaId String   @db.Uuid
+  naziv          String
+  putanja        String
+  sadrzaj        Bytes
+  velicina       Int
+  sha256         String
+  korisnikId     String?  @db.Uuid
+  korisnik       String   @default("Sustav")
+  stvoreno       DateTime @default(now()) @db.Timestamptz(3)
+
+  firma        Firma           @relation(fields: [firmaId], references: [id])
+  organizacija MdmOrganizacija @relation(fields: [firmaId, organizacijaId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, organizacijaId])
+}
+
+/// Naredba uređaju: CEKA → POSLANA (pri javljanju) → IZVRSENA / GRESKA (agent javlja rezultat); ili OTKAZANA.
+model MdmNaredba {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  firmaId     String    @db.Uuid
+  mdmUredajId String    @db.Uuid
+  vrsta       String
+  parametri   Json      @default("{}")
+  status      String    @default("CEKA")
+  rezultat    String?
+  korisnikId  String?   @db.Uuid
+  korisnik    String    @default("Sustav")
+  stvoreno    DateTime  @default(now()) @db.Timestamptz(3)
+  poslano     DateTime? @db.Timestamptz(3)
+  zavrseno    DateTime? @db.Timestamptz(3)
+
+  firma  Firma     @relation(fields: [firmaId], references: [id])
+  uredaj MdmUredaj @relation(fields: [firmaId, mdmUredajId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, mdmUredajId, status])
+}
+
+/// Zapisnik agenta.
+model MdmZapis {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  firmaId     String   @db.Uuid
+  mdmUredajId String   @db.Uuid
+  vrijeme     DateTime @db.Timestamptz(3)
+  /// INFO, UPOZORENJE, GRESKA
+  razina      String
+  poruka      String
+  primljeno   DateTime @default(now()) @db.Timestamptz(3)
+
+  firma  Firma     @relation(fields: [firmaId], references: [id])
+  uredaj MdmUredaj @relation(fields: [firmaId, mdmUredajId], references: [firmaId, id])
+
+  @@index([firmaId, mdmUredajId, vrijeme(sort: Desc)])
+}
+
+/// Snimka zaslona uređaja (naredba SNIMI_ZASLON).
+model MdmSnimka {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  firmaId     String   @db.Uuid
+  mdmUredajId String   @db.Uuid
+  naredbaId   String?  @db.Uuid
+  vrsta       String
+  slika       Bytes
+  velicina    Int
+  vrijeme     DateTime @default(now()) @db.Timestamptz(3)
+
+  firma  Firma     @relation(fields: [firmaId], references: [id])
+  uredaj MdmUredaj @relation(fields: [firmaId, mdmUredajId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, mdmUredajId, vrijeme(sort: Desc)])
 }

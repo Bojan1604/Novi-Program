@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GumbVeza } from "@/components/ui/gumb";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
 import { VRSTE_ORGANIZACIJA, type VrstaOrganizacije } from "@/domain/mdm";
 import { imaPravo } from "@/domain/prava";
@@ -36,7 +37,16 @@ export default async function Mdm() {
     .flatMap((o) => [{ ...o, dubina: 0 }, ...org.filter((d) => d.nadredenaId === o.id).map((d) => ({ ...d, dubina: 1 }))]);
   return (
     <Stranica sirina="5xl">
-      <NaslovStranice naslov="MDM" opis="Organizacije (distributeri i klijenti) i uređaji upisani kodom ili QR-om." />
+      <NaslovStranice
+        naslov="MDM"
+        opis="Organizacije (distributeri i klijenti) i uređaji upisani kodom ili QR-om."
+        akcije={
+          <>
+            <GumbVeza href="/mdm/aplikacije">Aplikacije</GumbVeza>
+            <GumbVeza href="/mdm/profili">Profili</GumbVeza>
+          </>
+        }
+      />
       <Kartica naslov="Organizacije">
         {redovi.length === 0 ? (
           <p className="text-sm text-neutral-500">Još nema organizacija.</p>

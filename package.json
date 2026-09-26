@@ -23,7 +23,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:velika": "tsx scripts/velika-baza.ts",
-    "mjerenje": "tsx scripts/mjerenje.ts"
+    "mjerenje": "tsx scripts/mjerenje.ts",
+    "mdm:agent": "tsx scripts/mdm-agent.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

@@ -5,8 +5,10 @@ import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stran
 import { jeUuid } from "@/domain/id";
 import { naVezi, PLATFORME, VRSTE_ORGANIZACIJA, type Platforma, type VrstaOrganizacije } from "@/domain/mdm";
 import { imaPravo } from "@/domain/prava";
+import { velicinaZaPrikaz } from "@/domain/prilozi";
 import { pristupStranici } from "@/lib/akcija";
 import { NoviKod, ObrazacOrganizacije } from "../obrasci";
+import { DatotekeOrganizacije, Dodjele } from "../upravljanje";
 
 export const metadata = { title: "MDM organizacija · ERP-WMS" };
 export const dynamic = "force-dynamic";
@@ -47,6 +49,28 @@ export default async function Organizacija({ params }: PageProps<"/mdm/[id]">) {
       ])
     : [[], []];
   const sada = new Date();
+  const [dodjele, aplikacije, datoteke] = await Promise.all([
+    k.db.mdmDodjela.findMany({ where: { firmaId: k.firmaId, organizacijaId: o.id } }),
+    k.db.mdmAplikacija.findMany({
+      where: { firmaId: k.firmaId },
+      orderBy: { verzijaKod: "desc" },
+      select: { naziv: true, paket: true, platforma: true, verzija: true },
+    }),
+    k.db.mdmDatoteka.findMany({
+      where: { firmaId: k.firmaId, organizacijaId: o.id },
+      orderBy: { stvoreno: "desc" },
+      select: { id: true, naziv: true, putanja: true, velicina: true },
+    }),
+  ]);
+  // po paketu i platformi najnovija verzija (aplikacije su poredane od najnovije)
+  const najnovije = new Map<string, (typeof aplikacije)[number]>();
+  for (const a of aplikacije) if (!najnovije.has(`${a.paket}|${a.platforma}`)) najnovije.set(`${a.paket}|${a.platforma}`, a);
+  const opis = (a: (typeof aplikacije)[number]) => `${a.naziv} (${a.paket}) · ${PLATFORME[a.platforma as Platforma]} · ${a.verzija}`;
+  const dostupne = [...najnovije.values()].map((a) => ({ paket: a.paket, platforma: a.platforma, opis: opis(a) }));
+  const dodijeljene = dodjele.map((d) => {
+    const a = najnovije.get(`${d.paket}|${d.platforma}`);
+    return { paket: d.paket, platforma: d.platforma, opis: a ? opis(a) : `${d.paket} · ${d.platforma}` };
+  });
   return (
     <Stranica sirina="5xl">
       <NaslovStranice
@@ -109,6 +133,23 @@ export default async function Organizacija({ params }: PageProps<"/mdm/[id]">) {
               </li>
             ))}
           </ul>
+        )}
+      </Kartica>
+      <Kartica naslov="Aplikacije (i za organizacije ispod)">
+        {smije ? (
+          <Dodjele organizacijaId={o.id} dodijeljene={dodijeljene} dostupne={dostupne} />
+        ) : (
+          <p className="text-sm">{dodijeljene.map((d) => d.opis).join(", ") || "—"}</p>
+        )}
+      </Kartica>
+      <Kartica naslov="Datoteke za uređaje">
+        {smije ? (
+          <DatotekeOrganizacije
+            organizacijaId={o.id}
+            datoteke={datoteke.map((d) => ({ id: d.id, naziv: d.naziv, putanja: d.putanja, velicina: velicinaZaPrikaz(d.velicina) }))}
+          />
+        ) : (
+          <p className="text-sm">{datoteke.map((d) => d.naziv).join(", ") || "—"}</p>
         )}
       </Kartica>
       {o.podredene.length > 0 && (

@@ -83,6 +83,8 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "portal.upravljaj": ["Administrator", "Voditelj"],
   "mdm.organizacije": ["Administrator", "Voditelj", "Serviser"],
   "mdm.uredaji": ["Administrator", "Voditelj", "Serviser"],
+  "mdm.upravljanje": ["Administrator", "Voditelj", "Serviser"],
+  "mdm.naredbe": ["Administrator", "Voditelj", "Serviser"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
