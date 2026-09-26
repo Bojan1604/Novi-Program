@@ -59,6 +59,14 @@ async function priprema(): Promise<void> {
       });
     }
     await prisma.skladiste.create({ data: { firmaId: firma.id, naziv: "E2E Split" } });
+    // inventura: vlastito skladište s dva uređaja za svaki projekt
+    for (const p of ["RACUNALO", "MOBITEL"]) {
+      const polica = await prisma.skladiste.create({ data: { firmaId: firma.id, naziv: `E2E Polica ${p}` } });
+      for (const n of [1, 2])
+        await prisma.uredaj.create({
+          data: { firmaId: firma.id, serijski: `E2E-INV-${p}-${n}`, modelId: model.id, stanje: "NA_SKLADISTU", skladisteId: polica.id },
+        });
+    }
     await prisma.usluga.create({ data: { firmaId: firma.id, naziv: "E2E Instalacija", jedinica: "h", cijena: "40.00" } });
     await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Distributer d.o.o.", kupac: false, dobavljac: true } });
     const lozinkaHash = bcrypt.hashSync(E2E.admin.lozinka, 4);

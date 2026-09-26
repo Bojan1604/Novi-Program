@@ -40,6 +40,7 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "skeniranje.provjera": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "skladisni.izdaj": ["Administrator", "Voditelj", "Skladištar"],
   "odobrenja.odluci": ["Administrator", "Voditelj"],
+  "inventure.uredi": ["Administrator", "Voditelj", "Skladištar"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
@@ -56,6 +57,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/skeniranje": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/skladisni": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/odobrenja": ["Administrator", "Voditelj", "Skladištar"],
+  "/inventure": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -101,6 +103,7 @@ describe("izbornik", () => {
       "/skeniranje",
       "/primke",
       "/skladisni",
+      "/inventure",
       "/sifrarnici",
       "/moj-racun",
     ]);
@@ -113,6 +116,7 @@ describe("izbornik", () => {
       "/primke",
       "/skladisni",
       "/odobrenja",
+      "/inventure",
       "/sifrarnici",
       "/korisnici",
       "/uloge",

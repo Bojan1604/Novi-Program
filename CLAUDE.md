@@ -160,3 +160,5 @@ Na Windowsu sve pokreće `pokreni.bat`.
   uređaji na `StavkaSkladisnogDokumenta`, promjena stanja kroz `promijeniStanje` s dokumentom. Izlaz čeka odobrenje.
 - **Odobrenja:** `Odobrenje` + `odluciOZahtjevu` — nitko ne odlučuje o vlastitom zahtjevu, odbijanje traži razlog;
   nova vrsta zahtjeva = grana u `odluciOZahtjevu` i putanja u `/odobrenja`.
+- **Inventura** (`src/services/inventure.ts`): svaki sken odmah u bazu (`StavkaInventure`), zaključenje uspoređuje
+  sa stanjem u programu (`usporedi` u `src/domain/inventura.ts`) i ne mijenja uređaje — razlike se ispravljaju dokumentima.
