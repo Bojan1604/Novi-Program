@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Kvacica, Odabir, Polje, klaseUnosa } from "@/components/ui/polje";
+import { GumbiSkenera } from "@/components/ui/skener";
 import { Pretrazivac } from "@/components/ui/pretrazivac";
 import type { Stavka } from "@/components/ui/pretrazivac-stanje";
 import { formatirajIznos, procitajIznos } from "@/domain/novac";
@@ -159,22 +160,25 @@ export function NovaPrimka({
           ))}
         </div>
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Skener / upis (Enter dodaje)</span>
-            <input
-              ref={skener}
-              className={klaseUnosa}
-              placeholder="Skenirajte serijski broj…"
-              autoComplete="off"
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                const el = e.currentTarget;
-                if (el.value.trim() && dodaj(el.value)) el.value = "";
-              }}
-              aria-label="Skener"
-            />
-          </label>
+          <div className="flex flex-col gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Skener / upis (Enter dodaje)</span>
+              <input
+                ref={skener}
+                className={klaseUnosa}
+                placeholder="Skenirajte serijski broj…"
+                autoComplete="off"
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const el = e.currentTarget;
+                  if (el.value.trim() && dodaj(el.value)) el.value = "";
+                }}
+                aria-label="Skener"
+              />
+            </label>
+            <GumbiSkenera skupno onSerijski={(sn) => dodaj(sn)} />
+          </div>
           <div className="flex flex-col gap-1">
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">Zalijepite stupac serijskih brojeva</span>

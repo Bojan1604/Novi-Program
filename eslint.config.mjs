@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "public/skener/**",
     // Prisma klijent se generira (npm install → prisma generate)
     "src/generated/**",
   ]),

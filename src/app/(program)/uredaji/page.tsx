@@ -41,6 +41,7 @@ export default async function Uredaji({ searchParams }: PageProps<"/uredaji">) {
     proizvodjac: vise(sp["proizvodjac"]),
     partnerId: jedan(sp["partner"]),
     primkaId: jedan(sp["primka"]),
+    serijski: vise(sp["serijski"]),
     od: jedan(sp["od"]),
     do: jedan(sp["do"]),
     jamstvoDo: jedan(sp["jamstvoDo"]),
@@ -126,6 +127,14 @@ export default async function Uredaji({ searchParams }: PageProps<"/uredaji">) {
           <FilterVise oznaka="Kategorija" parametar="kategorija" opcije={opcije.kategorije} />
           <FilterVise oznaka="Proizvođač" parametar="proizvodjac" opcije={opcije.proizvodjaci} />
         </div>
+        {f.serijski.length > 0 && (
+          <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
+            Samo skenirani uređaji ({f.serijski.length}).{" "}
+            <Link href="/uredaji" className="text-primarna hover:underline">
+              Prikaži sve
+            </Link>
+          </p>
+        )}
         <Tablica
           testId="popis-uredaja"
           putanja="/uredaji"

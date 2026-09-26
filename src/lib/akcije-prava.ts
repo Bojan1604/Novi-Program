@@ -31,6 +31,7 @@ export const AKCIJE = {
   "uredaji.obrisi": { modul: "uredaji", razina: "puno" },
   "uredaji.prilogDodaj": { modul: "uredaji", razina: "operativno" },
   "uredaji.prilogObrisi": { modul: "uredaji", razina: "operativno" },
+  "skeniranje.provjera": { modul: "uredaji", razina: "pregled" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -47,6 +48,7 @@ export const STRANICE = {
   "/cjenici": { naziv: "Cjenici", modul: "partneri", razina: "pregled" },
   "/primke": { naziv: "Primke", modul: "uredaji", razina: "pregled" },
   "/uredaji": { naziv: "Uređaji", modul: "uredaji", razina: "pregled" },
+  "/skeniranje": { naziv: "Skeniranje", modul: "uredaji", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 
 export type PutanjaStranice = keyof typeof STRANICE;

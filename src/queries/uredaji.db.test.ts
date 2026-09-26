@@ -3,7 +3,7 @@ import { SORTIRANJA_UREDAJA } from "@/domain/stupci-uredaja";
 import { sFirmom } from "@/lib/firma-db";
 import { napraviZadaneSifrarnike } from "@/services/sifrarnici";
 import { napraviFirmu, ocistiBazu, testnaPrisma } from "@/test/baza";
-import { popisUredaja, type FilterUredaja } from "./uredaji";
+import { popisUredaja, uredajiPoSerijskim, type FilterUredaja } from "./uredaji";
 
 const prisma = testnaPrisma();
 afterAll(() => prisma.$disconnect());
@@ -68,6 +68,9 @@ describe("popis uređaja (upit)", () => {
     expect(await s({ od: "2026-02-01", do: "2026-02-28" })).toEqual(["CCC333"]);
     expect(await s({ jamstvoDo: "2026-12-31" })).toEqual(["CCC333"]);
     expect(await s({ skladiste: ["nije-uuid"] })).toEqual(["AAA111", "BBB222", "CCC333"]);
+    // točni skenirani serijski (mala slova i razmaci iz skenera se normaliziraju)
+    expect(await s({ serijski: ["aaa111", " CCC333 ", "NEMA"] })).toEqual(["AAA111", "CCC333"]);
+    expect(await uredajiPoSerijskim(db, firma.id, ["bbb222", "NEMA"]).then((r) => r.map((x) => x.serijski))).toEqual(["BBB222"]);
   });
 
   it("zbrojevi: po stanju i nabavna vrijednost samo s pravom; bez prava ni sortiranje po nabavnoj", async () => {

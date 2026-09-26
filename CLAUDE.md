@@ -152,3 +152,7 @@ Na Windowsu sve pokreće `pokreni.bat`.
   (`src/domain/prilozi.ts`), preuzimanje samo kroz `/api/prilozi/[id]`.
 - **Kartica uređaja:** serijski i model zaključani čim je uređaj na dokumentu osim svoje primke (`dopustenaPolja`);
   svaki novi dokument mora u `promijeniStanje` predati `dokument` — tako ga kartica vidi kao vezu.
+- **Skeniranje:** `GumbiSkenera` (`src/components/ui/skener.tsx`: kamera, slika, OCR) uz polje za USB skener (Enter);
+  sadržaj koda → serijski uvijek kroz `serijskiIzKoda` (`src/domain/skeniranje.ts`). Čitač i OCR poslužuju se iz
+  `public/skener` (kopira `scripts/kopiraj-skener.mjs` pri `npm install`) — nikad s CDN-a. Kamera traži HTTPS:
+  `HTTPS=1` u `.env` → samopotpisani certifikat (`posluzitelj/https.mjs`); e2e i CI rade s `HTTPS=0`.

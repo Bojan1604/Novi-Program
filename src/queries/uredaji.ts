@@ -5,7 +5,7 @@ import { jeUuid } from "@/domain/id";
 import { dopustenaPolja, mozeSeObrisati } from "@/domain/kartica-uredaja";
 import { centiIzDecimala } from "@/domain/novac";
 import type { Sortiranje } from "@/domain/popis";
-import { POPIS_STANJA, type Stanje } from "@/domain/stanja-uredaja";
+import { normalizirajSerijski, POPIS_STANJA, type Stanje } from "@/domain/stanja-uredaja";
 import type { SortiranjeUredaja } from "@/domain/stupci-uredaja";
 import type { DbFirme } from "@/lib/firma-db";
 
@@ -17,6 +17,8 @@ export type FilterUredaja = {
   proizvodjac: string[];
   partnerId?: string;
   primkaId?: string;
+  /** točni serijski brojevi (skupno skeniranje), najviše 500 */
+  serijski?: string[];
   /** zaprimljeni od–do (YYYY-MM-DD) */
   od?: string;
   do?: string;
@@ -53,6 +55,7 @@ export function uvjetUredaja(
   if (uuid(f.proizvodjac).length) i.push({ model: { proizvodjacId: { in: uuid(f.proizvodjac) } } });
   if (f.partnerId && jeUuid(f.partnerId)) i.push({ partnerId: f.partnerId });
   if (f.primkaId && jeUuid(f.primkaId)) i.push({ primkaId: f.primkaId });
+  if (f.serijski?.length) i.push({ serijski: { in: f.serijski.slice(0, 500).map((x) => normalizirajSerijski(x)) } });
   if (jeDatum(f.od)) i.push({ nabavniDatum: { gte: d(f.od) } });
   if (jeDatum(f.do) && f.do < "2999-12-31") i.push({ nabavniDatum: { lt: d(dodajDane(f.do, 1)) } });
   if (jeDatum(f.jamstvoDo)) i.push({ jamstvoDo: { lte: d(f.jamstvoDo) } });
@@ -213,4 +216,21 @@ export async function karticaUredaja(db: DbFirme, firmaId: string, id: string, v
     zakljucano,
     brisanje: brisanje.ok ? null : brisanje.razlog,
   };
+}
+
+/** Uređaji po točnim serijskim brojevima (skeniranje) — bez nabavnih podataka. */
+export async function uredajiPoSerijskim(db: DbFirme, firmaId: string, serijski: string[]) {
+  const lista = [...new Set(serijski.map(normalizirajSerijski).filter(Boolean))].slice(0, 500);
+  if (lista.length === 0) return [];
+  return db.uredaj.findMany({
+    where: { firmaId, serijski: { in: lista } },
+    select: {
+      id: true,
+      serijski: true,
+      stanje: true,
+      model: { select: { naziv: true, proizvodjac: { select: { naziv: true } } } },
+      skladiste: { select: { naziv: true } },
+      partner: { select: { naziv: true } },
+    },
+  });
 }

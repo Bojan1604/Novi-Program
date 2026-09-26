@@ -156,6 +156,7 @@ export const IZVORI: Record<string, Izvor<unknown>> = {
             proizvodjac: vise(sp["proizvodjac"]),
             partnerId: jedan(sp["partner"]),
             primkaId: jedan(sp["primka"]),
+            serijski: vise(sp["serijski"]),
             od: jedan(sp["od"]),
             do: jedan(sp["do"]),
             jamstvoDo: jedan(sp["jamstvoDo"]),

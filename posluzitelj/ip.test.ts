@@ -17,7 +17,14 @@ describe("adresa klijenta", () => {
       socket: { remoteAddress: "192.168.1.7" },
     };
     ocistiZaglavlja(req as never, false);
-    expect(req.headers).toEqual({ host: "a", [ZAGLAVLJE_IP]: "192.168.1.7" });
+    // lažni „https“ od klijenta zamijenjen stvarnim protokolom veze
+    expect(req.headers).toEqual({ host: "a", [ZAGLAVLJE_IP]: "192.168.1.7", "x-forwarded-proto": "http" });
+  });
+
+  it("bez proxyja preko HTTPS-a (HTTPS=1): protokol iz šifrirane veze", () => {
+    const req = { headers: {} as Record<string, string>, socket: { remoteAddress: "192.168.1.8", encrypted: true } };
+    ocistiZaglavlja(req as never, false);
+    expect(req.headers["x-forwarded-proto"]).toBe("https");
   });
 
   it("iza proxyja zaglavlja ostaju (Secure kolačić ovisi o x-forwarded-proto)", () => {

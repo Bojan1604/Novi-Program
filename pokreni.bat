@@ -78,9 +78,12 @@ if errorlevel 1 (
 )
 
 echo.
-echo [6/6] Pokretanje. Program je na http://localhost:3000  (zaustavljanje: Ctrl+C)
-echo       S mobitela u istoj mrezi: http://ADRESA-RACUNALA:3000  (adresu vidi naredba ipconfig)
+echo [6/6] Pokretanje. Program je na https://localhost:3000  (zaustavljanje: Ctrl+C)
+echo       S mobitela u istoj mrezi: adrese su ispisane ispod (kamera za skeniranje radi samo preko https).
+echo       Preglednik ce jednom upozoriti na certifikat - odaberite Napredno, pa Nastavi.
+echo       Bez HTTPS-a: u datoteci .env promijenite HTTPS="1" u HTTPS="0".
 echo.
+findstr /b /c:"HTTPS=" .env >nul 2>nul || (echo.& echo HTTPS="1") >> .env
 call npm run start
 if errorlevel 1 (
   echo Program se zaustavio s greskom.

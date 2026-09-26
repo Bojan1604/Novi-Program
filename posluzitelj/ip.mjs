@@ -33,7 +33,11 @@ export function adresaKlijenta(zaglavlja, adresaVeze, vjerujProxyju) {
  */
 export function ocistiZaglavlja(req, vjerujProxyju) {
   const ip = adresaKlijenta(req.headers, req.socket.remoteAddress, vjerujProxyju);
-  if (!vjerujProxyju) for (const z of PROXY_ZAGLAVLJA) delete req.headers[z];
+  if (!vjerujProxyju) {
+    for (const z of PROXY_ZAGLAVLJA) delete req.headers[z];
+    // protokol stvarne veze (HTTPS=1) — o njemu ovisi Secure na kolačiću prijave
+    req.headers["x-forwarded-proto"] = req.socket.encrypted ? "https" : "http";
+  }
   req.headers[ZAGLAVLJE_IP] = ip;
   return ip;
 }

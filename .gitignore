@@ -49,3 +49,9 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# skener (kopira scripts/kopiraj-skener.mjs pri npm install)
+/public/skener/
+
+# samopotpisani certifikat za HTTPS u lokalnoj mreži
+/.https/
