@@ -5,6 +5,7 @@
  */
 import { createServer as http } from "node:http";
 import { createServer as https } from "node:https";
+import net from "node:net";
 import next from "next";
 import { adreseRacunala, certifikat } from "./https.mjs";
 import { ocistiZaglavlja } from "./ip.mjs";
@@ -24,7 +25,28 @@ const rukovatelj = (req, res) => {
   obradi(req, res);
 };
 const c = sHttps ? await certifikat() : null;
-const posluzitelj = c ? https({ cert: c.cert, key: c.key }, rukovatelj) : http(rukovatelj);
+/**
+ * S HTTPS-om isti port prima i http://: prvi bajt veze odluči — TLS počinje s 0x16, sve ostalo je običan
+ * HTTP koji se preusmjeri na https:// (inače preglednik upisan bez „https://“ dobije praznu stranicu).
+ */
+function httpsIPreusmjeravanje(cert) {
+  const tls = https({ cert: cert.cert, key: cert.key }, rukovatelj);
+  const preusmjeri = http((req, res) => {
+    const domacin = (req.headers.host ?? `localhost:${port}`).replace(/[^\w.:[\]-]/g, "");
+    res.writeHead(301, { Location: `https://${domacin}${req.url ?? "/"}` });
+    res.end();
+  });
+  return net.createServer((veza) => {
+    veza.once("data", (prvi) => {
+      veza.pause();
+      veza.unshift(prvi);
+      (prvi[0] === 0x16 ? tls : preusmjeri).emit("connection", veza);
+      process.nextTick(() => veza.resume());
+    });
+    veza.on("error", () => veza.destroy());
+  });
+}
+const posluzitelj = c ? httpsIPreusmjeravanje(c) : http(rukovatelj);
 posluzitelj.listen(port, host, () => {
   const shema = c ? "https" : "http";
   console.log(`ERP-WMS radi na ${shema}://${host === "0.0.0.0" ? "localhost" : host}:${port}${vjerujProxyju ? " (iza proxyja)" : ""}`);
