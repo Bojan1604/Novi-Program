@@ -38,6 +38,23 @@ export type IzvorRate = "PLAN" | "RUCNO" | "PAUZA" | "FAKTURIRANO";
 export type Rata = { uredajId: string; mjesec: Mjesec; iznos: number; dana: number; danaUMjesecu: number; izvor: IzvorRate };
 
 const RE_MJESEC = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Indeks fakturiranih mjeseci po ključu plana (jednom po mapi) — bez njega je 1.000 uređaja × 50.000 rata presporo. */
+const indeksi = new WeakMap<Fakturirano, Map<string, Mjesec[]>>();
+function fakturiraniMjeseci(f: Fakturirano, id: string): Mjesec[] {
+  let i = indeksi.get(f);
+  if (!i) {
+    i = new Map();
+    for (const k of f.keys()) {
+      const p = k.lastIndexOf("|");
+      const lista = i.get(k.slice(0, p)) ?? [];
+      lista.push(k.slice(p + 1));
+      i.set(k.slice(0, p), lista);
+    }
+    indeksi.set(f, i);
+  }
+  return i.get(id) ?? [];
+}
 export const jeMjesec = (m: unknown): m is Mjesec => typeof m === "string" && RE_MJESEC.test(m);
 
 export function mjesecOd(d: DatumTekst): Mjesec {
@@ -111,10 +128,9 @@ export function rateUredaja(u: UvjetiUgovora, p: PlanUredaja, fakturirano: Faktu
   const pauze = new Set(p.pauze);
   const r: Rata[] = [];
   // fakturirani mjeseci ostaju i kad su nakon (novog) kraja — iznos s računa se ne mijenja
-  const fakturiraniMjeseci = [...fakturirano.keys()].filter((k) => k.startsWith(`${p.uredajId}|`)).map((k) => k.slice(p.uredajId.length + 1));
   const svi = new Set([
     ...(mjesecOd(pocetak) <= zadnji ? mjeseci(mjesecOd(pocetak), zadnji) : []),
-    ...fakturiraniMjeseci.filter((m) => m <= doMjeseca),
+    ...fakturiraniMjeseci(fakturirano, p.uredajId).filter((m) => m <= doMjeseca),
   ]);
   for (const m of [...svi].sort()) {
     const dm = daniUMjesecu(m);
@@ -155,9 +171,8 @@ export function visak(
   const kraj = krajNaplate(u, p);
   const pauze = new Set(p.pauze);
   const r: { mjesec: Mjesec; fakturirano: number; sada: number; razlika: number }[] = [];
-  for (const [k, f] of fakturirano) {
-    if (!k.startsWith(`${p.uredajId}|`)) continue;
-    const m = k.slice(p.uredajId.length + 1);
+  for (const m of fakturiraniMjeseci(fakturirano, p.uredajId)) {
+    const f = fakturirano.get(kljucRate(p.uredajId, m))!;
     const dm = daniUMjesecu(m);
     const dana = aktivniDani(m, pocetak, kraj);
     const sada = dana === 0 || pauze.has(m) ? 0 : m in p.rucno ? p.rucno[m]! : razmjerno(cijenaUMjesecu(p.cijene, m), dana, dm);
@@ -179,8 +194,7 @@ export function provjeriPromjenuCijene(u: UvjetiUgovora, p: PlanUredaja, fakturi
   if (!Number.isSafeInteger(iznos) || iznos < 0) return "Cijena mora biti nula ili više.";
   const prva = prvaNeizdana(u, p, fakturirano);
   if (od < prva) return `Cijena se može mijenjati od prve neizdane rate (${prva.slice(5)}/${prva.slice(0, 4)}).`;
-  for (const k of fakturirano.keys())
-    if (k.startsWith(`${p.uredajId}|`) && k.slice(p.uredajId.length + 1) >= od) return "Nakon tog mjeseca već postoji izdana rata.";
+  if (fakturiraniMjeseci(fakturirano, p.uredajId).some((m) => m >= od)) return "Nakon tog mjeseca već postoji izdana rata.";
   return null;
 }
 

@@ -10,6 +10,7 @@ import {
   jeMjesec,
   kljucRate,
   mjesecOd,
+  provjeriIzmjenuMjeseca,
   provjeriPromjenuCijene,
   sljedeciMjesec,
   type Mjesec,
@@ -176,12 +177,13 @@ const uMjesec = (x: Date) => x.toISOString().slice(0, 7);
 const centi = (x: Prisma.Decimal) => centiIzDecimala(x.toFixed(2));
 
 /** Podaci ugovora u obliku za motor naplate (domain/najam.ts). */
-export async function podaciZaNaplatu(tx: Tx | PrismaClient, firmaId: string, ugovorId: string) {
+export async function podaciZaNaplatu(tx: Tx | PrismaClient, firmaId: string, ugovorId: string, stranica?: { skip: number; take: number }) {
   const u = await tx.ugovorNajma.findFirst({ where: { id: ugovorId, firmaId }, select: { od: true, do: true, otkazan: true } });
   if (!u) throw new GreskaKorisniku("Ugovor ne postoji.");
   const planovi = await tx.uredajNaUgovoru.findMany({
     where: { firmaId, ugovorId },
-    orderBy: [{ stvoreno: "asc" }],
+    orderBy: [{ stvoreno: "asc" }, { id: "asc" }],
+    ...(stranica ?? {}),
     include: {
       uredaj: {
         select: {
@@ -470,6 +472,51 @@ export async function oznaciIzvanPrograma(db: PrismaClient, akter: Akter, ugovor
       entitet: "UgovorNajma",
       entitetId: ugovorId,
       opis: `Ugovor ${ug.broj}, ${serijski}, ${MJESECI_KRATKO(mjesec)}: ${izvan ? "izdano izvan programa" : "vraćeno za izdavanje"}`,
+    });
+  });
+}
+
+// ——— raspored (korak 3.5) ———
+
+export type IzmjenaMjeseca = { vrsta: "PAUZA" } | { vrsta: "RUCNO"; iznos: number } | { vrsta: "PLAN" };
+
+/** Pauza, ručni iznos ili povratak na plan za mjesec neizdane rate. */
+export async function postaviMjesec(db: PrismaClient, akter: Akter, ugovorId: string, planId: string, mjesec: Mjesec, izmjena: IzmjenaMjeseca) {
+  if (!jeUuid(ugovorId) || !jeUuid(planId)) throw new GreskaKorisniku("Uređaj nije na ovom ugovoru.");
+  if (izmjena.vrsta === "RUCNO" && (!Number.isSafeInteger(izmjena.iznos) || izmjena.iznos < 0))
+    throw new GreskaKorisniku("Iznos mora biti nula ili više.");
+  const f = akter.firmaId;
+  await db.$transaction(async (tx) => {
+    const ug = await zakljucajUgovor(tx, f, ugovorId);
+    const plan = await tx.uredajNaUgovoru.findFirst({
+      where: { id: planId, firmaId: f, ugovorId },
+      include: { uredaj: { select: { serijski: true } } },
+    });
+    if (!plan) throw new GreskaKorisniku("Uređaj nije na ovom ugovoru.");
+    const fakturirano = new Map(
+      (await tx.rataNajma.findMany({ where: { firmaId: f, planId }, select: { mjesec: true, iznos: true } })).map((r) => [
+        kljucRate(planId, uMjesec(r.mjesec)),
+        centi(r.iznos),
+      ]),
+    );
+    const g = provjeriIzmjenuMjeseca({ uredajId: planId } as PlanUredaja, fakturirano, mjesec);
+    if (g) throw new GreskaKorisniku(g);
+    const kljuc = { firmaId_planId_mjesec: { firmaId: f, planId, mjesec: mj(mjesec) } };
+    if (izmjena.vrsta === "PLAN") await tx.mjesecNajma.deleteMany({ where: { firmaId: f, planId, mjesec: mj(mjesec) } });
+    else {
+      const data = izmjena.vrsta === "PAUZA" ? { pauza: true, iznos: null } : { pauza: false, iznos: centiUDecimal(izmjena.iznos) };
+      await tx.mjesecNajma.upsert({ where: kljuc, create: { firmaId: f, planId, mjesec: mj(mjesec), ...data }, update: data });
+    }
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.mjesec",
+      entitet: "UgovorNajma",
+      entitetId: ugovorId,
+      opis: `Ugovor ${ug.broj}, ${plan.uredaj.serijski}, ${MJESECI_KRATKO(mjesec)}: ${
+        izmjena.vrsta === "PAUZA" ? "pauza" : izmjena.vrsta === "RUCNO" ? `ručni iznos ${(izmjena.iznos / 100).toFixed(2)} €` : "prema planu"
+      }`,
     });
   });
 }

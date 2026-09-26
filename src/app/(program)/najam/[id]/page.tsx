@@ -90,7 +90,12 @@ export default async function Ugovor({ params }: PageProps<"/najam/[id]">) {
             {u.redni === null && <Znacka>ručni broj</Znacka>}
           </span>
         }
-        akcije={<GumbVeza href="/najam">Natrag</GumbVeza>}
+        akcije={
+          <>
+            <GumbVeza href={`/najam/${u.id}/raspored`}>Raspored</GumbVeza>
+            <GumbVeza href="/najam">Natrag</GumbVeza>
+          </>
+        }
       />
       <Kartica naslov="Uvjeti">
         <ObrazacUgovora

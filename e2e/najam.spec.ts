@@ -43,6 +43,17 @@ test("ugovor o najmu: otvaranje, izmjena kraja, prilog, otkaz", async ({ page })
   await page.getByText(/Izdane rate/).click();
   await expect(page.getByTestId("izdane-rate").getByRole("link").first()).toHaveText(/\d+\/PP1\/1/);
   const adresa = page.url();
+  // raspored: sljedeći mjesec (neizdan) klikom u pauzu i natrag
+  await page.getByRole("link", { name: "Raspored" }).click();
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() + 1, 1);
+  const sljedeci = d.toISOString().slice(0, 7);
+  const celija = page.getByTestId("raspored").getByRole("button", { name: new RegExp(`^E2E-NAJAM-${p}-1 ${sljedeci}`) });
+  await celija.click();
+  await expect(celija).toHaveText("pauza");
+  await celija.click();
+  await expect(celija).toHaveText("60,00");
+  await bezVodoravnogPomicanja(page);
   await page.goto(`/uredaji/sn/E2E-NAJAM-${p}-1`);
   await expect(page.getByText("U najmu").first()).toBeVisible();
   await page.goto("/najam/rate");

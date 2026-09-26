@@ -7,7 +7,16 @@ import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
 import { procitajIznos } from "@/domain/novac";
-import { dodajUredajeNaUgovor, izdajRate, oznaciIzvanPrograma, otkaziUgovor, postaviCijenu, spremiUgovor } from "@/services/najam";
+import {
+  dodajUredajeNaUgovor,
+  izdajRate,
+  oznaciIzvanPrograma,
+  otkaziUgovor,
+  postaviCijenu,
+  postaviMjesec,
+  spremiUgovor,
+  type IzmjenaMjeseca,
+} from "@/services/najam";
 import { dodajPriloge, obrisiPrilog, type Datoteka } from "@/services/prilozi";
 
 const ili = (fd: FormData, ime: string) => tekst(fd, ime) || null;
@@ -115,5 +124,21 @@ export async function izvanProgramaAkcija(ugovorId: string, planId: string, mjes
     revalidatePath(`/najam/${ugovorId}`);
     revalidatePath("/najam/rate");
     return { ok: true, poruka: izvan ? "Označeno kao izdano izvan programa." : "Rata je vraćena za izdavanje." };
+  });
+}
+
+export async function postaviMjesecAkcija(ugovorId: string, planId: string, mjesec: string, vrsta: string, iznos: string | null): Promise<Odgovor> {
+  return akcija("najam.ugovor", async (k): Promise<Odgovor> => {
+    let izmjena: IzmjenaMjeseca;
+    if (vrsta === "PAUZA") izmjena = { vrsta: "PAUZA" };
+    else if (vrsta === "RUCNO") {
+      const c = procitajIznos(String(iznos ?? ""));
+      if (!c.ok) return { ok: false, greska: c.greska };
+      izmjena = { vrsta: "RUCNO", iznos: c.vrijednost };
+    } else izmjena = { vrsta: "PLAN" };
+    await postaviMjesec(db, k, String(ugovorId), String(planId), String(mjesec), izmjena);
+    revalidatePath(`/najam/${ugovorId}`);
+    revalidatePath(`/najam/${ugovorId}/raspored`);
+    return { ok: true };
   });
 }
