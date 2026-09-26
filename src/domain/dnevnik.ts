@@ -29,6 +29,7 @@ export const NAZIVI_ENTITETA: Record<string, string> = {
   Firma: "Firma",
   Korisnik: "Korisnik",
   Uloga: "Uloga",
+  Dnevnik: "Dnevnik promjena",
   Izvoz: "Izvoz",
   Kategorija: "Kategorija",
   Proizvodjac: "Proizvođač",

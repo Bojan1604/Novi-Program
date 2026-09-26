@@ -76,6 +76,8 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "dosljednost.popravi": ["Administrator"],
   "kopije.izradi": ["Administrator"],
   "kopije.vrati": ["Administrator"],
+  "opasna.brisanje": ["Administrator"],
+  "opasna.dnevnik": ["Administrator"],
   "servis.zaprimi": ["Administrator", "Voditelj", "Serviser"],
   "servis.uredi": ["Administrator", "Voditelj", "Serviser"],
   "servis.zamjena": ["Administrator", "Voditelj", "Serviser"],
@@ -121,6 +123,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/postavke": ["Administrator", "Voditelj"],
   "/provjera": ["Administrator", "Voditelj"],
   "/kopije": ["Administrator"],
+  "/opasna-zona": ["Administrator"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -207,6 +210,7 @@ describe("izbornik", () => {
       "/postavke",
       "/provjera",
       "/kopije",
+      "/opasna-zona",
       "/moj-racun",
     ]);
     expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/izvjestaji");
