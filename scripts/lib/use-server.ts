@@ -107,14 +107,16 @@ export function provjeriZastituAkcija(tekst: string, ime = "datoteka.ts"): strin
       const komentari = (ts.getLeadingCommentRanges(tekst, cvor.getFullStart()) ?? []).map((r) => tekst.slice(r.pos, r.end));
       if (komentari.some((k) => /javna akcija:\s*\S/.test(k))) continue;
       const { line } = izvor.getLineAndCharacterOfPosition(cvor.getStart(izvor));
-      if (!tijelo || !poziva(tijelo, "akcija")) {
+      // program: akcija(…); portal klijenata: akcijaPortala(…)
+      const zastita = tijelo && poziva(tijelo, "akcijaPortala") ? "akcijaPortala" : "akcija";
+      if (!tijelo || !poziva(tijelo, zastita)) {
         greske.push(`${ime}:${line + 1} — akcija „${naziv}“ ne poziva akcija(…) (provjera prava) niti je označena „// javna akcija: razlog“.`);
         continue;
       }
       // ništa se ne smije izvršiti prije provjere prava: nijedan await prije naredbe s akcija(…)
       if (ts.isBlock(tijelo)) {
         for (const n of tijelo.statements) {
-          if (poziva(n, "akcija")) break;
+          if (poziva(n, zastita)) break;
           if (imaAwait(n)) {
             greske.push(`${ime}:${line + 1} — akcija „${naziv}“ radi nešto (await) prije provjere prava akcija(…).`);
             break;
@@ -177,12 +179,23 @@ export function provjeriUnutarnjiUseServer(tekst: string, ime = "datoteka.ts"): 
  * Stranica programa mora provjeriti pristup (pristupStranici ili trenutniKontekst),
  * API ruta pristupApi — osim ako je označena „// javna stranica: razlog“ / „// javna ruta: razlog“.
  */
-export function provjeriPristupStranice(tekst: string, ime: string, vrsta: "stranica" | "ruta"): string[] {
+export function provjeriPristupStranice(tekst: string, ime: string, vrsta: "stranica" | "ruta", portal = false): string[] {
   const oznaka = vrsta === "stranica" ? /javna stranica:\s*\S/ : /javna ruta:\s*\S/;
   if (oznaka.test(tekst)) return [];
-  const provjere = vrsta === "stranica" ? /\b(pristupStranici|trenutniKontekst)\(/ : /\bpristupApi\(/;
+  const provjere = portal
+    ? vrsta === "stranica"
+      ? /\bpristupPortalu\(/
+      : /\bpristupPortalApi\(/
+    : vrsta === "stranica"
+      ? /\b(pristupStranici|trenutniKontekst)\(/
+      : /\bpristupApi\(/;
   if (provjere.test(tekst)) return [];
-  return [
-    `${ime} — ${vrsta === "stranica" ? "stranica ne poziva pristupStranici(…)/trenutniKontekst()" : "ruta ne poziva pristupApi(…)"} niti je označena „// javna ${vrsta}: razlog“.`,
-  ];
+  const treba = portal
+    ? vrsta === "stranica"
+      ? "pristupPortalu(…)"
+      : "pristupPortalApi(…)"
+    : vrsta === "stranica"
+      ? "pristupStranici(…)/trenutniKontekst()"
+      : "pristupApi(…)";
+  return [`${ime} — ${vrsta} ne poziva ${treba} niti je označena „// javna ${vrsta}: razlog“.`];
 }

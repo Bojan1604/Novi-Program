@@ -8,4 +8,7 @@ export const E2E = {
   voditelj: { ime: "Vesna Voditelj", email: "vesna@e2e.hr" },
   /** zaseban korisnik za test zaključavanja, da ne blokira ostale testove */
   zakljucavanje: { email: "zakljucaj@e2e.hr" },
+  /** klijent na portalu (partner E2E Kupac) i klijent drugog partnera (napad na tuđe podatke) */
+  klijent: { ime: "Ivana Klijent", email: "klijent@e2e.hr", lozinka: "Portal-lozinka-2026" },
+  drugiKlijent: { email: "drugi@e2e.hr" },
 };

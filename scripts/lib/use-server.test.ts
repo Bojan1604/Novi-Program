@@ -113,4 +113,16 @@ describe("stranice i rute provjeravaju pristup", () => {
     expect(provjeriPristupStranice("export async function GET() {}", "r.ts", "ruta")).toHaveLength(1);
     expect(provjeriPristupStranice('const k = await pristupApi({ posebno: "log" });', "r.ts", "ruta")).toEqual([]);
   });
+
+  it("portal: stranica traži pristupPortalu, ruta pristupPortalApi (provjera programa nije dovoljna)", () => {
+    expect(provjeriPristupStranice("const k = await pristupPortalu();", "p.tsx", "stranica", true)).toEqual([]);
+    expect(provjeriPristupStranice('const k = await pristupStranici("/x");', "p.tsx", "stranica", true)).toHaveLength(1);
+    expect(provjeriPristupStranice("const k = await pristupPortalApi();", "r.ts", "ruta", true)).toEqual([]);
+    expect(provjeriPristupStranice('const k = await pristupApi({ posebno: "log" });', "r.ts", "ruta", true)).toHaveLength(1);
+  });
+
+  it("akcija portala s akcijaPortala je zaštićena; await prije nje nije dopušten", () => {
+    expect(provjeriZastituAkcija('"use server";\nexport async function a() { return akcijaPortala(async (k) => 1); }')).toEqual([]);
+    expect(provjeriZastituAkcija('"use server";\nexport async function a() { await x(); return akcijaPortala(async (k) => 1); }')).toHaveLength(1);
+  });
 });

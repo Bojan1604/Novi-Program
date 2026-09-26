@@ -16,7 +16,7 @@ export default async function Novi({ searchParams }: PageProps<"/servis/novi">) 
   const sp = await searchParams;
   const skladista = await k.db.skladiste.findMany({
     where: { firmaId: k.firmaId, aktivan: true },
-    orderBy: { naziv: "asc" },
+    orderBy: [{ zadano: "desc" }, { naziv: "asc" }],
     select: { id: true, naziv: true },
   });
   return (

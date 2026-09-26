@@ -100,6 +100,26 @@ async function priprema(): Promise<void> {
       const korisnik = await prisma.korisnik.create({ data: { ime: k.ime, email: k.email, lozinkaHash } });
       await prisma.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[k.uloga]! } });
     }
+    // portal: klijent E2E Kupca s uređajem i drugi klijent s tuđim uređajem
+    const hashPortala = bcrypt.hashSync(E2E.klijent.lozinka, 4);
+    const drugi = await prisma.partner.create({ data: { firmaId: firma.id, naziv: "E2E Drugi klijent d.o.o." } });
+    await prisma.uredaj.create({
+      data: {
+        firmaId: firma.id,
+        serijski: "E2E-PORTAL-1",
+        modelId: model.id,
+        stanje: "PRODAN",
+        partnerId: kupac.id,
+        jamstvoDo: new Date("2030-01-01"),
+      },
+    });
+    await prisma.uredaj.create({ data: { firmaId: firma.id, serijski: "E2E-TUDJI-1", modelId: model.id, stanje: "PRODAN", partnerId: drugi.id } });
+    await prisma.korisnikPortala.create({
+      data: { firmaId: firma.id, partnerId: kupac.id, ime: E2E.klijent.ime, email: E2E.klijent.email, lozinkaHash: hashPortala },
+    });
+    await prisma.korisnikPortala.create({
+      data: { firmaId: firma.id, partnerId: drugi.id, ime: "Drugi", email: E2E.drugiKlijent.email, lozinkaHash: hashPortala },
+    });
   } finally {
     await prisma.$disconnect();
   }

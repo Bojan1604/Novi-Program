@@ -108,6 +108,8 @@ model Firma {
   predajeKnjigovodji   PredajaKnjigovodji[]
   servisniNalozi       ServisniNalog[]
   dogadajiServisa      DogadajServisa[]
+  korisniciPortala     KorisnikPortala[]
+  sesijePortala        SesijaPortala[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -399,6 +401,7 @@ model Partner {
   ugovoriNajma       UgovorNajma[]
   ulazniRacuni       UlazniRacun[]
   servisniNalozi     ServisniNalog[]
+  korisniciPortala   KorisnikPortala[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -1437,4 +1440,51 @@ model DogadajServisa {
   nalog ServisniNalog @relation(fields: [firmaId, nalogId], references: [firmaId, id], onDelete: Cascade)
 
   @@index([firmaId, nalogId, vrijeme])
+}
+
+/// Klijent na portalu (korak 5.2): prijava odvojena od korisnika programa, vidi samo podatke svog partnera.
+model KorisnikPortala {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  firmaId         String    @db.Uuid
+  partnerId       String    @db.Uuid
+  ime             String
+  /// mala slova; jedinstven u firmi
+  email           String
+  /// null dok klijent ne postavi lozinku preko poveznice
+  lozinkaHash     String?
+  aktivan         Boolean   @default(true)
+  /// poveznica za postavljanje lozinke (hash tokena) i istek
+  poveznicaHash   String?   @unique
+  poveznicaIstice DateTime? @db.Timestamptz(3)
+  zadnjaPrijava   DateTime? @db.Timestamptz(3)
+  korisnikId      String?   @db.Uuid
+  korisnik        String    @default("Sustav")
+  stvoreno        DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano       DateTime  @updatedAt @db.Timestamptz(3)
+
+  firma   Firma           @relation(fields: [firmaId], references: [id])
+  partner Partner         @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  sesije  SesijaPortala[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, email])
+  @@index([email])
+  @@index([firmaId, partnerId])
+}
+
+/// Sesija klijenta na portalu (id = hash tokena iz kolačića „erp_portal“).
+model SesijaPortala {
+  id                String   @id
+  firmaId           String   @db.Uuid
+  korisnikPortalaId String   @db.Uuid
+  istjece           DateTime @db.Timestamptz(3)
+  zadnjaAktivnost   DateTime @db.Timestamptz(3)
+  ip                String?
+  preglednik        String?
+  stvoreno          DateTime @default(now()) @db.Timestamptz(3)
+
+  firma    Firma           @relation(fields: [firmaId], references: [id])
+  korisnik KorisnikPortala @relation(fields: [firmaId, korisnikPortalaId], references: [firmaId, id], onDelete: Cascade)
+
+  @@index([korisnikPortalaId])
 }
