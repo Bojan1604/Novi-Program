@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { danas } from "@/domain/datum";
-import { postotakMarze, poMjesecima, marzeDokumenata } from "@/queries/marze";
+import { marzePoMjesecima, postotakMarze } from "@/queries/marze";
 import { pregledTroskova } from "@/services/troskovi";
 import { STATUSI_SERVISA } from "@/domain/servis";
 import { broj, centi, i, uuidovi, uvjetDatuma } from "./pomoc";
@@ -116,20 +116,25 @@ export const ZALIHA_PO_MODELU: Izvjestaj = {
     const u = [Prisma.sql`u."firmaId" = ${firmaId}::uuid`, Prisma.sql`u.stanje IN ('NA_SKLADISTU', 'REZERVIRAN')`];
     const skl = uuidovi(f.vise["skladiste"] ?? []);
     if (skl.length) u.push(Prisma.sql`u."skladisteId" IN (${Prisma.join(skl.map((x) => Prisma.sql`${x}::uuid`))})`);
-    if (f.trazi) u.push(Prisma.sql`m.naziv ILIKE ${`%${f.trazi}%`}`);
-    const w = i(u);
-    const iz = Prisma.sql`FROM "Uredaj" u JOIN "ModelUredaja" m ON m.id = u."modelId" AND m."firmaId" = u."firmaId"
-      LEFT JOIN "Skladiste" k ON k.id = u."skladisteId" AND k."firmaId" = u."firmaId"`;
-    const [redovi, [z]] = await Promise.all([
-      db.$queryRaw<Record<string, unknown>[]>`
-        SELECT m.naziv AS model, COALESCE(k.naziv, '—') AS skladiste,
+    const t = f.trazi ? Prisma.sql`WHERE m.naziv ILIKE ${`%${f.trazi}%`}` : Prisma.empty;
+    // prvo grupiranje po id-evima na samoj tablici uređaja (300.000 redaka), nazivi tek na grupama;
+    // zbroj cijelog skupa prozorskom funkcijom u istom upitu
+    const upit = (take: number, skip: number) => db.$queryRaw<Record<string, unknown>[]>`
+      WITH g AS (
+        SELECT u."modelId", u."skladisteId",
           COUNT(*) FILTER (WHERE u.stanje = 'NA_SKLADISTU') AS "naSkladistu", COUNT(*) FILTER (WHERE u.stanje = 'REZERVIRAN') AS rezervirano,
           SUM(u."nabavnaCijena") AS vrijednost
-        ${iz} WHERE ${w} GROUP BY m.naziv, k.naziv ORDER BY ${s.sort}, model LIMIT ${s.take} OFFSET ${s.skip}`,
-      db.$queryRaw<Record<string, unknown>[]>`
-        SELECT COUNT(DISTINCT (m.naziv, k.naziv)) AS grupa, COUNT(*) FILTER (WHERE u.stanje = 'NA_SKLADISTU') AS "naSkladistu",
-          COUNT(*) FILTER (WHERE u.stanje = 'REZERVIRAN') AS rezervirano, SUM(u."nabavnaCijena") AS vrijednost ${iz} WHERE ${w}`,
-    ]);
+        FROM "Uredaj" u WHERE ${i(u)} GROUP BY u."modelId", u."skladisteId"),
+      r AS (
+        SELECT m.naziv AS model, COALESCE(k.naziv, '—') AS skladiste, g."naSkladistu", g.rezervirano, g.vrijednost
+        FROM g JOIN "ModelUredaja" m ON m.id = g."modelId" AND m."firmaId" = ${firmaId}::uuid
+        LEFT JOIN "Skladiste" k ON k.id = g."skladisteId" AND k."firmaId" = ${firmaId}::uuid ${t})
+      SELECT r.*, COUNT(*) OVER () AS grupa, SUM(r."naSkladistu") OVER () AS "zNaSkladistu",
+        SUM(r.rezervirano) OVER () AS "zRezervirano", SUM(r.vrijednost) OVER () AS "zVrijednost"
+      FROM r ORDER BY ${s.sort}, model, skladiste LIMIT ${take} OFFSET ${skip}`;
+    const redovi = await upit(s.take, s.skip);
+    // stranica iza zadnje: zbroj iz prvog retka
+    const z = redovi[0] ?? (s.skip > 0 ? (await upit(1, 0))[0] : undefined);
     return {
       redovi: redovi.map((r) => ({
         model: String(r["model"]),
@@ -138,8 +143,12 @@ export const ZALIHA_PO_MODELU: Izvjestaj = {
         rezervirano: broj(r["rezervirano"]),
         vrijednost: centi(r["vrijednost"]),
       })),
-      ukupno: broj(z!["grupa"]),
-      zbroj: { naSkladistu: broj(z!["naSkladistu"]), rezervirano: broj(z!["rezervirano"]), vrijednost: centi(z!["vrijednost"]) },
+      ukupno: broj(z?.["grupa"] ?? 0),
+      zbroj: {
+        naSkladistu: broj(z?.["zNaSkladistu"] ?? 0),
+        rezervirano: broj(z?.["zRezervirano"] ?? 0),
+        vrijednost: centi(z?.["zVrijednost"] ?? null),
+      },
     };
   },
 };
@@ -274,12 +283,12 @@ export const MARZE_PO_MJESECIMA: Izvjestaj = {
   ],
   zadanoSortiranje: { kljuc: "mjesec", smjer: "desc" },
   async upit(db, firmaId, f, s) {
-    const d = await marzeDokumenata(db, firmaId, { ...(f.od ? { od: f.od } : {}), ...(f.do ? { do: f.do } : {}) });
+    const mjeseci = await marzePoMjesecima(db, firmaId, { ...(f.od ? { od: f.od } : {}), ...(f.do ? { do: f.do } : {}) });
     const p = (m: number, pr: number) => {
       const x = postotakMarze(m, pr);
       return x === null ? null : `${(x / 100).toFixed(1).replace(".", ",")} %`;
     };
-    const redovi = poMjesecima(d).map((x) => ({ ...x, postotak: p(x.marza, x.prihod) }));
+    const redovi = mjeseci.map((x) => ({ ...x, postotak: p(x.marza, x.prihod) }));
     const z = redovi.reduce(
       (a, x) => ({ dokumenata: a.dokumenata + x.dokumenata, prihod: a.prihod + x.prihod, nabava: a.nabava + x.nabava, marza: a.marza + x.marza }),
       {

@@ -5,7 +5,7 @@ import { formatirajIznos } from "@/domain/novac";
 import { jedan } from "@/domain/popis";
 import { pristupStranici } from "@/lib/akcija";
 import { db } from "@/lib/db";
-import { marzeDokumenata, poMjesecima, postotakMarze } from "@/queries/marze";
+import { marzePoMjesecima, postotakMarze } from "@/queries/marze";
 
 export const metadata = { title: "Marže · ERP-WMS" };
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export default async function Marze({ searchParams }: PageProps<"/marze">) {
   const sp = await searchParams;
   const od = jedan(sp["od"]);
   const doDatuma = jedan(sp["do"]);
-  const mjeseci = poMjesecima(await marzeDokumenata(db, k.firmaId, { od, do: doDatuma }));
+  const mjeseci = await marzePoMjesecima(db, k.firmaId, { od, do: doDatuma });
   const u = mjeseci.reduce(
     (a, m) => ({ prihod: a.prihod + m.prihod, nabava: a.nabava + m.nabava, marza: a.marza + m.marza, bez: a.bez + m.bezNabavne }),
     { prihod: 0, nabava: 0, marza: 0, bez: 0 },

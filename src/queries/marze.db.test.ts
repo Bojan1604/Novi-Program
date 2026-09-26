@@ -5,7 +5,7 @@ import { napraviFirmu, napraviKorisnika, ocistiBazu, testnaPrisma } from "@/test
 import { pravaClana, type Akter } from "@/services/korisnici";
 import { dodajPredujam, izdajRacun, napraviOdobrenje, spremiNacrt, stornirajRacun, type UlazDokumenta } from "@/services/prodaja";
 import { napraviZadaneSifrarnike } from "@/services/sifrarnici";
-import { marzeDokumenata, poMjesecima, postotakMarze } from "./marze";
+import { marzeDokumenata, marzePoMjesecima, poMjesecima, postotakMarze } from "./marze";
 import { popisProdaje } from "./prodaja";
 
 const prisma = testnaPrisma();
@@ -119,6 +119,9 @@ describe("marže", () => {
       { mjesec: "2026-10", dokumenata: 4, prihod: 100000, nabava: 0, marza: 100000, bezNabavne: 0 },
       { mjesec: "2026-09", dokumenata: 4, prihod: 285000, nabava: 125000, marza: 160000, bezNabavne: 1 },
     ]);
+    // isto grupirano u bazi (stranica Marže i izvještaj)
+    expect(await marzePoMjesecima(prisma, firma.id, {})).toEqual(mj);
+    expect(await marzePoMjesecima(prisma, firma.id, { od: "2026-10-01" })).toEqual([mj[0]]);
     // prihod po mjesecima = zbroj osnovica izdanih dokumenata
     const osnovice = await prisma.prodajniDokument.aggregate({ where: { firmaId: firma.id, status: { not: "NACRT" } }, _sum: { osnovica: true } });
     expect(mj.reduce((a, m) => a + m.prihod, 0)).toBe(Math.round(Number(osnovice._sum.osnovica) * 100));

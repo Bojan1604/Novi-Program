@@ -22,30 +22,42 @@ const VRSTE = ["RACUN", "PREDUJAM", "ODOBRENJE", "STORNO"];
 
 type Redak = { id: string; mjesec: string; osnovica: Prisma.Decimal; nabava: Prisma.Decimal | null; bez_nabavne: bigint };
 
+function uvjetiDokumenata(firmaId: string, u: { ids?: string[]; od?: string; do?: string }): Prisma.Sql {
+  const uvjeti = [Prisma.sql`d."firmaId" = ${firmaId}::uuid`, Prisma.sql`d.vrsta IN (${Prisma.join(VRSTE)})`, Prisma.sql`d.status <> 'NACRT'`];
+  if (u.ids) uvjeti.push(Prisma.sql`d.id IN (${Prisma.join(u.ids.map((x) => Prisma.sql`${x}::uuid`))})`);
+  if (u.od && jeDatum(u.od)) uvjeti.push(Prisma.sql`d.datum >= ${u.od}::date`);
+  if (u.do && jeDatum(u.do)) uvjeti.push(Prisma.sql`d.datum <= ${u.do}::date`);
+  return Prisma.join(uvjeti, " AND ");
+}
+
+/**
+ * Dokumenti i nabava njihovih prodanih uređaja: nabava se grupira jednom (od veza uređaja na stavke, kojih je
+ * malo), ne podupitom po dokumentu — 100.000 računa bez toga traje sekundama.
+ */
+function sDokumentima(firmaId: string, uvjeti: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    WITH d AS (SELECT d.id, d.datum, d.osnovica FROM "ProdajniDokument" d WHERE ${uvjeti}),
+    n AS (
+      SELECT s."dokumentId" AS id,
+        SUM(CASE WHEN s.kolicina < 0 THEN -u."nabavnaCijena" ELSE u."nabavnaCijena" END) AS nabava,
+        COUNT(*) FILTER (WHERE u."nabavnaCijena" IS NULL) AS bez_nabavne
+      FROM "UredajNaStavci" us
+      JOIN "StavkaProdajnogDokumenta" s ON s.id = us."stavkaId" AND s."firmaId" = us."firmaId"
+      JOIN "Uredaj" u ON u.id = us."uredajId" AND u."firmaId" = us."firmaId"
+      WHERE us."firmaId" = ${firmaId}::uuid AND s.namjena = 'PRODAJA' AND s."dokumentId" IN (SELECT id FROM d)
+      GROUP BY s."dokumentId")`;
+}
+
 export async function marzeDokumenata(
   db: Pick<PrismaClient, "$queryRaw">,
   firmaId: string,
   u: { ids?: string[]; od?: string; do?: string },
 ): Promise<MarzaDokumenta[]> {
   if (u.ids && u.ids.length === 0) return [];
-  const uvjeti = [Prisma.sql`d."firmaId" = ${firmaId}::uuid`, Prisma.sql`d.vrsta IN (${Prisma.join(VRSTE)})`, Prisma.sql`d.status <> 'NACRT'`];
-  if (u.ids) uvjeti.push(Prisma.sql`d.id IN (${Prisma.join(u.ids.map((x) => Prisma.sql`${x}::uuid`))})`);
-  if (u.od && jeDatum(u.od)) uvjeti.push(Prisma.sql`d.datum >= ${u.od}::date`);
-  if (u.do && jeDatum(u.do)) uvjeti.push(Prisma.sql`d.datum <= ${u.do}::date`);
   const redovi = await db.$queryRaw<Redak[]>`
-    SELECT d.id::text AS id, to_char(d.datum, 'YYYY-MM') AS mjesec, d.osnovica,
-      (SELECT SUM(CASE WHEN s.kolicina < 0 THEN -u."nabavnaCijena" ELSE u."nabavnaCijena" END)
-         FROM "StavkaProdajnogDokumenta" s
-         JOIN "UredajNaStavci" us ON us."stavkaId" = s.id AND us."firmaId" = s."firmaId"
-         JOIN "Uredaj" u ON u.id = us."uredajId" AND u."firmaId" = us."firmaId"
-        WHERE s."dokumentId" = d.id AND s."firmaId" = d."firmaId" AND s.namjena = 'PRODAJA') AS nabava,
-      (SELECT COUNT(*)
-         FROM "StavkaProdajnogDokumenta" s
-         JOIN "UredajNaStavci" us ON us."stavkaId" = s.id AND us."firmaId" = s."firmaId"
-         JOIN "Uredaj" u ON u.id = us."uredajId" AND u."firmaId" = us."firmaId"
-        WHERE s."dokumentId" = d.id AND s."firmaId" = d."firmaId" AND s.namjena = 'PRODAJA' AND u."nabavnaCijena" IS NULL) AS bez_nabavne
-    FROM "ProdajniDokument" d
-    WHERE ${Prisma.join(uvjeti, " AND ")}
+    ${sDokumentima(firmaId, uvjetiDokumenata(firmaId, u))}
+    SELECT d.id::text AS id, to_char(d.datum, 'YYYY-MM') AS mjesec, d.osnovica, n.nabava, COALESCE(n.bez_nabavne, 0) AS bez_nabavne
+    FROM d LEFT JOIN n ON n.id = d.id
     ORDER BY d.datum, d.id`;
   return redovi.map((r) => {
     const prihod = centiIzDecimala(r.osnovica.toFixed(2));
@@ -56,7 +68,26 @@ export async function marzeDokumenata(
 
 export type MarzaMjeseca = { mjesec: string; dokumenata: number; prihod: number; nabava: number; marza: number; bezNabavne: number };
 
-/** Zbroj po mjesecima (od najnovijeg). */
+/** Marže po mjesecima (od najnovijeg), grupirano u bazi — isti izvor kao `marzeDokumenata`. */
+export async function marzePoMjesecima(
+  db: Pick<PrismaClient, "$queryRaw">,
+  firmaId: string,
+  u: { od?: string; do?: string },
+): Promise<MarzaMjeseca[]> {
+  const r = await db.$queryRaw<{ mjesec: string; dokumenata: bigint; prihod: Prisma.Decimal; nabava: Prisma.Decimal | null; bez_nabavne: bigint }[]>`
+    ${sDokumentima(firmaId, uvjetiDokumenata(firmaId, u))}
+    SELECT to_char(d.datum, 'YYYY-MM') AS mjesec, COUNT(*) AS dokumenata, SUM(d.osnovica) AS prihod,
+      SUM(n.nabava) AS nabava, COALESCE(SUM(n.bez_nabavne), 0) AS bez_nabavne
+    FROM d LEFT JOIN n ON n.id = d.id
+    GROUP BY 1 ORDER BY 1 DESC`;
+  return r.map((x) => {
+    const prihod = centiIzDecimala(x.prihod.toFixed(2));
+    const nabava = x.nabava ? centiIzDecimala(x.nabava.toFixed(2)) : 0;
+    return { mjesec: x.mjesec, dokumenata: Number(x.dokumenata), prihod, nabava, marza: prihod - nabava, bezNabavne: Number(x.bez_nabavne) };
+  });
+}
+
+/** Zbroj po mjesecima (od najnovijeg) iz popisa dokumenata. */
 export function poMjesecima(dokumenti: readonly MarzaDokumenta[]): MarzaMjeseca[] {
   const m = new Map<string, MarzaMjeseca>();
   for (const d of dokumenti) {
