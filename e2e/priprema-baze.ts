@@ -16,7 +16,7 @@ async function priprema(): Promise<void> {
   const prisma = napraviPrismu(url);
   try {
     await ocistiBazu(prisma);
-    const firma = await prisma.firma.create({ data: { naziv: E2E.firma, oib: "69435151530", boja: E2E.boja } });
+    const firma = await prisma.firma.create({ data: { naziv: E2E.firma, oib: "69435151530", boja: E2E.boja, iban: "HR1210010051863000160" } });
     const uloge = await napraviZadaneUloge(prisma, firma.id);
     await napraviZadaneSifrarnike(prisma, firma.id);
     const proizvodjac = await prisma.proizvodjac.create({ data: { firmaId: firma.id, naziv: "E2E Proizvođač" } });

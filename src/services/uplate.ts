@@ -6,6 +6,7 @@ import { ukupnoZaPlacanje } from "@/domain/odobrenja";
 import { provjeriUplatu, stanjePlacanja } from "@/domain/uplate";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zapisiDnevnik } from "./dnevnik";
+import { ponistiNaplatu, zabiljeziNaplatu } from "./eracun";
 import type { Akter } from "./korisnici";
 
 type Tx = Prisma.TransactionClient;
@@ -64,6 +65,7 @@ export async function dodajUplatu(db: PrismaClient, akter: Akter, dokumentId: st
       },
     });
     const s = await osvjeziPlaceno(tx, akter.firmaId, dokumentId, d.ukupnoC);
+    await zabiljeziNaplatu(tx, akter.firmaId, dokumentId, up);
     await zapisiDnevnik(tx, {
       firmaId: akter.firmaId,
       korisnikId: akter.korisnikId,
@@ -91,6 +93,7 @@ export async function ponistiUplatu(db: PrismaClient, akter: Akter, uplataId: st
     if (svjeza.ponistena) throw new GreskaKorisniku("Uplata je već poništena.");
     await tx.uplata.update({ where: { id: uplataId }, data: { ponistena: true, razlogPonistenja: r.slice(0, 500) } });
     const s = await osvjeziPlaceno(tx, akter.firmaId, up.dokumentId, d.ukupnoC);
+    await ponistiNaplatu(tx, akter.firmaId, up);
     await zapisiDnevnik(tx, {
       firmaId: akter.firmaId,
       korisnikId: akter.korisnikId,

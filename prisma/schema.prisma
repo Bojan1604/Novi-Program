@@ -81,6 +81,8 @@ model Firma {
   prilozi            Prilog[]
   skladisniDokumenti SkladisniDokument[]
   prodajniDokumenti  ProdajniDokument[]
+  eRacuni            ERacun[]
+  eIzvjestaji        EIzvjestaj[]
   stavkeDokumenata   StavkaSkladisnogDokumenta[]
   odobrenja          Odobrenje[]
   inventure          Inventura[]
@@ -804,12 +806,14 @@ model ProdajniDokument {
   stvoreno       DateTime  @default(now()) @db.Timestamptz(3)
   azurirano      DateTime  @updatedAt @db.Timestamptz(3)
 
-  firma      Firma                      @relation(fields: [firmaId], references: [id])
-  partner    Partner?                   @relation(fields: [firmaId, partnerId], references: [firmaId, id])
-  poslovnica Poslovnica?                @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
-  stavke     StavkaProdajnogDokumenta[]
-  uplate     Uplata[]
-  slanja     SlanjeEposte[]
+  firma       Firma                      @relation(fields: [firmaId], references: [id])
+  partner     Partner?                   @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  poslovnica  Poslovnica?                @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
+  stavke      StavkaProdajnogDokumenta[]
+  uplate      Uplata[]
+  slanja      SlanjeEposte[]
+  eRacuni     ERacun[]
+  eIzvjestaji EIzvjestaj[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, vrsta, godina, redni])
@@ -923,4 +927,54 @@ model SlanjeEposte {
 
   @@unique([firmaId, id])
   @@index([firmaId, dokumentId, vrijeme(sort: Desc)])
+}
+
+/// eRačun (izlazni) poslan preko informacijskog posrednika — korak 2.11. XML se čuva kako je poslan (arhiva 11 godina).
+model ERacun {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  firmaId     String    @db.Uuid
+  dokumentId  String    @db.Uuid
+  /// POSLAN, ISPORUCEN, PRIHVACEN, ODBIJEN, GRESKA
+  status      String
+  posrednik   String
+  posrednikId String?
+  poruka      String?
+  xml         String
+  korisnikId  String?   @db.Uuid
+  korisnik    String    @default("Sustav")
+  poslano     DateTime  @default(now()) @db.Timestamptz(3)
+  provjereno  DateTime? @db.Timestamptz(3)
+
+  firma    Firma            @relation(fields: [firmaId], references: [id])
+  dokument ProdajniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, dokumentId, poslano(sort: Desc)])
+  @@index([firmaId, status])
+}
+
+/// eIzvještavanje Poreznoj upravi o naplati i odbijanju eRačuna (preko posrednika).
+model EIzvjestaj {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  firmaId     String    @db.Uuid
+  dokumentId  String    @db.Uuid
+  /// NAPLATA, ODBIJANJE
+  vrsta       String
+  iznos       Decimal   @db.Decimal(14, 2)
+  datum       DateTime  @db.Date
+  razlog      String?
+  /// CEKA, POSLAN, GRESKA
+  status      String    @default("CEKA")
+  posrednikId String?
+  poruka      String?
+  uplataId    String?   @db.Uuid
+  stvoreno    DateTime  @default(now()) @db.Timestamptz(3)
+  poslano     DateTime? @db.Timestamptz(3)
+
+  firma    Firma            @relation(fields: [firmaId], references: [id])
+  dokument ProdajniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, uplataId])
+  @@index([firmaId, status])
 }

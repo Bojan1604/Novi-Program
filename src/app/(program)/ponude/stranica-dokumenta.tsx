@@ -14,6 +14,7 @@ import { ukupnoZaPlacanje } from "@/domain/odobrenja";
 import { NAZIVI_STATUSA, stanjePlacanja } from "@/domain/uplate";
 import { PonistiUplatu, UnosUplate } from "../racuni/placanje";
 import { SlanjeEposte } from "./eposta";
+import { KarticaERacuna } from "../racuni/kartica-eracuna";
 import { predlozak, vrstaPoruke, type VrstaPoruke } from "@/domain/eposta";
 import { pozivNaBrojRacuna } from "@/domain/hub3";
 import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, PonoviFiskalizaciju, Pretvori, Storniraj } from "./radnje";
@@ -319,6 +320,9 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
         {d.napomena && <p className="mt-3 text-sm whitespace-pre-line">{d.napomena}</p>}
         <p className="mt-3 text-xs text-neutral-500">Izradio {d.korisnik}</p>
       </Kartica>
+      {!nacrt && ["RACUN", "PREDUJAM", "ODOBRENJE", "STORNO"].includes(d.vrsta) && (
+        <KarticaERacuna firmaId={k.firmaId} dokumentId={d.id} smije={smije} />
+      )}
       {smije && !nacrt && (
         <Kartica naslov="E-pošta">
           <SlanjeEposte

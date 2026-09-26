@@ -211,3 +211,30 @@ test("račun za predujam i odbitak na konačnom računu", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ })).toBeVisible();
   await expect(page.getByTestId("zbrojevi")).toContainText("750,00 €");
 });
+
+test("eRačun: provjera, slanje preko (demo) posrednika, status, UBL, popis eRačuna", async ({ page }) => {
+  await prijaviSe(page);
+  await izdajRacunZa(page, async () => {
+    await page.getByLabel("Vrsta", { exact: true }).selectOption("USLUGA");
+    await page.getByRole("combobox", { name: "Usluga" }).fill("E2E Instal");
+    await page.getByRole("option", { name: /E2E Instalacija/ }).click();
+    await page.getByLabel("KPD stavke 1").fill("62.09.20");
+  });
+  const broj = (await page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ }).textContent())!.replace("Račun ", "");
+  const kartica = page.getByTestId("eracun");
+  await expect(kartica).toContainText("eRačun još nije poslan.");
+  await expect(page.getByTestId("greske-eracuna")).toHaveCount(0);
+  const ubl = await page.request.get((await kartica.getByRole("link", { name: "UBL (XML)" }).getAttribute("href"))!);
+  expect(ubl.headers()["content-type"]).toContain("application/xml");
+  expect(await ubl.text()).toContain(`<cbc:ID>${broj}</cbc:ID>`);
+  await kartica.getByRole("button", { name: "Pošalji eRačun" }).click();
+  // gumb nestaje nakon slanja; stanje pokazuje značka
+  await expect(kartica).toContainText(/Poslan.*Demo posrednik/);
+  await expect(kartica.getByRole("button", { name: "Pošalji eRačun" })).toHaveCount(0);
+  await kartica.getByRole("button", { name: "Provjeri status" }).click();
+  await expect(kartica).toContainText("Prihvaćen");
+  await expect(kartica.getByRole("button", { name: "Provjeri status" })).toHaveCount(0);
+  await page.goto("/eracuni");
+  await expect(page.getByTestId("popis-eracuna")).toContainText(broj);
+  await bezVodoravnogPomicanja(page);
+});

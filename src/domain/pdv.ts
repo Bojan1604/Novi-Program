@@ -182,3 +182,22 @@ export function napomenePdv(kategorije: readonly KategorijaPdv[], naplacenaNakna
   if (naplacenaNaknada && kategorije.some((k) => k.kod === "HR")) r.push(TEKST_NAPLACENA_NAKNADA);
   return r;
 }
+
+/** Kategorija PDV-a iz spremljenog koda stavke (za eRačun izdanog dokumenta). */
+export function kategorijaPoKodu(kod: KodKategorije, stopa: number): KategorijaPdv {
+  const p = { firmaUSustavuPdv: true, statusKupca: "DOMACI" as PdvStatus, vrsta: "USLUGA" as VrstaIsporuke, stopa };
+  switch (kod) {
+    case "NIJE_U_SUSTAVU":
+      return kategorijaPdv({ ...p, firmaUSustavuPdv: false });
+    case "EU_ROBA":
+      return kategorijaPdv({ ...p, statusKupca: "EU_OBVEZNIK", vrsta: "ROBA" });
+    case "EU_USLUGA":
+      return kategorijaPdv({ ...p, statusKupca: "EU_OBVEZNIK" });
+    case "IZVOZ":
+      return kategorijaPdv({ ...p, statusKupca: "TRECA_ZEMLJA", vrsta: "ROBA" });
+    case "TRECE_USLUGA":
+      return kategorijaPdv({ ...p, statusKupca: "TRECA_ZEMLJA" });
+    default:
+      return kategorijaPdv(p);
+  }
+}
