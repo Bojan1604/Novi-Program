@@ -66,6 +66,8 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "ulazni.spremi": ["Administrator", "Voditelj", "Skladištar"],
   "ulazni.storno": ["Administrator", "Voditelj"],
   "ulazni.prilozi": ["Administrator", "Voditelj", "Skladištar"],
+  "ulazni.eracun": ["Administrator", "Voditelj", "Skladištar"],
+  "ulazni.plati": ["Administrator", "Voditelj", "Skladištar"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {

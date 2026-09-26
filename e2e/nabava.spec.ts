@@ -65,3 +65,24 @@ test("ulazni račun za robu po narudžbenici: trošak robe je veći od primke i 
   await page.getByRole("link", { name: /NAR-/ }).click();
   await expect(page.getByTestId("trosak-robe")).toContainText("450,00");
 });
+
+test("ulazni eRačun (demo posrednik): preuzimanje, prihvat, plaćanje", async ({ page }) => {
+  test.skip(test.info().project.name !== "racunalo", "demo pretinac je zajednički — jednom je dovoljno");
+  await prijaviSe(page);
+  await page.goto("/ulazni");
+  await page.getByRole("button", { name: "Demo: primjer eRačuna" }).click();
+  await expect(page.getByText(/Primjer eRačuna čeka u pretincu/)).toBeVisible();
+  await page.getByRole("button", { name: "Preuzmi eRačune" }).click();
+  await expect(page.getByText("Preuzeto eRačuna: 1.")).toBeVisible();
+  await page.goto("/ulazni?status=PRIMLJEN");
+  await page.getByTestId("popis-ulaznih").getByRole("link").first().click();
+  await expect(page.getByRole("heading", { name: /Ulazni račun URA-/ })).toBeVisible();
+  const prihvat = page.getByRole("form", { name: "Prihvat eRačuna" });
+  await prihvat.getByRole("button", { name: "Prihvati" }).click();
+  // nakon prihvata kartica nestaje; status je na znački
+  await expect(page.getByText("Prihvaćen", { exact: true })).toBeVisible();
+  const placanje = page.getByRole("form", { name: "Plaćanje ulaznog računa" });
+  await expect(placanje.getByLabel("Iznos (€)")).toHaveValue("125,00");
+  await placanje.getByRole("button", { name: "Upiši plaćanje" }).click();
+  await expect(page.getByTestId("placanja-ulaznog")).toContainText("125,00");
+});

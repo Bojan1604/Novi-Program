@@ -98,6 +98,7 @@ model Firma {
   uredajiNaStavkama  UredajNaStavci[]
   uplate             Uplata[]
   slanjaEposte       SlanjeEposte[]
+  placanjaUlaznih    PlacanjeUlaznog[]
   ulazniRacuni       UlazniRacun[]
 }
 
@@ -1224,20 +1225,42 @@ model UlazniRacun {
   razlogOdbijanja String?
   eRacunId        String?
   xml             String?
+  /// eIzvještavanje o odbijanju (id kod posrednika)
+  izvjestajId     String?
   verzija         Int       @default(0)
   korisnikId      String?   @db.Uuid
   korisnik        String    @default("Sustav")
   stvoreno        DateTime  @default(now()) @db.Timestamptz(3)
   azurirano       DateTime  @updatedAt @db.Timestamptz(3)
 
-  firma        Firma         @relation(fields: [firmaId], references: [id])
-  dobavljac    Partner?      @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
-  narudzbenica Narudzbenica? @relation(fields: [firmaId, narudzbenicaId], references: [firmaId, id])
-  primka       Primka?       @relation(fields: [firmaId, primkaId], references: [firmaId, id])
+  firma        Firma             @relation(fields: [firmaId], references: [id])
+  dobavljac    Partner?          @relation(fields: [firmaId, dobavljacId], references: [firmaId, id])
+  narudzbenica Narudzbenica?     @relation(fields: [firmaId, narudzbenicaId], references: [firmaId, id])
+  primka       Primka?           @relation(fields: [firmaId, primkaId], references: [firmaId, id])
+  placanja     PlacanjeUlaznog[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, godina, redni])
+  @@unique([firmaId, eRacunId])
   @@index([firmaId, datum(sort: Desc)])
   @@index([firmaId, narudzbenicaId])
-  @@index([firmaId, eRacunId])
+}
+
+/// Plaćanje ulaznog računa (tek nakon prihvata eRačuna).
+model PlacanjeUlaznog {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  firmaId       String   @db.Uuid
+  ulazniRacunId String   @db.Uuid
+  datum         DateTime @db.Date
+  iznos         Decimal  @db.Decimal(14, 2)
+  ponisteno     Boolean  @default(false)
+  korisnikId    String?  @db.Uuid
+  korisnik      String   @default("Sustav")
+  stvoreno      DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma       @relation(fields: [firmaId], references: [id])
+  racun UlazniRacun @relation(fields: [firmaId, ulazniRacunId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, ulazniRacunId])
 }

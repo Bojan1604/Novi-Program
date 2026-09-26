@@ -23,6 +23,18 @@ export interface Posrednik {
     datum: string;
     razlog?: string | null;
   }): Promise<{ id: string }>;
+  /** ulazni eRačuni primljeni za firmu (OIB primatelja) koji još nisu preuzeti */
+  preuzmi(oibPrimatelja: string): Promise<{ id: string; xml: string }[]>;
+  /** odgovor pošiljatelju: prihvaćen ili odbijen (s razlogom) */
+  odgovori(id: string, status: "PRIHVACEN" | "ODBIJEN", razlog: string | null): Promise<void>;
+}
+
+/** Demo pretinac ulaznih eRačuna (u memoriji poslužitelja): puni ga gumb „primjer“ i testovi. */
+const demoPretinac = new Map<string, { id: string; xml: string }[]>();
+export function demoPrimiUlazni(oibPrimatelja: string, xml: string): string {
+  const id = `DEMO-UL-${randomUUID()}`;
+  demoPretinac.set(oibPrimatelja, [...(demoPretinac.get(oibPrimatelja) ?? []), { id, xml }]);
+  return id;
 }
 
 /**
@@ -44,6 +56,12 @@ export const demoPosrednik: Posrednik = {
   async izvijesti() {
     return { id: `DEMO-IZ-${randomUUID()}` };
   },
+  async preuzmi(oib) {
+    const r = demoPretinac.get(oib) ?? [];
+    demoPretinac.delete(oib);
+    return r;
+  },
+  async odgovori() {},
 };
 
 export function posrednik(): Posrednik {

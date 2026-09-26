@@ -9,7 +9,8 @@ import { imaPravo } from "@/domain/prava";
 import { velicinaZaPrikaz } from "@/domain/prilozi";
 import { pristupStranici } from "@/lib/akcija";
 import { dodajPrilogeUlaznogAkcija, obrisiPrilogUlaznogAkcija } from "../akcije";
-import { ObrazacUlaznog, StornoUlaznog } from "../obrazac";
+import { ObradaERacuna, ObrazacUlaznog, PlacanjeUlaznog, StornoUlaznog } from "../obrazac";
+import { danas } from "@/domain/datum";
 import { STATUSI_ULAZNIH } from "@/domain/ulazni";
 
 export const metadata = { title: "Ulazni račun · ERP-WMS" };
@@ -37,6 +38,17 @@ export default async function Ulazni({ params }: PageProps<"/ulazni/[id]">) {
     select: { id: true, naziv: true, velicina: true, korisnik: true, stvoreno: true },
   });
   const aktivan = r.status === "EVIDENTIRAN" || r.status === "PRIHVACEN";
+  const primljen = r.status === "PRIMLJEN";
+  const narudzbenice = primljen
+    ? await k.db.narudzbenica.findMany({
+        where: { firmaId: k.firmaId, ...(r.dobavljacId ? { dobavljacId: r.dobavljacId } : {}), status: { not: "STORNIRANA" } },
+        orderBy: { datum: "desc" },
+        take: 50,
+        select: { id: true, broj: true, primke: { where: { status: "IZDANA" }, select: { id: true, broj: true } } },
+      })
+    : [];
+  const placanja = await k.db.placanjeUlaznog.findMany({ where: { firmaId: k.firmaId, ulazniRacunId: id }, orderBy: { datum: "asc" } });
+  const otvoreno = centiIzDecimala(r.ukupno.toFixed(2)) - centiIzDecimala(r.placeno.toFixed(2));
   const smije = imaPravo(k.prava, "nabava", "operativno") && aktivan;
   return (
     <Stranica sirina="5xl">
@@ -87,6 +99,30 @@ export default async function Ulazni({ params }: PageProps<"/ulazni/[id]">) {
         />
         {r.razlogOdbijanja && <p className="mt-3 text-sm text-red-700 dark:text-red-400">Razlog: {r.razlogOdbijanja}</p>}
       </Kartica>
+      {primljen && imaPravo(k.prava, "nabava", "operativno") && (
+        <Kartica naslov="Prihvat ili odbijanje eRačuna">
+          <ObradaERacuna id={r.id} narudzbenice={narudzbenice} />
+        </Kartica>
+      )}
+      {(aktivan || placanja.length > 0) && (
+        <Kartica naslov={`Plaćanje · otvoreno ${formatirajIznos(otvoreno)} €`}>
+          {placanja.length > 0 && (
+            <ul className="mb-3 flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="placanja-ulaznog">
+              {placanja.map((p) => (
+                <li key={p.id} className="flex justify-between gap-2 py-1.5">
+                  <span>{p.datum.toISOString().slice(0, 10).split("-").reverse().join(".")}.</span>
+                  <span>
+                    {eur(p.iznos)} € · {p.korisnik}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {aktivan && otvoreno > 0 && imaPravo(k.prava, "nabava", "operativno") && (
+            <PlacanjeUlaznog id={r.id} otvoreno={formatirajIznos(otvoreno)} danas={danas()} />
+          )}
+        </Kartica>
+      )}
       <Kartica naslov={`Prilozi (${prilozi.length})`}>
         {prilozi.length > 0 && (
           <ul className="mb-3 flex flex-col divide-y divide-neutral-100 dark:divide-neutral-900" data-testid="prilozi">

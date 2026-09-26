@@ -9,6 +9,7 @@ import { imaPravo } from "@/domain/prava";
 import { STATUSI_ULAZNIH } from "@/domain/ulazni";
 import type { Prisma } from "@/generated/prisma/client";
 import { pristupStranici } from "@/lib/akcija";
+import { PreuzimanjeERacuna } from "./obrazac";
 
 export const metadata = { title: "Ulazni računi · ERP-WMS" };
 export const dynamic = "force-dynamic";
@@ -71,6 +72,11 @@ export default async function UlazniRacuni({ searchParams }: PageProps<"/ulazni"
         }
       />
       <Kartica>
+        {imaPravo(k.prava, "nabava", "operativno") && (
+          <div className="mb-4">
+            <PreuzimanjeERacuna demo={(process.env["ERACUN_POSREDNIK"] ?? "demo") === "demo"} />
+          </div>
+        )}
         <div className="mb-3 flex flex-col gap-2 sm:flex-row">
           <PoljePretrage placeholder="Broj, dobavljač" />
           <FilterVise

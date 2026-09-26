@@ -2,13 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { procitajIznos } from "@/domain/novac";
+import { formatirajIznos, procitajIznos } from "@/domain/novac";
 import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
 import { dodajPriloge, obrisiPrilog, type Datoteka } from "@/services/prilozi";
-import { spremiUlazniRacun, stornirajUlazniRacun } from "@/services/ulazni-racuni";
+import {
+  demoPrimjerERacuna,
+  odbijERacun,
+  platiUlazni,
+  preuzmiERacune,
+  prihvatiERacun,
+  spremiUlazniRacun,
+  stornirajUlazniRacun,
+} from "@/services/ulazni-racuni";
 
 const ili = (fd: FormData, ime: string) => tekst(fd, ime) || null;
 
@@ -71,5 +79,58 @@ export async function obrisiPrilogUlaznogAkcija(id: string, prilogId: string): P
     await obrisiPrilog(db, k, "UlazniRacun", prilogId);
     revalidatePath(`/ulazni/${id}`);
     return { ok: true, poruka: "Prilog je obrisan." };
+  });
+}
+
+export async function preuzmiERacuneAkcija(): Promise<Odgovor> {
+  return akcija("ulazni.eracun", async (k): Promise<Odgovor> => {
+    const r = await preuzmiERacune(db, k);
+    revalidatePath("/ulazni");
+    return {
+      ok: true,
+      poruka: `Preuzeto eRačuna: ${r.preuzeto}.${r.preskoceno.length ? ` Preskočeno: ${r.preskoceno.join("; ")}` : ""}`,
+    };
+  });
+}
+
+export async function demoPrimjerAkcija(): Promise<Odgovor> {
+  return akcija("ulazni.eracun", async (k): Promise<Odgovor> => {
+    await demoPrimjerERacuna(db, k);
+    return { ok: true, poruka: "Primjer eRačuna čeka u pretincu — kliknite „Preuzmi eRačune“." };
+  });
+}
+
+export async function prihvatiAkcija(id: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("ulazni.eracun", async (k): Promise<Odgovor> => {
+    const r = await prihvatiERacun(db, k, String(id), {
+      narudzbenicaId: ili(fd, "narudzbenicaId"),
+      primkaId: ili(fd, "primkaId"),
+      zaRobu: fd.get("zaRobu") === "on",
+    });
+    revalidatePath(`/ulazni/${id}`);
+    revalidatePath("/ulazni");
+    return {
+      ok: true,
+      poruka: r.razlikaRobe ? `Prihvaćeno. Trošak robe povećan za ${formatirajIznos(r.razlikaRobe)} € (samo razlika iznad primke).` : "Prihvaćeno.",
+    };
+  });
+}
+
+export async function odbijAkcija(id: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("ulazni.eracun", async (k): Promise<Odgovor> => {
+    await odbijERacun(db, k, String(id), tekst(fd, "razlog"));
+    revalidatePath(`/ulazni/${id}`);
+    revalidatePath("/ulazni");
+    return { ok: true, poruka: "eRačun je odbijen; dobavljač i Porezna su obaviješteni." };
+  });
+}
+
+export async function platiAkcija(id: string, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("ulazni.plati", async (k): Promise<Odgovor> => {
+    const i = procitajIznos(tekst(fd, "iznos"));
+    if (!i.ok) return { ok: false, greska: i.greska };
+    await platiUlazni(db, k, String(id), { datum: tekst(fd, "datum"), iznos: i.vrijednost });
+    revalidatePath(`/ulazni/${id}`);
+    return { ok: true, poruka: "Plaćanje je upisano." };
   });
 }

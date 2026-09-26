@@ -60,6 +60,8 @@ export const AKCIJE = {
   "ulazni.spremi": { modul: "nabava", razina: "operativno" },
   "ulazni.storno": { modul: "nabava", razina: "puno" },
   "ulazni.prilozi": { modul: "nabava", razina: "operativno" },
+  "ulazni.eracun": { modul: "nabava", razina: "operativno" },
+  "ulazni.plati": { modul: "nabava", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;

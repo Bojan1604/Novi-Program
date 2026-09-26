@@ -25,8 +25,9 @@ export type TrosakNarudzbenice = {
 const zbroj = (l: number[]) => l.reduce((a, b) => a + b, 0);
 
 export function trosakNarudzbenice(p: { primke: readonly PrimkaTroska[]; racuni: readonly RacunTroska[] }): TrosakNarudzbenice {
-  for (const x of [...p.primke, ...p.racuni])
-    if (!Number.isSafeInteger(x.iznos) || x.iznos < 0) throw new Error("Iznos mora biti cijeli broj centi (0 ili više).");
+  // primke su uvijek 0 ili više; račun smije biti negativan (odobrenje dobavljača umanjuje račune za robu)
+  for (const x of p.primke) if (!Number.isSafeInteger(x.iznos) || x.iznos < 0) throw new Error("Iznos mora biti cijeli broj centi (0 ili više).");
+  for (const x of p.racuni) if (!Number.isSafeInteger(x.iznos)) throw new Error("Iznos mora biti cijeli broj centi.");
   const primke = zbroj(p.primke.filter((x) => x.aktivna).map((x) => x.iznos));
   const racuniRobe = zbroj(p.racuni.filter((x) => x.aktivan && x.zaRobu).map((x) => x.iznos));
   const zasebno = zbroj(p.racuni.filter((x) => x.aktivan && !x.zaRobu).map((x) => x.iznos));
