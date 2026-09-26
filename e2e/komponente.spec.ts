@@ -116,6 +116,19 @@ test.describe("tablica", () => {
     await expect(page.getByText("od 6", { exact: false })).toBeVisible(); // 010–019: 3 u najmu + 3 prodana
   });
 
+  test("filtar: dva brza klika uz spor poslužitelj — nijedan odabir se ne gubi", async ({ page }) => {
+    // spori odgovori stranice (kao na CI-u): drugi klik stigne prije nego se adresa osvježi
+    await page.route(/_rsc=/, async (r) => {
+      await new Promise((ok) => setTimeout(ok, 600));
+      await r.continue();
+    });
+    await page.getByRole("button", { name: /Status/ }).click();
+    await page.getByRole("option", { name: "U najmu" }).click();
+    await page.getByRole("option", { name: "Prodan" }).click();
+    await expect(page.getByRole("option", { name: "U najmu" })).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/status=U\+najmu&status=Prodan|status=U%20najmu&status=Prodan/, { timeout: 10_000 });
+  });
+
   test("na mobitelu kartice umjesto tablice, bez vodoravnog pomicanja", async ({ page }) => {
     await bezVodoravnogPomicanja(page);
     const zaglavlje = page.getByTestId("tablica").locator("thead");

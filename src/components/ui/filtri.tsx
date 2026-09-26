@@ -47,7 +47,12 @@ export function FilterVise({ oznaka, parametar, opcije }: { oznaka: string; para
   const router = useRouter();
   const putanja = usePathname();
   const sp = useSearchParams();
-  const odabrano = sp.getAll(parametar).flatMap((x) => x.split(","));
+  const izUrla = sp.getAll(parametar).flatMap((x) => x.split(","));
+  // Odabir se prikazuje odmah (lokalno), a iz adrese se preuzima tek kad adresa stigne do zadnjeg odabira —
+  // inače drugi brzi klik gradi na staroj adresi i poništi prvi (greška viđena na sporom CI-u).
+  const [lokalno, setLokalno] = useState<string[] | null>(null);
+  if (lokalno && [...lokalno].sort().join(",") === [...izUrla].sort().join(",")) setLokalno(null);
+  const odabrano = lokalno ?? izUrla;
   const [otvoren, setOtvoren] = useState(false);
   const id = useId();
   const okvir = useRef<HTMLDivElement>(null);
@@ -71,8 +76,10 @@ export function FilterVise({ oznaka, parametar, opcije }: { oznaka: string; para
     };
   }, [otvoren]);
 
-  const postavi = (vrijednosti: string[]) =>
+  const postavi = (vrijednosti: string[]) => {
+    setLokalno(vrijednosti);
     router.replace(urlPopisa(putanja, trenutniParametri(sp), { [parametar]: vrijednosti.length ? vrijednosti : null }), { scroll: false });
+  };
 
   const naziv =
     odabrano.length === 0
