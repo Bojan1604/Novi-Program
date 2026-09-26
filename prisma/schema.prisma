@@ -126,6 +126,7 @@ model Firma {
   mdmZapisi            MdmZapis[]
   mdmSnimke            MdmSnimka[]
   logotipi             LogoFirme[]
+  sigurnosneKopije     SigurnosnaKopija[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -1764,4 +1765,23 @@ model LogoFirme {
   firma Firma @relation(fields: [firmaId], references: [id])
 
   @@unique([firmaId, id])
+}
+
+/// Sigurnosna kopija firme (6.6): gzip NDJSON svih tablica firme; dnevna (zadnjih 14) i ručne (zadnjih 10).
+model SigurnosnaKopija {
+  id       String   @id @default(uuid(7)) @db.Uuid
+  firmaId  String   @db.Uuid
+  vrijeme  DateTime @default(now()) @db.Timestamptz(3)
+  /// DNEVNA ili RUCNA
+  vrsta    String
+  velicina Int
+  /// broj redaka po tablici (za provjeru nakon vraćanja)
+  redaka   Json
+  sadrzaj  Bytes
+  korisnik String   @default("Sustav")
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, vrijeme(sort: Desc)])
 }
