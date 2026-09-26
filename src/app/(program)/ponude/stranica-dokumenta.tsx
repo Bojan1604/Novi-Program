@@ -116,7 +116,13 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
           }
         />
         <Kartica>
-          <UredjivacDokumenta key={d.verzija} pocetno={pocetno} firma={f} danas={d0} />
+          <UredjivacDokumenta
+            // novo učitavanje uređivača samo kad poslužitelj doda stavke (odbitak predujma), ne pri svakom spremanju
+            key={d.stavke.filter((x) => x.vrsta === "PREDUJAM").length}
+            pocetno={pocetno}
+            firma={f}
+            danas={d0}
+          />
         </Kartica>
         {d.vrsta === "RACUN" && predujmovi.length > 0 && (
           <Kartica naslov="Predujmovi kupca">
