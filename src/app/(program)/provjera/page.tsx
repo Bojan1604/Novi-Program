@@ -1,5 +1,5 @@
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
-import { imaPravo } from "@/domain/prava";
+import { imaPosebno, imaPravo } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import { provjeriDosljednost, VRSTE_NALAZA, type VrstaNalaza } from "@/services/dosljednost";
@@ -8,15 +8,15 @@ import { Popravi } from "./radnje";
 export const metadata = { title: "Provjera dosljednosti · ERP-WMS" };
 export const dynamic = "force-dynamic";
 
-async function izmjeri(firmaId: string) {
+async function izmjeri(firmaId: string, vidiNabavne: boolean) {
   const pocetak = performance.now();
-  const nalazi = await provjeriDosljednost(db, firmaId);
+  const nalazi = await provjeriDosljednost(db, firmaId, { vidiNabavne });
   return { nalazi, trajanje: Math.round(performance.now() - pocetak) };
 }
 
 export default async function Provjera() {
   const k = await pristupStranici("/provjera");
-  const { nalazi, trajanje } = await izmjeri(k.firmaId);
+  const { nalazi, trajanje } = await izmjeri(k.firmaId, imaPosebno(k.prava, "costs"));
   const popravljivih = nalazi.filter((n) => n.popravljivo).length;
   const vrste = (Object.keys(VRSTE_NALAZA) as VrstaNalaza[]).map((v) => ({ v, l: nalazi.filter((n) => n.vrsta === v) }));
   return (

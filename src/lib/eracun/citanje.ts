@@ -1,4 +1,5 @@
 import { DOMParser } from "@xmldom/xmldom";
+import { jeDatum } from "@/domain/datum";
 
 export type ProcitaniERacun = {
   vrsta: "RACUN" | "ODOBRENJE";
@@ -23,9 +24,11 @@ export function procitajUbl(xml: string): ProcitaniERacun {
     Array.from(e.childNodes).filter((n): n is Element => n.nodeType === 1 && (n as Element).localName === ime);
   const put = (e: Element, ...imena: string[]) => imena.reduce<Element[]>((sk, ime) => sk.flatMap((x) => djeca(x, ime)), [e])[0];
   const t = (e: Element | undefined, ...imena: string[]) => (e ? (put(e, ...imena)?.textContent?.trim() ?? "") : "");
-  const iznos = (...imena: string[]) => {
+  /** iznos u centima; null ako ga nema; neispravan zapis je greška (nikad tiho 0) */
+  const iznos = (...imena: string[]): number | null => {
     const v = t(k, ...imena);
-    if (!/^-?\d+(\.\d{1,2})?$/.test(v)) return 0;
+    if (!v) return null;
+    if (!/^-?\d+(\.\d{1,2})?$/.test(v)) throw new Error(`Neispravan iznos „${v.slice(0, 30)}“ (${imena.at(-1)}).`);
     return Math.round(Number(v) * 100);
   };
   const prod = put(k, "AccountingSupplierParty", "Party");
@@ -37,19 +40,20 @@ export function procitajUbl(xml: string): ProcitaniERacun {
   };
   const broj = t(k, "ID");
   const datum = t(k, "IssueDate");
-  if (!broj || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) throw new Error("eRačun nema broj ili datum.");
+  if (!broj || !jeDatum(datum)) throw new Error("eRačun nema broj ili ispravan datum.");
   const dospijece = t(k, "DueDate") || t(k, "PaymentMeans", "PaymentDueDate") || null;
   const osnovica = iznos("LegalMonetaryTotal", "TaxExclusiveAmount");
-  const ukupno = iznos("LegalMonetaryTotal", "PayableAmount") || iznos("LegalMonetaryTotal", "TaxInclusiveAmount");
+  const ukupno = iznos("LegalMonetaryTotal", "TaxInclusiveAmount") ?? iznos("LegalMonetaryTotal", "PayableAmount");
+  if (osnovica === null || ukupno === null) throw new Error("eRačun nema ukupne iznose (LegalMonetaryTotal).");
   return {
     vrsta: k.localName === "CreditNote" ? "ODOBRENJE" : "RACUN",
     broj,
     datum,
-    dospijece: dospijece && /^\d{4}-\d{2}-\d{2}$/.test(dospijece) ? dospijece : null,
+    dospijece: jeDatum(dospijece) ? dospijece : null,
     dobavljac: { naziv: t(prod, "PartyLegalEntity", "RegistrationName") || t(prod, "PartyName", "Name") || "Nepoznat dobavljač", oib: oib(prod) },
     kupacOib: oib(kup),
     osnovica,
-    pdv: iznos("TaxTotal", "TaxAmount"),
+    pdv: iznos("TaxTotal", "TaxAmount") ?? 0,
     ukupno,
   };
 }

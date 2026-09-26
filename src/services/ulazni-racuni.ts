@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { jeDatum, usporedi } from "@/domain/datum";
+import { danas, jeDatum, usporedi } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
-import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
+import { centiIzDecimala, centiUDecimal, formatirajIznos } from "@/domain/novac";
 import { procitajOib } from "@/domain/oib";
 import { trosakNarudzbenice } from "@/domain/trosak-robe";
 import { oznakaDokumenta } from "@/domain/zaprimanje";
@@ -59,8 +59,19 @@ function provjeri(u: UlazUlaznogRacuna): Record<string, string> {
     if (!o.ok) g["dobavljacOib"] = o.greska;
   }
   if (!Number.isSafeInteger(u.osnovica)) g["osnovica"] = "Osnovica nije ispravna.";
-  if (!Number.isSafeInteger(u.pdv) || u.pdv < 0) g["pdv"] = "PDV nije ispravan.";
+  if (!Number.isSafeInteger(u.pdv) || (u.pdv < 0 && u.osnovica > 0) || (u.pdv > 0 && u.osnovica < 0))
+    g["pdv"] = "PDV nije ispravan (kod odobrenja su osnovica i PDV negativni).";
   return g;
+}
+
+/**
+ * Račun vezan na primku po narudžbenici ide i na tu narudžbenicu — inače bi se roba brojala dvaput
+ * (jednom u trošku robe narudžbenice, jednom kao zaseban račun).
+ */
+async function narudzbenicaPrimke(tx: Tx, f: string, primkaId: string | null, narudzbenicaId: string | null): Promise<string | null> {
+  if (!primkaId || narudzbenicaId) return narudzbenicaId;
+  const p = await tx.primka.findFirst({ where: { id: primkaId, firmaId: f }, select: { narudzbenicaId: true } });
+  return p?.narudzbenicaId ?? null;
 }
 
 /** Evidentiranje ili izmjena ručnog ulaznog računa. Oznaka „račun za robu“ se sprema i čuva u svim tokovima. */
@@ -76,6 +87,7 @@ export async function spremiUlazniRacun(
   if (Object.keys(polja).length) return { ok: false, polja };
   const f = akter.firmaId;
   return db.$transaction(async (tx): Promise<{ ok: true; id: string } | { ok: false; polja: Record<string, string> }> => {
+    u = { ...u, narudzbenicaId: await narudzbenicaPrimke(tx, f, u.primkaId, u.narudzbenicaId) };
     if (u.dobavljacId && !(await tx.partner.count({ where: { id: u.dobavljacId, firmaId: f } })))
       return { ok: false, polja: { dobavljac: "Dobavljač ne postoji." } };
     if (u.narudzbenicaId) {
@@ -110,6 +122,11 @@ export async function spremiUlazniRacun(
       const s = await tx.ulazniRacun.findFirst({ where: { id, firmaId: f } });
       if (!s) throw new GreskaKorisniku("Ulazni račun ne postoji.");
       if (s.verzija !== u.verzija) throw new GreskaKorisniku("Netko je u međuvremenu promijenio račun. Osvježite stranicu.");
+      if (s.izvor !== "ERACUN" && c(s.placeno) > 0 && u.osnovica + u.pdv < c(s.placeno))
+        return {
+          ok: false,
+          polja: { osnovica: `Već je plaćeno ${(c(s.placeno) / 100).toFixed(2).replace(".", ",")} € — ukupno ne može biti manje.` },
+        };
       if (s.status !== "EVIDENTIRAN" && s.status !== "PRIHVACEN") throw new GreskaKorisniku("Ovaj račun se više ne mijenja.");
       // eRačun: iznosi i dobavljač su s računa — mijenjaju se samo veze, oznaka i opis
       const zadrzi =
@@ -196,61 +213,73 @@ export async function preuzmiERacune(db: PrismaClient, akter: Akter): Promise<{ 
   const primljeni = await posrednik().preuzmi(firma.oib);
   let preuzeto = 0;
   const preskoceno: string[] = [];
+  const p = posrednik();
   for (const e of primljeni) {
     let r: ReturnType<typeof procitajUbl>;
     try {
       r = procitajUbl(e.xml);
     } catch (g) {
+      // trajno neispravan: javlja se korisniku i potvrđuje (inače bi se nudio zauvijek)
       preskoceno.push(`${e.id}: ${g instanceof Error ? g.message : "neispravan"}`);
+      await p.potvrdi(firma.oib, e.id);
       continue;
     }
     if (r.kupacOib && r.kupacOib !== firma.oib) {
       preskoceno.push(`${r.broj}: eRačun nije za ovu firmu (OIB kupca ${r.kupacOib})`);
+      await p.potvrdi(firma.oib, e.id);
       continue;
     }
     const zn = r.vrsta === "ODOBRENJE" ? -1 : 1;
-    await db.$transaction(async (tx) => {
-      if (await tx.ulazniRacun.count({ where: { firmaId: f, eRacunId: e.id } })) return;
-      const dob = r.dobavljac.oib ? await tx.partner.findFirst({ where: { firmaId: f, oib: r.dobavljac.oib }, select: { id: true } }) : null;
-      const godina = Number(r.datum.slice(0, 4));
-      const redni = await sljedeciBroj(tx, f, "ulazniRacun", godina);
-      const interni = oznakaDokumenta("URA", redni, godina);
-      const n = await tx.ulazniRacun.create({
-        data: {
+    // svaki eRačun zasebno: greška jednog (npr. istovremeno preuzimanje) ne gubi ostale; potvrda tek nakon spremanja
+    try {
+      await db.$transaction(async (tx) => {
+        if (await tx.ulazniRacun.count({ where: { firmaId: f, eRacunId: e.id } })) return;
+        const dob = r.dobavljac.oib ? await tx.partner.findFirst({ where: { firmaId: f, oib: r.dobavljac.oib }, select: { id: true } }) : null;
+        const godina = Number(r.datum.slice(0, 4));
+        const redni = await sljedeciBroj(tx, f, "ulazniRacun", godina);
+        const interni = oznakaDokumenta("URA", redni, godina);
+        const n = await tx.ulazniRacun.create({
+          data: {
+            firmaId: f,
+            interni,
+            godina,
+            redni,
+            broj: r.broj,
+            datum: d(r.datum),
+            dospijece: r.dospijece ? d(r.dospijece) : null,
+            dobavljacId: dob?.id ?? null,
+            dobavljacTekst: dob ? null : r.dobavljac.naziv,
+            dobavljacOib: r.dobavljac.oib,
+            osnovica: centiUDecimal(zn * r.osnovica),
+            pdv: centiUDecimal(zn * r.pdv),
+            ukupno: centiUDecimal(zn * r.ukupno),
+            opis: r.vrsta === "ODOBRENJE" ? "Odobrenje dobavljača" : null,
+            izvor: "ERACUN",
+            status: "PRIMLJEN",
+            eRacunId: e.id,
+            xml: e.xml,
+            korisnikId: akter.korisnikId,
+            korisnik: "Posrednik",
+          },
+          select: { id: true },
+        });
+        await zapisiDnevnik(tx, {
           firmaId: f,
-          interni,
-          godina,
-          redni,
-          broj: r.broj,
-          datum: d(r.datum),
-          dospijece: r.dospijece ? d(r.dospijece) : null,
-          dobavljacId: dob?.id ?? null,
-          dobavljacTekst: dob ? null : r.dobavljac.naziv,
-          dobavljacOib: r.dobavljac.oib,
-          osnovica: centiUDecimal(zn * r.osnovica),
-          pdv: centiUDecimal(zn * r.pdv),
-          ukupno: centiUDecimal(zn * r.ukupno),
-          opis: r.vrsta === "ODOBRENJE" ? "Odobrenje dobavljača" : null,
-          izvor: "ERACUN",
-          status: "PRIMLJEN",
-          eRacunId: e.id,
-          xml: e.xml,
           korisnikId: akter.korisnikId,
-          korisnik: "Posrednik",
-        },
-        select: { id: true },
+          ip: akter.ip,
+          radnja: "ulazni.preuzmi",
+          entitet: "UlazniRacun",
+          entitetId: n.id,
+          opis: `Preuzet ulazni eRačun ${r.broj} (${r.dobavljac.naziv}) kao ${interni}`,
+        });
+        preuzeto++;
       });
-      await zapisiDnevnik(tx, {
-        firmaId: f,
-        korisnikId: akter.korisnikId,
-        ip: akter.ip,
-        radnja: "ulazni.preuzmi",
-        entitet: "UlazniRacun",
-        entitetId: n.id,
-        opis: `Preuzet ulazni eRačun ${r.broj} (${r.dobavljac.naziv}) kao ${interni}`,
-      });
-      preuzeto++;
-    });
+      await p.potvrdi(firma.oib, e.id);
+    } catch (g) {
+      if (g instanceof Error && "code" in g && g.code === "P2002")
+        await p.potvrdi(firma.oib, e.id); // već preuzet u drugoj kartici
+      else preskoceno.push(`${r.broj}: ${g instanceof GreskaKorisniku ? g.message : "nije spremljen, pokušajte ponovno"}`);
+    }
   }
   return { preuzeto, preskoceno };
 }
@@ -278,6 +307,7 @@ export async function prihvatiERacun(
   const r = await db.$transaction(async (tx) => {
     const r = await zakljucajUlazni(tx, f, id);
     if (r.status !== "PRIMLJEN") throw new GreskaKorisniku("eRačun je već obrađen.");
+    u = { ...u, narudzbenicaId: await narudzbenicaPrimke(tx, f, u.primkaId, u.narudzbenicaId) };
     if (u.narudzbenicaId) {
       await tx.$queryRaw`SELECT id FROM "Narudzbenica" WHERE id = ${u.narudzbenicaId}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
       const n = await tx.narudzbenica.findFirst({ where: { id: u.narudzbenicaId, firmaId: f }, select: { dobavljacId: true } });
@@ -302,7 +332,8 @@ export async function prihvatiERacun(
       radnja: "ulazni.prihvat",
       entitet: "UlazniRacun",
       entitetId: id,
-      opis: `Prihvaćen eRačun ${r.broj} (${r.interni})${u.zaRobu ? `, račun za robu — trošak robe +${((poslije - prije) / 100).toFixed(2)} €` : ""}`,
+      // razlika troška robe otkriva vrijednost primki (pravo „costs“) — ne ide u opis dnevnika
+      opis: `Prihvaćen eRačun ${r.broj} (${r.interni})${u.zaRobu ? ", račun za robu" : ""}`,
     });
     return { eRacunId: r.eRacunId, razlikaRobe: poslije - prije };
   });
@@ -345,9 +376,10 @@ export async function odbijERacun(db: PrismaClient, akter: Akter, id: string, ra
 }
 
 /** Plaćanje ulaznog računa: eRačun tek nakon prihvata; ne više od otvorenog iznosa. */
-export async function platiUlazni(db: PrismaClient, akter: Akter, id: string, u: { datum: string; iznos: number }) {
+export async function platiUlazni(db: PrismaClient, akter: Akter, id: string, u: { datum: string; iznos: number }, sada = new Date()) {
   if (!jeUuid(id)) throw new GreskaKorisniku("Ulazni račun ne postoji.");
   if (!jeDatum(u.datum)) throw new GreskaKorisniku("Datum plaćanja nije ispravan.");
+  if (usporedi(u.datum, danas(sada)) > 0) throw new GreskaKorisniku("Datum plaćanja ne smije biti u budućnosti.");
   if (!Number.isSafeInteger(u.iznos) || u.iznos <= 0) throw new GreskaKorisniku("Upišite iznos.");
   const f = akter.firmaId;
   await db.$transaction(async (tx) => {
@@ -369,6 +401,30 @@ export async function platiUlazni(db: PrismaClient, akter: Akter, id: string, u:
       entitet: "UlazniRacun",
       entitetId: id,
       opis: `Plaćeno ${(u.iznos / 100).toFixed(2)} € — ${r.interni}`,
+    });
+  });
+}
+
+/** Poništenje pogrešno upisanog plaćanja (ostaje zapisano kao poništeno, plaćeno se umanjuje). */
+export async function ponistiPlacanjeUlaznog(db: PrismaClient, akter: Akter, id: string, placanjeId: string) {
+  if (!jeUuid(id) || !jeUuid(placanjeId)) throw new GreskaKorisniku("Plaćanje ne postoji.");
+  const f = akter.firmaId;
+  await db.$transaction(async (tx) => {
+    const r = await zakljucajUlazni(tx, f, id);
+    const pl = await tx.placanjeUlaznog.findFirst({ where: { id: placanjeId, firmaId: f, ulazniRacunId: id } });
+    if (!pl) throw new GreskaKorisniku("Plaćanje ne postoji.");
+    if (pl.ponisteno) throw new GreskaKorisniku("Plaćanje je već poništeno.");
+    await tx.placanjeUlaznog.update({ where: { id: placanjeId }, data: { ponisteno: true } });
+    const placeno = await tx.placanjeUlaznog.aggregate({ where: { firmaId: f, ulazniRacunId: id, ponisteno: false }, _sum: { iznos: true } });
+    await tx.ulazniRacun.update({ where: { id }, data: { placeno: placeno._sum.iznos ?? "0", verzija: { increment: 1 } } });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "ulazni.plati",
+      entitet: "UlazniRacun",
+      entitetId: id,
+      opis: `Poništeno plaćanje ${formatirajIznos(c(pl.iznos))} € od ${pl.datum.toISOString().slice(0, 10).split("-").reverse().join(".")}. — ${r.interni}`,
     });
   });
 }

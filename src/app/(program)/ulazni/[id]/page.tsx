@@ -9,7 +9,7 @@ import { imaPravo } from "@/domain/prava";
 import { velicinaZaPrikaz } from "@/domain/prilozi";
 import { pristupStranici } from "@/lib/akcija";
 import { dodajPrilogeUlaznogAkcija, obrisiPrilogUlaznogAkcija } from "../akcije";
-import { ObradaERacuna, ObrazacUlaznog, PlacanjeUlaznog, StornoUlaznog } from "../obrazac";
+import { ObradaERacuna, ObrazacUlaznog, PlacanjeUlaznog, PonistiPlacanje, StornoUlaznog } from "../obrazac";
 import { danas } from "@/domain/datum";
 import { STATUSI_ULAZNIH } from "@/domain/ulazni";
 
@@ -109,10 +109,14 @@ export default async function Ulazni({ params }: PageProps<"/ulazni/[id]">) {
           {placanja.length > 0 && (
             <ul className="mb-3 flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="placanja-ulaznog">
               {placanja.map((p) => (
-                <li key={p.id} className="flex justify-between gap-2 py-1.5">
+                <li
+                  key={p.id}
+                  className={`flex flex-wrap items-center justify-between gap-2 py-1.5 ${p.ponisteno ? "text-neutral-400 line-through" : ""}`}
+                >
                   <span>{p.datum.toISOString().slice(0, 10).split("-").reverse().join(".")}.</span>
-                  <span>
+                  <span className="flex items-center gap-2">
                     {eur(p.iznos)} € · {p.korisnik}
+                    {p.ponisteno ? " · poništeno" : imaPravo(k.prava, "nabava", "operativno") && <PonistiPlacanje id={r.id} placanjeId={p.id} />}
                   </span>
                 </li>
               ))}

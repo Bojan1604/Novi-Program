@@ -55,7 +55,8 @@ export async function zaprimi(db: PrismaClient | Tx, akter: Akter, ulaz: UlazPri
   for (const id of [ulaz.skladisteId, ulaz.dobavljacId, ulaz.stanjeRobeId, ...ulaz.stavke.map((s) => s.modelId)]) {
     if (id !== null && !jeUuid(id)) throw new GreskaKorisniku("Neispravan odabir.");
   }
-  const vidiNabavne = imaPosebno(akter.prava, "costs");
+  // cijene po narudžbenici dolaze s poslužitelja (stavka narudžbenice), ne od korisnika — uvijek se pamte
+  const vidiNabavne = imaPosebno(akter.prava, "costs") || !!ulaz.narudzbenicaId;
 
   // serijski: ispravni i bez dvostrukih u popisu
   const vidjeni = new Set<string>();

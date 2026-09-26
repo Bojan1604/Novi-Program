@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { zakljucajKljuc } from "@/lib/zakljucavanje";
 import { statusNarudzbe } from "@/domain/nabava";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
@@ -21,7 +22,10 @@ export const VRSTE_NALAZA = {
 } as const;
 export type VrstaNalaza = keyof typeof VRSTE_NALAZA;
 
-export async function provjeriDosljednost(db: PrismaClient, firmaId: string): Promise<Nalaz[]> {
+type Tx = Prisma.TransactionClient;
+
+/** `vidiNabavne`: iznosi primki (nabavne vrijednosti) u opisu samo uz pravo „costs“. */
+export async function provjeriDosljednost(db: PrismaClient | Tx, firmaId: string, opcije: { vidiNabavne?: boolean } = {}): Promise<Nalaz[]> {
   const [zaprimljeno, primkeV, primkeB, placeno, skladiste, kupac, najam, narudzbe] = await Promise.all([
     db.$queryRaw<{ id: string; broj: string; zapisano: number; stvarno: bigint }[]>`
       SELECT s.id::text, n.broj, s.zaprimljeno AS zapisano, COALESCE(c.broj, 0) AS stvarno
@@ -90,13 +94,13 @@ export async function provjeriDosljednost(db: PrismaClient, firmaId: string): Pr
         vrijednost: s,
       });
   }
+  // samo prijava: cijena uređaja se smije ispraviti na kartici, a izdana primka (i trošak robe prošlih razdoblja) se ne mijenja sama
   for (const x of primkeV)
     n.push({
       vrsta: "VRIJEDNOST_PRIMKE",
       id: x.id,
-      opis: `${x.broj}: zapisano ${x.zapisano ?? "—"}, uređaji ${x.stvarno}`,
-      popravljivo: true,
-      vrijednost: x.stvarno,
+      opis: opcije.vidiNabavne ? `${x.broj}: zapisano ${x.zapisano ?? "—"}, uređaji ${x.stvarno}` : x.broj,
+      popravljivo: false,
     });
   for (const x of primkeB)
     n.push({
@@ -120,47 +124,73 @@ export async function provjeriDosljednost(db: PrismaClient, firmaId: string): Pr
   return n;
 }
 
-/** Popravak svih popravljivih nalaza (u jednoj transakciji, svaki u dnevnik). Vraća broj popravaka. */
+const ENTITET: Partial<Record<VrstaNalaza, string>> = {
+  ZAPRIMLJENO: "Narudzbenica",
+  STATUS_NARUDZBE: "Narudzbenica",
+  BROJ_NA_PRIMCI: "Primka",
+  PLACENO_RACUNA: "ProdajniDokument",
+};
+
+/**
+ * Popravak svih popravljivih nalaza u jednoj transakciji, svaki u dnevnik. Vraća broj popravaka.
+ * Retci nalaza se prvo zaključaju (radnje u tijeku — primka, uplata — dovrše se), pa se stanje računa ponovno
+ * (svježi podaci) i upisuje samo ono što i dalje odstupa: popravak nikad ne prepiše ispravnu vrijednost.
+ */
 export async function popraviDosljednost(db: PrismaClient, akter: Akter): Promise<number> {
   const f = akter.firmaId;
-  const nalazi = (await provjeriDosljednost(db, f)).filter((x) => x.popravljivo);
-  if (!nalazi.length) return 0;
-  await db.$transaction(
+  return db.$transaction(
     async (tx) => {
+      await zakljucajKljuc(tx, `dosljednost:${f}`);
+      const prvi = (await provjeriDosljednost(tx, f)).filter((x) => x.popravljivo);
+      if (!prvi.length) return 0;
+      const ids = (v: VrstaNalaza[]) => prvi.filter((x) => v.includes(x.vrsta)).map((x) => x.id);
+      await tx.$queryRaw`SELECT id FROM "Narudzbenica" WHERE "firmaId" = ${f}::uuid AND id IN (
+        SELECT "narudzbenicaId" FROM "StavkaNarudzbenice" WHERE "firmaId" = ${f}::uuid AND id = ANY(${ids(["ZAPRIMLJENO"])}::uuid[])
+      ) OR ("firmaId" = ${f}::uuid AND id = ANY(${ids(["STATUS_NARUDZBE"])}::uuid[])) ORDER BY id FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "StavkaNarudzbenice" WHERE "firmaId" = ${f}::uuid AND id = ANY(${ids(["ZAPRIMLJENO"])}::uuid[]) ORDER BY id FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Primka" WHERE "firmaId" = ${f}::uuid AND id = ANY(${ids(["BROJ_NA_PRIMCI"])}::uuid[]) ORDER BY id FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "ProdajniDokument" WHERE "firmaId" = ${f}::uuid AND id = ANY(${ids(["PLACENO_RACUNA"])}::uuid[]) ORDER BY id FOR UPDATE`;
+      const nalazi = (await provjeriDosljednost(tx, f)).filter((x) => x.popravljivo && prvi.some((p) => p.vrsta === x.vrsta && p.id === x.id));
+      const zapisi = (x: Nalaz, opis: string) =>
+        zapisiDnevnik(tx, {
+          firmaId: f,
+          korisnikId: akter.korisnikId,
+          ip: akter.ip,
+          radnja: "dosljednost.popravak",
+          entitet: ENTITET[x.vrsta] ?? "Narudzbenica",
+          entitetId: x.id,
+          opis,
+        });
       for (const x of nalazi) {
         if (x.vrsta === "ZAPRIMLJENO")
           await tx.stavkaNarudzbenice.updateMany({ where: { id: x.id, firmaId: f }, data: { zaprimljeno: Number(x.vrijednost) } });
         else if (x.vrsta === "STATUS_NARUDZBE")
           await tx.narudzbenica.updateMany({ where: { id: x.id, firmaId: f }, data: { status: String(x.vrijednost) } });
-        else if (x.vrsta === "VRIJEDNOST_PRIMKE")
-          await tx.primka.updateMany({ where: { id: x.id, firmaId: f }, data: { nabavnaVrijednost: String(x.vrijednost) } });
         else if (x.vrsta === "BROJ_NA_PRIMCI")
           await tx.primka.updateMany({ where: { id: x.id, firmaId: f }, data: { brojUredaja: Number(x.vrijednost) } });
         else if (x.vrsta === "PLACENO_RACUNA")
           await tx.prodajniDokument.updateMany({ where: { id: x.id, firmaId: f }, data: { placeno: String(x.vrijednost) } });
         else continue;
-        await zapisiDnevnik(tx, {
-          firmaId: f,
-          korisnikId: akter.korisnikId,
-          ip: akter.ip,
-          radnja: "dosljednost.popravak",
-          entitet:
-            x.vrsta === "PLACENO_RACUNA" ? "ProdajniDokument" : x.vrsta.includes("PRIMK") || x.vrsta === "BROJ_NA_PRIMCI" ? "Primka" : "Narudzbenica",
-          entitetId: x.id,
-          opis: `Popravak: ${VRSTE_NALAZA[x.vrsta]} — ${x.opis}`,
-        });
+        await zapisi(x, `Popravak: ${VRSTE_NALAZA[x.vrsta]} — ${x.opis}`);
       }
       // nakon popravka zaprimljenih količina statusi narudžbenica
       const narudzbe = await tx.narudzbenica.findMany({
         where: { firmaId: f, status: { notIn: ["ZATVORENA", "STORNIRANA"] } },
-        select: { id: true, status: true, stavke: { select: { kolicina: true, zaprimljeno: true } } },
+        select: { id: true, broj: true, status: true, stavke: { select: { kolicina: true, zaprimljeno: true } } },
       });
-      for (const n of narudzbe) {
-        const s = statusNarudzbe(n.status, n.stavke);
-        if (s !== n.status) await tx.narudzbenica.update({ where: { id: n.id }, data: { status: s } });
+      let n = nalazi.length;
+      for (const x of narudzbe) {
+        const s = statusNarudzbe(x.status, x.stavke);
+        if (s === x.status) continue;
+        await tx.narudzbenica.update({ where: { id: x.id }, data: { status: s } });
+        await zapisi(
+          { vrsta: "STATUS_NARUDZBE", id: x.id, opis: "", popravljivo: true },
+          `Popravak: ${VRSTE_NALAZA.STATUS_NARUDZBE} — ${x.broj}: ${x.status.toLowerCase()} → ${s.toLowerCase()}`,
+        );
+        n++;
       }
+      return n;
     },
     { timeout: 120_000 },
   );
-  return nalazi.length;
 }

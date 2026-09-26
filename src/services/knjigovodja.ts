@@ -49,7 +49,8 @@ export async function popisZaKnjigovodju(db: PrismaClient, firmaId: string, mjes
       },
     }),
     db.ulazniRacun.findMany({
-      where: { firmaId, datum: raspon, status: { not: "PRIMLJEN" } },
+      // URA: samo knjiženi računi (odbijeni i stornirani eRačuni/računi ne ulaze u knjigu)
+      where: { firmaId, datum: raspon, status: { in: ["EVIDENTIRAN", "PRIHVACEN"] } },
       orderBy: [{ redni: "asc" }],
       select: {
         id: true,
@@ -116,6 +117,14 @@ const TROSKOVI: StupacIzvoza<RedakTroska>[] = [
  * ZIP za knjigovođu: izlazni računi (PDF + UBL XML), ulazni (XML eRačuna + prilozi), troškovi s prilozima i knjige (CSV).
  * Bez prava nabavnih cijena u ZIP-u nema troška robe ni primki (ni nabavnih vrijednosti).
  */
+/** Isti naziv u ZIP-u (dva priloga „racun.pdf“) ne smije prepisati prethodni: dodaje se „ (2)“. */
+function jedinstveno(datoteke: Record<string, unknown>, put: string): string {
+  if (!(put in datoteke)) return put;
+  const t = put.lastIndexOf(".");
+  const [ime, nastavak] = t > put.lastIndexOf("/") ? [put.slice(0, t), put.slice(t)] : [put, ""];
+  for (let i = 2; ; i++) if (!(`${ime} (${i})${nastavak}` in datoteke)) return `${ime} (${i})${nastavak}`;
+}
+
 export async function zipZaKnjigovodju(
   db: PrismaClient,
   akter: Akter,
@@ -142,7 +151,8 @@ export async function zipZaKnjigovodju(
   for (const x of p.ulazni) {
     const mapa = `ulazni/${siguranNaziv(`${x.interni} ${x.broj}`).replace(/\//g, "-")}`;
     if (x.xml) datoteke[`${mapa}/eRacun.xml`] = strToU8(x.xml);
-    for (const pr of prilozi.filter((y) => y.entitetId === x.id)) datoteke[`${mapa}/${siguranNaziv(pr.naziv)}`] = new Uint8Array(pr.sadrzaj);
+    for (const pr of prilozi.filter((y) => y.entitetId === x.id))
+      datoteke[jedinstveno(datoteke, `${mapa}/${siguranNaziv(pr.naziv)}`)] = new Uint8Array(pr.sadrzaj);
   }
   const od = `${mjesec}-01`;
   const doD = new Date(d(sljedeciMjesec(mjesec)).getTime() - 864e5).toISOString().slice(0, 10);
@@ -157,7 +167,8 @@ export async function zipZaKnjigovodju(
     },
     select: { entitetId: true, naziv: true, sadrzaj: true },
   });
-  for (const pr of priloziTroskova) datoteke[`troskovi/${pr.entitetId.slice(0, 8)}-${siguranNaziv(pr.naziv)}`] = new Uint8Array(pr.sadrzaj);
+  for (const pr of priloziTroskova)
+    datoteke[jedinstveno(datoteke, `troskovi/${pr.entitetId.slice(0, 8)}-${siguranNaziv(pr.naziv)}`)] = new Uint8Array(pr.sadrzaj);
   datoteke["knjiga-IRA.csv"] = strToU8(uCsv(IRA, p.izlazni));
   datoteke["knjiga-URA.csv"] = strToU8(uCsv(URA, p.ulazni));
   datoteke["troskovi.csv"] = strToU8(uCsv(TROSKOVI, troskovi));
@@ -216,6 +227,20 @@ export async function posaljiKnjigovodji(db: PrismaClient, akter: Akter, mjesec:
     text: `Poštovani,\n\nu privitku su izlazni (${z.izlaznih}) i ulazni (${z.ulaznih}) računi, troškovi i knjige za ${mjesec.slice(5)}/${mjesec.slice(0, 4)}.\n\nLijep pozdrav,\n${firma.naziv}`,
     attachments: [{ filename: z.naziv, content: Buffer.from(z.zip), contentType: "application/zip" }],
   });
-  await db.firma.update({ where: { id: akter.firmaId }, data: { epostaKnjigovodje: prima.trim() } });
+  if ((firma.epostaKnjigovodje ?? "") !== prima.trim())
+    await db.$transaction(async (tx) => {
+      await tx.firma.update({ where: { id: akter.firmaId }, data: { epostaKnjigovodje: prima.trim() } });
+      await zapisiDnevnik(tx, {
+        firmaId: akter.firmaId,
+        korisnikId: akter.korisnikId,
+        ip: akter.ip,
+        radnja: "knjigovodja.predaja",
+        entitet: "Firma",
+        entitetId: akter.firmaId,
+        opis: "Promijenjena e-pošta knjigovođe",
+        staro: { epostaKnjigovodje: firma.epostaKnjigovodje },
+        novo: { epostaKnjigovodje: prima.trim() },
+      });
+    });
   await oznaciPredaju(db, akter, mjesec, "EPOSTA", prima.trim());
 }

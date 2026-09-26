@@ -153,6 +153,7 @@ export async function zaprimiPoNarudzbenici(
     async (tx) => {
       const n = await zakljucaj(tx, f, narudzbenicaId);
       if (n.status === "ZATVORENA" || n.status === "STORNIRANA") throw new GreskaKorisniku("Narudžbenica je zatvorena.");
+      if (new Set(u.stavke.map((s) => s.stavkaId)).size !== u.stavke.length) throw new GreskaKorisniku("Stavka narudžbenice je upisana dvaput.");
       const kolicine = new Map(u.stavke.map((s) => [s.stavkaId, s.serijski.filter((x) => x.trim()).length]));
       const g = provjeriZaprimanje(n.stavke, kolicine);
       if (g) throw new GreskaKorisniku(g);
@@ -207,6 +208,8 @@ export async function zatvoriNarudzbenicu(db: PrismaClient, akter: Akter, id: st
     if (radnja === "STORNO") {
       if (await tx.primka.count({ where: { firmaId: f, narudzbenicaId: id, status: "IZDANA" } }))
         throw new GreskaKorisniku("Po narudžbenici postoje primke — prvo ih stornirajte ili narudžbenicu zatvorite.");
+      if (await tx.ulazniRacun.count({ where: { firmaId: f, narudzbenicaId: id, status: { in: ["EVIDENTIRAN", "PRIHVACEN"] } } }))
+        throw new GreskaKorisniku("Na narudžbenicu su vezani ulazni računi — prvo ih stornirajte ili narudžbenicu zatvorite.");
       status = "STORNIRANA";
     } else if (radnja === "ZATVORI") status = "ZATVORENA";
     else {

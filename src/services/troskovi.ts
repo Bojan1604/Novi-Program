@@ -28,7 +28,18 @@ export async function dodajKategoriju(db: PrismaClient, akter: Akter, naziv: str
   if (!n || n.length > 60) throw new GreskaKorisniku("Upišite naziv kategorije (do 60 znakova).");
   if (await db.kategorijaTroska.count({ where: { firmaId: akter.firmaId, naziv: { equals: n, mode: "insensitive" } } }))
     throw new GreskaKorisniku("Kategorija već postoji.");
-  await db.kategorijaTroska.create({ data: { firmaId: akter.firmaId, naziv: n } });
+  await db.$transaction(async (tx) => {
+    const k = await tx.kategorijaTroska.create({ data: { firmaId: akter.firmaId, naziv: n } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "troskovi.kategorija",
+      entitet: "KategorijaTroska",
+      entitetId: k.id,
+      opis: `Nova kategorija troška ${n}`,
+    });
+  });
 }
 
 export type UlazTroska = { datum: string; kategorijaId: string; opis: string; iznos: number; pdv: number; placeno: boolean };
@@ -174,8 +185,20 @@ export async function spremiPonavljajuci(db: PrismaClient, akter: Akter, u: Ulaz
 
 export async function zaustaviPonavljajuci(db: PrismaClient, akter: Akter, id: string) {
   if (!jeUuid(id)) throw new GreskaKorisniku("Ponavljajući trošak ne postoji.");
-  const r = await db.ponavljajuciTrosak.updateMany({ where: { id, firmaId: akter.firmaId }, data: { aktivan: false } });
-  if (!r.count) throw new GreskaKorisniku("Ponavljajući trošak ne postoji.");
+  await db.$transaction(async (tx) => {
+    const p = await tx.ponavljajuciTrosak.findFirst({ where: { id, firmaId: akter.firmaId }, select: { opis: true } });
+    if (!p) throw new GreskaKorisniku("Ponavljajući trošak ne postoji.");
+    await tx.ponavljajuciTrosak.update({ where: { id }, data: { aktivan: false } });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "troskovi.ponavljajuci",
+      entitet: "PonavljajuciTrosak",
+      entitetId: id,
+      opis: `Zaustavljen ponavljajući trošak ${p.opis}`,
+    });
+  });
 }
 
 /** Stvara dospjele ponavljajuće troškove (sve firme ili jedna). Jedinstveno po mjesecu — drugo pokretanje ne stvara ništa. */
@@ -206,6 +229,15 @@ export async function stvoriPonavljajuce(db: PrismaClient, firmaId: string | nul
         skipDuplicates: true,
       });
       await tx.ponavljajuciTrosak.update({ where: { id: p.id }, data: { zadnji: d(`${mjeseci.at(-1)!.mjesec}-01`) } });
+      if (r.count)
+        await zapisiDnevnik(tx, {
+          firmaId: p.firmaId,
+          korisnikId: null,
+          radnja: "troskovi.ponavljajuci",
+          entitet: "PonavljajuciTrosak",
+          entitetId: p.id,
+          opis: `Stvoreno troškova „${p.opis}“: ${r.count} (${mjeseci.map((m) => m.mjesec).join(", ")})`,
+        });
       n += r.count;
     });
   }
@@ -245,6 +277,7 @@ export async function pregledTroskova(db: PrismaClient | Tx, firmaId: string, pr
         placeno: true,
         zaRobu: true,
         narudzbenicaId: true,
+        primka: { select: { status: true, knjiziUTroskove: true, narudzbenicaId: true } },
         dobavljacTekst: true,
         dobavljac: { select: { naziv: true } },
       },
@@ -265,7 +298,13 @@ export async function pregledTroskova(db: PrismaClient | Tx, firmaId: string, pr
     vidiNabavu
       ? db.primka.findMany({
           where: { firmaId, datum: razdoblje, status: "IZDANA", narudzbenicaId: null, knjiziUTroskove: true },
-          select: { id: true, broj: true, datum: true, nabavnaVrijednost: true },
+          select: {
+            id: true,
+            broj: true,
+            datum: true,
+            nabavnaVrijednost: true,
+            ulazniRacuni: { select: { id: true, status: true, zaRobu: true, osnovica: true } },
+          },
         })
       : [],
   ]);
@@ -283,6 +322,8 @@ export async function pregledTroskova(db: PrismaClient | Tx, firmaId: string, pr
     });
   for (const u of ulazni) {
     if (u.zaRobu && u.narudzbenicaId) continue; // ulazi u trošak robe narudžbenice
+    // račun za robu uz primku bez narudžbenice koja se knjiži u troškove: ulazi u trošak te primke (veće od dvoga)
+    if (vidiNabavu && u.zaRobu && u.primka?.status === "IZDANA" && u.primka.knjiziUTroskove && !u.primka.narudzbenicaId) continue;
     r.push({
       id: u.id,
       izvor: "ULAZNI",
@@ -320,7 +361,12 @@ export async function pregledTroskova(db: PrismaClient | Tx, firmaId: string, pr
       datum: dan(p.datum),
       kategorija: "Roba",
       opis: `Primka ${p.broj}`,
-      iznos: c(p.nabavnaVrijednost),
+      iznos: trosakNarudzbenice({
+        primke: [{ id: p.id, iznos: c(p.nabavnaVrijednost), aktivna: true }],
+        racuni: p.ulazniRacuni
+          .filter((x) => x.zaRobu)
+          .map((x) => ({ id: x.id, iznos: c(x.osnovica), zaRobu: true, aktivan: ["EVIDENTIRAN", "PRIHVACEN"].includes(x.status) })),
+      }).roba,
       placeno: false,
       veza: `/primke/${p.id}`,
     });

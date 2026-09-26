@@ -66,15 +66,33 @@ describe("provjera dosljednosti", () => {
     expect(await prisma.stavkaNarudzbenice.findUniqueOrThrow({ where: { id: st.id } })).toMatchObject({ zaprimljeno: 2 });
     expect((await prisma.narudzbenica.findUniqueOrThrow({ where: { id: n.id } })).status).toBe("DJELOMICNO");
     const p = await prisma.primka.findUniqueOrThrow({ where: { id: pr.id } });
-    expect([p.nabavnaVrijednost?.toFixed(2), p.brojUredaja]).toEqual(["1200.00", 2]);
-    // ostaje samo ono što se popravlja ručno
-    expect((await provjeriDosljednost(prisma, firma.id)).map((x) => x.vrsta)).toEqual(["STANJE_SKLADISTE"]);
+    // vrijednost izdane primke se ne mijenja sama (samo prijava); bez prava „costs“ opis bez iznosa
+    expect([p.nabavnaVrijednost?.toFixed(2), p.brojUredaja]).toEqual(["1.00", 2]);
+    const ostalo = await provjeriDosljednost(prisma, firma.id);
+    expect(ostalo.map((x) => x.vrsta).sort()).toEqual(["STANJE_SKLADISTE", "VRIJEDNOST_PRIMKE"]);
+    expect(ostalo.find((x) => x.vrsta === "VRIJEDNOST_PRIMKE")?.opis).toBe(pr.broj);
+    expect((await provjeriDosljednost(prisma, firma.id, { vidiNabavne: true })).find((x) => x.vrsta === "VRIJEDNOST_PRIMKE")?.opis).toContain(
+      "1200.00",
+    );
     const dnevnik = await prisma.dnevnik.findMany({ where: { firmaId: firma.id, radnja: "dosljednost.popravak" } });
     expect(dnevnik).toHaveLength(3);
-    expect(dnevnik.every((d) => d.korisnikId === A.korisnikId)).toBe(true);
+    expect(dnevnik.every((d) => d.korisnikId === A.korisnikId && !d.opis.includes("1200"))).toBe(true);
     // druga firma: kvar i dalje postoji
     expect((await provjeriDosljednost(prisma, druga.firma.id)).map((x) => x.vrsta)).toContain("ZAPRIMLJENO");
     expect(await popraviDosljednost(prisma, A)).toBe(0);
+  });
+
+  it("popravak ne prepisuje ispravnu vrijednost: uplata nakon provjere ostaje", async () => {
+    const { firma, A } = await pripremi();
+    const kupac = await prisma.partner.create({ data: { firmaId: firma.id, naziv: "Kupac d.o.o.", oib: "94577403194", kupac: true } });
+    const dok = await prisma.prodajniDokument.create({
+      data: { firmaId: firma.id, vrsta: "RACUN", status: "IZDAN", partnerId: kupac.id, datum: new Date("2026-09-20"), placeno: "50.00" },
+    });
+    expect((await provjeriDosljednost(prisma, firma.id)).map((x) => x.vrsta)).toEqual(["PLACENO_RACUNA"]);
+    // u međuvremenu je stvarno stigla uplata od 50 € (zapisano je sada ispravno)
+    await prisma.uplata.create({ data: { firmaId: firma.id, dokumentId: dok.id, datum: new Date("2026-09-21"), iznos: "50.00" } });
+    expect(await popraviDosljednost(prisma, A)).toBe(0);
+    expect((await prisma.prodajniDokument.findUniqueOrThrow({ where: { id: dok.id } })).placeno.toFixed(2)).toBe("50.00");
   });
 
   it("1.000 narudžbenica provjerava ispod 2 s", async () => {

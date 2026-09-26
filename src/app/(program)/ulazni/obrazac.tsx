@@ -7,7 +7,16 @@ import { Obavijest } from "@/components/ui/obavijest";
 import { Obrazac } from "@/components/ui/obrazac";
 import { klaseUnosa, Kvacica, Odabir, Polje } from "@/components/ui/polje";
 import { Pretrazivac } from "@/components/ui/pretrazivac";
-import { demoPrimjerAkcija, odbijAkcija, platiAkcija, preuzmiERacuneAkcija, prihvatiAkcija, spremiUlazniAkcija, stornoUlaznogAkcija } from "./akcije";
+import {
+  demoPrimjerAkcija,
+  odbijAkcija,
+  platiAkcija,
+  ponistiPlacanjeAkcija,
+  preuzmiERacuneAkcija,
+  prihvatiAkcija,
+  spremiUlazniAkcija,
+  stornoUlaznogAkcija,
+} from "./akcije";
 
 export type PocetniUlazni = {
   id: string | null;
@@ -201,6 +210,29 @@ export function ObradaERacuna({
         {odbij && (odbij.ok ? <Obavijest vrsta="uspjeh">{odbij.poruka}</Obavijest> : <Obavijest vrsta="greska">{odbij.greska}</Obavijest>)}
       </Obrazac>
     </div>
+  );
+}
+
+export function PonistiPlacanje({ id, placanjeId }: { id: string; placanjeId: string }) {
+  const [greska, setGreska] = useState<string | null>(null);
+  const [uTijeku, zapocni] = useTransition();
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Gumb
+        varijanta="opasni"
+        disabled={uTijeku}
+        onClick={() => {
+          if (!confirm("Poništiti ovo plaćanje?")) return;
+          zapocni(async () => {
+            const r = await ponistiPlacanjeAkcija(id, placanjeId);
+            setGreska(r.ok ? null : r.greska);
+          });
+        }}
+      >
+        Poništi
+      </Gumb>
+      {greska && <span className="text-xs text-red-700 dark:text-red-400">{greska}</span>}
+    </span>
   );
 }
 

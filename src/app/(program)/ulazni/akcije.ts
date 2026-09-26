@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { formatirajIznos, procitajIznos } from "@/domain/novac";
+import { imaPosebno } from "@/domain/prava";
 import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
@@ -12,6 +13,7 @@ import {
   demoPrimjerERacuna,
   odbijERacun,
   platiUlazni,
+  ponistiPlacanjeUlaznog,
   preuzmiERacune,
   prihvatiERacun,
   spremiUlazniRacun,
@@ -22,8 +24,9 @@ const ili = (fd: FormData, ime: string) => tekst(fd, ime) || null;
 
 export async function spremiUlazniAkcija(id: string | null, _p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
   const r = await akcija("ulazni.spremi", async (k): Promise<Odgovor<{ id: string }>> => {
-    const o = procitajIznos(tekst(fd, "osnovica") || "0");
-    const p = procitajIznos(tekst(fd, "pdv") || "0");
+    // odobrenje dobavljača ima negativne iznose
+    const o = procitajIznos(tekst(fd, "osnovica") || "0", { dopustiNegativno: true });
+    const p = procitajIznos(tekst(fd, "pdv") || "0", { dopustiNegativno: true });
     const polja: Record<string, string> = {};
     if (!o.ok) polja["osnovica"] = o.greska;
     if (!p.ok) polja["pdv"] = p.greska;
@@ -111,7 +114,10 @@ export async function prihvatiAkcija(id: string, _p: Odgovor | undefined, fd: Fo
     revalidatePath("/ulazni");
     return {
       ok: true,
-      poruka: r.razlikaRobe ? `Prihvaćeno. Trošak robe povećan za ${formatirajIznos(r.razlikaRobe)} € (samo razlika iznad primke).` : "Prihvaćeno.",
+      poruka:
+        r.razlikaRobe && imaPosebno(k.prava, "costs")
+          ? `Prihvaćeno. Trošak robe povećan za ${formatirajIznos(r.razlikaRobe)} € (samo razlika iznad primke).`
+          : "Prihvaćeno.",
     };
   });
 }
@@ -122,6 +128,14 @@ export async function odbijAkcija(id: string, _p: Odgovor | undefined, fd: FormD
     revalidatePath(`/ulazni/${id}`);
     revalidatePath("/ulazni");
     return { ok: true, poruka: "eRačun je odbijen; dobavljač i Porezna su obaviješteni." };
+  });
+}
+
+export async function ponistiPlacanjeAkcija(id: string, placanjeId: string): Promise<Odgovor> {
+  return akcija("ulazni.plati", async (k): Promise<Odgovor> => {
+    await ponistiPlacanjeUlaznog(db, k, String(id), String(placanjeId));
+    revalidatePath(`/ulazni/${id}`);
+    return { ok: true, poruka: "Plaćanje je poništeno." };
   });
 }
 
