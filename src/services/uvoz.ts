@@ -79,7 +79,8 @@ async function postojeci(db: PrismaClient | Prisma.TransactionClient, firmaId: s
     }),
     db.uredaj.findMany({ where: { firmaId, serijski: { in: p.uredaji.map((u) => u.serijski) } }, select: { serijski: true } }),
     db.prodajniDokument.findMany({
-      where: { firmaId, vrsta: "RACUN", broj: { in: [...new Set(p.racuni.map((r) => r.broj))] } },
+      // račun, odobrenje, predujam i storno dijele isti niz brojeva (isti brojač)
+      where: { firmaId, vrsta: { in: ["RACUN", "ODOBRENJE", "PREDUJAM", "STORNO"] }, broj: { in: [...new Set(p.racuni.map((r) => r.broj))] } },
       select: { broj: true, godina: true },
     }),
     db.ugovorNajma.findMany({ where: { firmaId, broj: { in: p.ugovori.map((u) => u.broj) } }, select: { broj: true } }),
@@ -100,7 +101,7 @@ export async function pripremiUvoz(
   for (const u of b.uredaji) greske.push({ gdje: `uredaj ${u.serijski}`, poruka: `Serijski ${u.serijski} već postoji u programu.` });
   for (const r of b.racuni) {
     if (p.racuni.some((x) => x.broj === r.broj && Number(x.datum.slice(0, 4)) === r.godina))
-      greske.push({ gdje: `racun ${r.broj}`, poruka: `Račun ${r.broj}/${r.godina}. već postoji u programu.` });
+      greske.push({ gdje: `racun ${r.broj}`, poruka: `Broj ${r.broj} u ${r.godina}. već postoji u programu (račun, odobrenje ili storno).` });
   }
   for (const u of b.ugovori) greske.push({ gdje: `ugovor ${u.broj}`, poruka: `Ugovor ${u.broj} već postoji u programu.` });
   const poOibu = new Map(b.partneri.map((x) => [x.oib!, x]));
@@ -113,14 +114,15 @@ export async function pripremiUvoz(
   if (!b.skladista.length && !p.skladista.length && p.uredaji.some((u) => u.stanje === "NA_SKLADISTU"))
     greske.push({ gdje: "skladista", poruka: "Nema nijednog skladišta za uređaje na skladištu." });
 
-  // izvještaj razlika: iznos starog programa prema izračunu iz stavki
+  // izvještaj razlika: iznos starog programa prema izračunu iz stavki — istim grupiranjem uređaja kao pri uvozu
+  const privremeniUredaji = new Map(p.uredaji.map((u) => [u.serijski, { id: randomUUID(), modelId: `model:${lc(u.model)}` }]));
   const pdvPartnera = new Map<string, PartnerZaPdv>();
   for (const x of p.partneri) pdvPartnera.set(x.sifra, (x.oib && poOibu.get(x.oib)) || { drzava: x.drzava, pdvBroj: x.pdvBroj, pdvStatus: null });
   const razlike: RazlikaRacuna[] = [];
   const godine = new Map<number, { racuna: number; stari: number; novi: number; placeno: number }>();
   const numeracija = new Map<string, { niz: string; godina: number; sljedeci: number }>();
   for (const r of p.racuni) {
-    const iz = izracunajDokument(stavkeZaIzracun(r), {
+    const iz = izracunajDokument(stavkeZaIzracun(r, privremeniUredaji), {
       firmaUSustavuPdv: b.firma.uSustavuPdv,
       pdvPoNaplacenoj: b.firma.pdvPoNaplacenoj,
       statusKupca: statusKupca(r.partner ? pdvPartnera.get(r.partner)! : null),
@@ -183,7 +185,7 @@ export async function uvezi(db: PrismaClient, akter: Akter, json: unknown, danas
   const f = akter.firmaId;
   const naUgovoru = new Set(p.ugovori.flatMap((u) => u.uredaji.map((x) => x.serijski)));
 
-  await db.$transaction(
+  const partneriPoSifri = await db.$transaction(
     async (tx) => {
       await zakljucajKljuc(tx, `uvoz:${f}`);
       const b = await postojeci(tx, f, p);
@@ -468,33 +470,17 @@ export async function uvezi(db: PrismaClient, akter: Akter, json: unknown, danas
           .map(([k, v]) => `${k} ${v}`)
           .join(", ")}; razlika u iznosima: ${iz.razlike.length} računa`,
       });
+      return new Map([...partneri].map(([sifra, x]) => [sifra, x.id]));
     },
     { timeout: 60 * 60_000, maxWait: 60_000 },
   );
 
   // ugovori najma kroz servise najma
   const ugovoriGreske: Poruka[] = [];
-  const partneri = new Map(
-    (
-      await db.partner.findMany({
-        where: {
-          firmaId: f,
-          OR: [
-            { napomena: { startsWith: "Uvezeno iz starog programa" } },
-            { oib: { in: p.partneri.map((x) => x.oib).filter((x): x is string => !!x) } },
-          ],
-        },
-        select: { id: true, oib: true, napomena: true },
-      })
-    ).flatMap((x) => {
-      const sifra = /\(šifra (.+)\)$/.exec(x.napomena ?? "")?.[1];
-      return [...(sifra ? [[`s:${sifra}`, x.id] as const] : []), ...(x.oib ? [[`o:${x.oib}`, x.id] as const] : [])];
-    }),
-  );
   for (const u of p.ugovori) {
+    let ugovorId: string | null = null;
     try {
-      const px = p.partneri.find((x) => x.sifra === u.partner)!;
-      const partnerId = (px.oib && partneri.get(`o:${px.oib}`)) || partneri.get(`s:${px.sifra}`);
+      const partnerId = partneriPoSifri.get(u.partner);
       if (!partnerId) throw new GreskaKorisniku("Najmoprimac nije uvezen.");
       const r = await spremiUgovor(db, akter, null, {
         od: u.od,
@@ -509,6 +495,7 @@ export async function uvezi(db: PrismaClient, akter: Akter, json: unknown, danas
         verzija: 0,
       });
       if (!r.ok) throw new GreskaKorisniku(Object.values(r.polja).join(" "));
+      ugovorId = r.id;
       const grupe = new Map<string, { od: string; cijena: number; serijski: string[] }>();
       for (const x of u.uredaji) {
         const k = `${x.od}:${x.cijena}`;
@@ -520,7 +507,13 @@ export async function uvezi(db: PrismaClient, akter: Akter, json: unknown, danas
         await dodajUredajeNaUgovor(db, akter, r.id, { serijski: g.serijski, od: g.od, cijena: g.cijena, izvor: "SKLADISTE" });
       if (u.naplacenoDo) await oznaciNaplacenoDo(db, akter, r.id, u.naplacenoDo);
     } catch (e) {
-      ugovoriGreske.push({ gdje: `ugovor ${u.broj}`, poruka: e instanceof Error ? e.message : String(e) });
+      const poruka = e instanceof Error ? e.message : String(e);
+      ugovoriGreske.push({
+        gdje: `ugovor ${u.broj}`,
+        poruka: ugovorId
+          ? `${poruka} — ugovor je napravljen DJELOMIČNO: provjerite uređaje i označite mjesece naplaćene u starom programu na ugovoru prije izdavanja rata.`
+          : poruka,
+      });
     }
   }
   return { ...iz, ugovoriGreske };

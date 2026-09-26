@@ -41,7 +41,7 @@ Pravila za vrijednosti:
 | `usluge` | **`naziv`**, `sifra`, `jedinica` (kom), `cijena`, `kpd` |
 | `partneri` | **`sifra`** (ključ iz starog programa), **`naziv`**, `oib`, `pdvBroj` (za HR sam: HR+OIB), `drzava` (HR), `adresa`, `postanskiBroj`, `mjesto`, `email`, `telefon`, `kupac` (true), `dobavljac` (false), `rokPlacanjaDana` (15) |
 | `uredaji` | **`serijski`**, **`model`** (šifra ili naziv modela), `stanje` (`NA_SKLADISTU`, `PRODAN`, `U_NAJMU`, `OTPISAN`; `NA_SERVISU` → na skladište), `skladiste` (naziv; bez njega zadano), `partner` (šifra kupca/najmoprimca), `nabavnaCijena`, `nabavniDatum`, `jamstvoDo`, `cpu`, `ram`, `disk`, `os`, `napomena` |
-| `racuni` | **`broj`** (`redni/prostor/uređaj`, npr. `41/PP1/1`), **`datum`**, **`stavke`**, `dospijece`, `partner` (šifra), `nacinPlacanja` (`T`, `G`, `K`, `O`), `popust`, `napomena`, `ukupno` (s PDV-om, za izvještaj razlika), `uplate` (`datum`, `iznos`, `nacin`), `zki`, `jir` |
+| `racuni` | **`broj`** (`redni/prostor/uređaj`, npr. `41/PP1/1`; vodeće nule se zanemaruju, broj ne smije postojati ni na odobrenju ni stornu u programu), **`datum`**, **`stavke`**, `dospijece`, `partner` (šifra), `nacinPlacanja` (`T`, `G`, `K`, `O`), `popust`, `napomena`, `ukupno` (s PDV-om, za izvještaj razlika), `uplate` (`datum`, `iznos`, `nacin`), `zki`, `jir` |
 | stavka računa | **`naziv`**, **`cijena`** (bez PDV-a), `kolicina` (1; do 3 decimale), `jedinica` (kom), `popust`, `stopa` (25; 0, 5, 13, 25), `serijski` (veza na uvezeni uređaj), `vrstaIsporuke` (`ROBA`/`USLUGA`), `kpd` |
 | `ugovoriNajma` | **`broj`**, **`partner`** (šifra), **`od`**, `do`, `rokPlacanjaDana`, `nacinPlacanja`, `naplacenoDo` (`YYYY-MM` — zadnji mjesec koji je stari program već naplatio), **`uredaji`** (`serijski`, **`cijena`** mjesečno bez PDV-a, `od`) |
 
@@ -52,7 +52,7 @@ Pravila za vrijednosti:
 - **Računi** su izdani i zaključani; PDV i iznosi računaju se iz stavki istim izračunom kao novi računi
   (razlika prema starom programu vidi se u izvještaju prije uvoza). Snimka podataka firme i kupca je
   današnja. Račun s JIR-om vodi se kao fiskaliziran u produkciji (čuva se 11 godina — opasna zona ga
-  ne briše); bez JIR-a kao nefiskaliziran. **Uvezeni računi nikad se ne šalju CIS-u ni u eIzvještavanje.**
+  ne briše); bez JIR-a kao nefiskaliziran. **Uvezeni računi nikad se ne šalju CIS-u ni u eIzvještavanje.** Ni kao eRačun se ne šalju ponovno (poslani su iz starog programa).
 - **Numeracija** se nastavlja: brojač niza `prostor/uređaj` za godinu postavlja se na najveći uvezeni
   redni broj, pa sljedeći račun u istom nizu i godini dobiva broj iza njega.
 - **Najam**: mjeseci do `naplacenoDo` označe se „izdano izvan programa“ — program ih ne nudi za naplatu.

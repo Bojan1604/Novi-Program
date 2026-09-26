@@ -6,6 +6,8 @@
  * iznosa starog programa s iznosom koji program izračuna iz stavki (izvještaj razlika).
  */
 import { jeOib } from "./oib";
+import { jeMjesec } from "./najam";
+import { provjeriStavku } from "./prodaja";
 import { normalizirajSerijski } from "./stanja-uredaja";
 
 export const FORMAT_UVOZA = "erp-wms-uvoz";
@@ -115,7 +117,6 @@ export type Poruka = { gdje: string; poruka: string };
 export type ProvjeraUvoza = { podaci: PodaciUvoza; greske: Poruka[]; upozorenja: Poruka[] };
 
 const RE_DATUM = /^\d{4}-\d{2}-\d{2}$/;
-const RE_MJESEC = /^\d{4}-\d{2}$/;
 const RE_BROJ_RACUNA = /^(\d{1,9})\/([\p{L}\p{N}]{1,20})\/([\p{L}\p{N}]{1,20})$/u;
 const NACINI = ["T", "G", "K", "O"];
 
@@ -355,10 +356,12 @@ export function provjeriUvoz(ulaz: unknown, danas: string): ProvjeraUvoza {
   const brojevi = new Set<string>();
   niz(o["racuni"]).forEach((x, i) => {
     const r = objekt(x);
-    const broj = tekst(r["broj"], 60) ?? "";
-    const gdje = `racuni[${i}] ${broj}`;
-    const m = RE_BROJ_RACUNA.exec(broj);
+    const upisaniBroj = tekst(r["broj"], 60) ?? "";
+    const gdje = `racuni[${i}] ${upisaniBroj}`;
+    const m = RE_BROJ_RACUNA.exec(upisaniBroj);
     if (!m) return g(gdje, "Broj računa mora biti oblika redni/prostor/uređaj (npr. 15/PP1/1).");
+    // isti oblik kao brojevi programa (bez vodećih nula): 05/PP1/1 i 5/PP1/1 su isti broj
+    const broj = `${Number(m[1])}/${m[2]}/${m[3]}`;
     const datum = tekst(r["datum"], 10) ?? "";
     if (!jeStvarniDatum(datum)) return g(gdje, "Datum računa nije ispravan (YYYY-MM-DD).");
     if (datum > danas) return g(gdje, "Datum računa je u budućnosti.");
@@ -387,10 +390,19 @@ export function provjeriUvoz(ulaz: unknown, danas: string): ProvjeraUvoza {
       if (cijena === null) return g(gs, "Cijena nije ispravan iznos (bez PDV-a).");
       if (pop === null || pop < 0 || pop > 10000) return g(gs, "Popust: 0–100 %.");
       if (stopa === null || ![0, 500, 1300, 2500].includes(stopa)) return g(gs, "Stopa PDV-a: 0, 5, 13 ili 25.");
+      // ista pravila stavke kao u programu (odobrenje: negativna količina) i granice iznosa u bazi
+      const pravilo = provjeriStavku(
+        { vrsta: "RUCNA", namjena: "PRODAJA", naziv, jedinica: "kom", kolicina, cijena, popust: pop, stopa, vrstaIsporuke: "ROBA" },
+        j,
+        true,
+      );
+      if (pravilo) return g(gdje, pravilo);
+      if (Math.abs(kolicina) > 1_000_000_000 || Math.abs((cijena * kolicina) / 1000) > 1e12) return g(gs, "Količina ili iznos stavke su preveliki.");
       let sn = tekst(s["serijski"], 60);
       if (sn) {
         sn = normalizirajSerijski(sn);
         if (!serijski.has(sn)) u(gs, `Serijski ${sn} nije u popisu uređaja — stavka se uvozi bez veze na uređaj.`);
+        else if (Math.abs(kolicina) !== 1000) return g(gs, `Stavka sa serijskim brojem ${sn} ima količinu 1 (ili -1 na odobrenju).`);
       }
       const v = (tekst(s["vrstaIsporuke"], 10) ?? (sn ? "ROBA" : "ROBA")).toUpperCase();
       stavke.push({
@@ -457,7 +469,7 @@ export function provjeriUvoz(ulaz: unknown, danas: string): ProvjeraUvoza {
     if (!jeStvarniDatum(od)) return g(gdje, "Početak ugovora nije datum.");
     if (doD && (!jeStvarniDatum(doD) || doD < od)) return g(gdje, "Kraj ugovora nije ispravan.");
     const naplacenoDo = tekst(c["naplacenoDo"], 7);
-    if (naplacenoDo && !RE_MJESEC.test(naplacenoDo)) g(gdje, "„naplacenoDo“ mora biti mjesec YYYY-MM.");
+    if (naplacenoDo && !jeMjesec(naplacenoDo)) g(gdje, "„naplacenoDo“ mora biti mjesec YYYY-MM (01–12).");
     if (!naplacenoDo) u(gdje, "Nema „naplacenoDo“ — program će nuditi naplatu svih mjeseci od početka ugovora.");
     const nacin = (tekst(c["nacinPlacanja"], 1) ?? "T").toUpperCase();
     const rok = c["rokPlacanjaDana"] === undefined ? 15 : Number(c["rokPlacanjaDana"]);
@@ -472,12 +484,14 @@ export function provjeriUvoz(ulaz: unknown, danas: string): ProvjeraUvoza {
       const cijena = iznosUvoza(d["cijena"]);
       if (cijena === null || cijena < 0) return g(gu, "Mjesečna cijena nije ispravna.");
       const odU = tekst(d["od"], 10) ?? od;
-      if (!jeStvarniDatum(odU) || odU < od) return g(gu, "Datum od kojeg se uređaj naplaćuje nije ispravan.");
+      if (!jeStvarniDatum(odU) || odU < od || (doD && odU > doD))
+        return g(gu, "Datum od kojeg se uređaj naplaćuje nije ispravan (unutar trajanja ugovora).");
       if (serijski.get(sn)!.stanje !== "U_NAJMU") u(gu, `Uređaj ${sn} nije u stanju U_NAJMU u popisu uređaja — ide u najam s ugovorom.`);
       naUgovoru.add(sn);
       uredaji.push({ serijski: sn, od: odU, cijena });
     });
     if (!uredaji.length) u(gdje, "Ugovor nema uređaja.");
+    if (uredaji.length > 1000) g(gdje, "Ugovor ima više od 1.000 uređaja — podijelite ga u starom programu ili unesite ručno.");
     podaci.ugovori.push({
       broj,
       partner,
@@ -485,7 +499,7 @@ export function provjeriUvoz(ulaz: unknown, danas: string): ProvjeraUvoza {
       do: doD && jeStvarniDatum(doD) ? doD : null,
       rokPlacanjaDana: Number.isInteger(rok) ? rok : 15,
       nacinPlacanja: NACINI.includes(nacin) ? nacin : "T",
-      naplacenoDo: naplacenoDo && RE_MJESEC.test(naplacenoDo) ? naplacenoDo : null,
+      naplacenoDo: naplacenoDo && jeMjesec(naplacenoDo) ? naplacenoDo : null,
       uredaji,
     });
   });

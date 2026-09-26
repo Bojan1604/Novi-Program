@@ -69,4 +69,32 @@ describe("uvoz: provjera datoteke", () => {
     expect(r.podaci.partneri[0]!.oib).toBeNull();
     expect(r.podaci.uredaji.find((x) => x.serijski === "S1")!.stanje).toBe("NA_SKLADISTU");
   });
+
+  it("ispravci pregleda: broj bez vodećih nula, pravila stavke, mjesec i datumi ugovora", () => {
+    const p = primjer();
+    const r0 = (p["racuni"] as Record<string, unknown>[])[0]!;
+    (p["racuni"] as unknown[]).push(
+      { ...r0, broj: "041/PP1/1" }, // isti broj kao 41/PP1/1
+      { broj: "50/PP1/1", datum: "2025-12-01", stavke: [{ naziv: "Dva uređaja", serijski: "UV-0001", kolicina: 2, cijena: "10.00" }] },
+      { broj: "51/PP1/1", datum: "2025-12-01", stavke: [{ naziv: "Minus cijena", cijena: "-10.00" }] },
+      { broj: "52/PP1/1", datum: "2025-12-01", stavke: [{ naziv: "Ogromno", kolicina: 1e9, cijena: "1000000.00" }] },
+    );
+    const u0 = (p["ugovoriNajma"] as Record<string, unknown>[])[0]!;
+    u0["naplacenoDo"] = "2025-13";
+    (p["ugovoriNajma"] as unknown[]).push({
+      broj: "UG-X",
+      partner: "K001",
+      od: "2025-01-01",
+      do: "2025-03-31",
+      uredaji: [{ serijski: "UV-0004", od: "2025-05-01", cijena: 5 }],
+    });
+    const r = provjeriUvoz(p, DANAS);
+    const g = r.greske.map((x) => x.poruka).join("\n");
+    expect(g).toMatch(/Račun 41\/PP1\/1 u 2025\. se ponavlja/);
+    expect(g).toMatch(/UV-0001 ima količinu 1/);
+    expect(g).toMatch(/cijena nije ispravna/);
+    expect(g).toMatch(/preveliki/);
+    expect(g).toMatch(/naplacenoDo.*01–12/);
+    expect(g).toMatch(/unutar trajanja ugovora/);
+  });
 });

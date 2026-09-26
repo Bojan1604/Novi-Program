@@ -103,7 +103,7 @@ describe("uvoz iz starog programa", () => {
     // ponovni uvoz iste datoteke: greške, ništa se ne mijenja
     const p2 = await pripremiUvoz(prisma, f, primjer(), DANAS);
     expect(p2.greske.map((g) => g.poruka).join("\n")).toMatch(
-      /UV-0001 već postoji[\s\S]*41\/PP1\/1\/2025\. već postoji[\s\S]*UG-17\/2025 već postoji/,
+      /UV-0001 već postoji[\s\S]*Broj 41\/PP1\/1 u 2025\. već postoji[\s\S]*UG-17\/2025 već postoji/,
     );
     await expect(uvezi(prisma, A, primjer(), DANAS)).rejects.toThrow("grešaka");
   });
@@ -118,5 +118,39 @@ describe("uvoz iz starog programa", () => {
     expect((await prisma.uredaj.findFirstOrThrow({ where: { serijski: "UV-0002" } })).partnerId).toBe(postoji.id);
     expect(await prisma.skladiste.count({ where: { firmaId: f, naziv: "Glavno skladište" } })).toBe(1);
     expect(await prisma.kategorija.count({ where: { firmaId: f, naziv: "Monitor" } })).toBe(1);
+  });
+
+  it("ispravci pregleda: broj zauzet stornom, izvještaj = uvezeni iznosi (grupirani uređaji), uvezeni račun se ne šalje kao eRačun", async () => {
+    const { f, A } = await pripremi();
+    // storno 7/PP1/1 u 2025. već postoji (isti niz brojeva kao računi)
+    await prisma.prodajniDokument.create({
+      data: { firmaId: f, vrsta: "STORNO", status: "IZDAN", broj: "7/PP1/1", godina: 2025, redni: 7, datum: new Date("2025-03-01") },
+    });
+    const p = primjer();
+    const r0 = (p["racuni"] as Record<string, unknown>[])[0]!;
+    (p["racuni"] as unknown[]).push({ ...r0, broj: "07/PP1/1", jir: null, zki: null, uplate: [] });
+    expect((await pripremiUvoz(prisma, f, p, DANAS)).greske.map((g) => g.poruka).join("\n")).toMatch(/Broj 7\/PP1\/1 u 2025\. već postoji/);
+
+    // dva ista uređaja s popustom: izvještaj prije uvoza = spremljeni iznos (isto grupiranje i zaokruživanje)
+    const q = primjer();
+    (q["uredaji"] as unknown[]).push({ serijski: "UV-0005", model: "DL-5440", stanje: "PRODAN", partner: "K001" });
+    (q["racuni"] as unknown[]).push({
+      broj: "60/PP1/1",
+      datum: "2025-12-02",
+      partner: "K001",
+      stavke: [
+        { naziv: "Dell", serijski: "UV-0001", cijena: "333.33", popust: 7 },
+        { naziv: "Dell", serijski: "UV-0005", cijena: "333.33", popust: 7 },
+      ],
+      ukupno: "0.01",
+    });
+    const pr = await pripremiUvoz(prisma, f, q, DANAS);
+    const najavljeno = pr.razlike.find((x) => x.broj === "60/PP1/1")!.novi;
+    await uvezi(prisma, A, q, DANAS);
+    const d = await prisma.prodajniDokument.findFirstOrThrow({ where: { firmaId: f, broj: "60/PP1/1" } });
+    expect(Math.round(Number(d.ukupno) * 100)).toBe(najavljeno);
+
+    const { posaljiERacun } = await import("./eracun");
+    await expect(posaljiERacun(prisma, A, d.id)).rejects.toThrow("uvezen iz starog programa");
   });
 });

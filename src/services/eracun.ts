@@ -165,6 +165,9 @@ export async function ublRacuna(db: PrismaClient, firmaId: string, id: string): 
  */
 export async function posaljiERacun(db: PrismaClient, akter: Akter, id: string, sada = new Date()): Promise<{ status: StatusERacuna }> {
   const f = akter.firmaId;
+  const izvor = await db.prodajniDokument.findFirst({ where: { id, firmaId: f }, select: { snimka: true } });
+  // uvezeni račun izdan je (i poslan) u starom programu: ponovno slanje bi ga dupliciralo kupcu i Poreznoj
+  if (jeUvezen(izvor?.snimka)) throw new GreskaKorisniku("Račun je uvezen iz starog programa — eRačun je poslan iz njega i ne šalje se ponovno.");
   const r = await podaciZaUbl(db, f, id);
   if (r.kupac.drzava !== "HR" || !r.kupac.oib) throw new GreskaKorisniku("eRačun se šalje hrvatskom kupcu s OIB-om; stranom kupcu pošaljite PDF.");
   const xml = ublXml(r);
@@ -316,4 +319,9 @@ export async function posaljiIzvjestaje(db: PrismaClient, firmaId: string | null
     }
   }
   return { poslano, greske };
+}
+
+/** Račun uvezen iz starog programa (snimka nosi oznaku uvoza). */
+export function jeUvezen(snimka: unknown): boolean {
+  return !!snimka && typeof snimka === "object" && "uvoz" in snimka;
 }

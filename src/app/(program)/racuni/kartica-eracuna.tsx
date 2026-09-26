@@ -5,7 +5,7 @@ import { provjeriUbl } from "@/lib/eracun/provjera";
 import { ublXml } from "@/lib/eracun/ubl";
 import { db } from "@/lib/db";
 import { GreskaKorisniku } from "@/lib/greske";
-import { podaciZaUbl, STATUSI_ERACUNA } from "@/services/eracun";
+import { jeUvezen, podaciZaUbl, STATUSI_ERACUNA } from "@/services/eracun";
 import { OsvjeziStatus, PosaljiERacun } from "./eracun";
 
 const vrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Zagreb" });
@@ -37,7 +37,8 @@ export async function KarticaERacuna({ firmaId, dokumentId, smije }: { firmaId: 
     select: { id: true, status: true, posrednik: true, poruka: true, korisnik: true, poslano: true, provjereno: true },
   });
   const zadnji = slanja[0];
-  const moze = smije && domaci && greske.length === 0 && (!zadnji || ["ODBIJEN", "GRESKA"].includes(zadnji.status));
+  const uvezen = jeUvezen((await db.prodajniDokument.findFirst({ where: { id: dokumentId, firmaId }, select: { snimka: true } }))?.snimka);
+  const moze = smije && !uvezen && domaci && greske.length === 0 && (!zadnji || ["ODBIJEN", "GRESKA"].includes(zadnji.status));
   return (
     <Kartica naslov="eRačun">
       <div className="flex flex-col gap-3 text-sm" data-testid="eracun">
@@ -50,6 +51,8 @@ export async function KarticaERacuna({ firmaId, dokumentId, smije }: { firmaId: 
             </span>
             {zadnji.poruka && <span className="text-red-700 dark:text-red-400">{zadnji.poruka}</span>}
           </p>
+        ) : uvezen ? (
+          <p className="text-neutral-600 dark:text-neutral-400">Račun je uvezen iz starog programa — eRačun je poslan iz njega.</p>
         ) : !domaci && greske.length === 0 ? (
           <p className="text-neutral-600 dark:text-neutral-400">Kupac nije hrvatski obveznik s OIB-om — račun se šalje e-poštom (PDF).</p>
         ) : (
