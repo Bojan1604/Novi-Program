@@ -12,6 +12,7 @@ import {
   ponoviFiskalizacijuAkcija,
   pretvoriAkcija,
   stornoAkcija,
+  ugovorNacrtaAkcija,
 } from "./akcije";
 
 function Radnja({
@@ -95,4 +96,31 @@ export function OdbijPredujam({ racunId, predujamId, broj }: { racunId: string; 
 
 export function PonoviFiskalizaciju({ id }: { id: string }) {
   return <Radnja akcija={() => ponoviFiskalizacijuAkcija(id)} oznaka="Ponovi fiskalizaciju" />;
+}
+
+/** Nacrt računa s najmom uređaja: na koji ugovor ide najam. */
+export function UgovorNajmaNacrta({ id, ugovori, odabran }: { id: string; ugovori: { id: string; broj: string }[]; odabran: string | null }) {
+  const [vrijednost, setVrijednost] = useState(odabran ?? "");
+  const [stanje, posalji, uTijeku] = useActionState(() => ugovorNacrtaAkcija(id, vrijednost), undefined);
+  return (
+    <form action={posalji} className="flex flex-col gap-2" aria-label="Ugovor o najmu">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Najam uređaja ide na ugovor</span>
+          <select className={klaseUnosa} value={vrijednost} onChange={(e) => setVrijednost(e.target.value)}>
+            <option value="">Novi ugovor (otvara se pri izdavanju)</option>
+            {ugovori.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.broj}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Gumb type="submit" disabled={uTijeku}>
+          Spremi
+        </Gumb>
+      </div>
+      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+    </form>
+  );
 }

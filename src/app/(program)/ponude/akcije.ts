@@ -9,6 +9,7 @@ import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { fiskaliziraj } from "@/services/fiskalizacija";
+import { postaviUgovorNacrta } from "@/services/najam-racun";
 import {
   cijenaZaKupca,
   izdajPonudu,
@@ -251,5 +252,14 @@ export async function ponoviFiskalizacijuAkcija(racunId: string) {
     revalidatePath(`/racuni/${racunId}`);
     revalidatePath("/racuni");
     return "jir" in r ? { ok: true as const, poruka: "Račun je fiskaliziran." } : { ok: false as const, greska: r.greska };
+  });
+}
+
+export async function ugovorNacrtaAkcija(dokId: string, ugovorId: string) {
+  return akcija("prodaja.spremi", async (k) => {
+    if (!jeUuid(dokId) || (ugovorId && !jeUuid(ugovorId))) return { ok: false as const, greska: "Neispravan odabir." };
+    await postaviUgovorNacrta(db, k, dokId, ugovorId || null);
+    revalidatePath(`/racuni/${dokId}`);
+    return { ok: true as const, poruka: ugovorId ? "Najam ide na odabrani ugovor." : "Pri izdavanju otvara se novi ugovor." };
   });
 }

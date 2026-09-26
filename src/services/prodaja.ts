@@ -25,6 +25,7 @@ import { sljedeciBroj, sljedeciBrojSDatumom } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
 import { fiskaliziraj, pripremiFiskalizaciju } from "./fiskalizacija";
+import { najamSRacuna } from "./najam-racun";
 import { promijeniStanje } from "./uredaji";
 
 export type Tx = Prisma.TransactionClient;
@@ -634,6 +635,20 @@ export async function izdajRacunUBazi(
         if (s.uredajIds.length)
           await tx.uredajNaStavci.createMany({ data: s.uredajIds.map((uredajId) => ({ firmaId: f, stavkaId: nova.id, uredajId })) });
       }
+      // najam uređaja na računu iz prodaje: ugovor (postojeći ili novi) i rata za mjesec računa
+      const ugovorNajmaId =
+        dok.vrsta === "RACUN"
+          ? await najamSRacuna(tx, akter, {
+              dokumentId: id,
+              broj,
+              datum,
+              partnerId: dok.partnerId,
+              poslovnicaId: dok.poslovnicaId,
+              ugovorNajmaId: dok.ugovorNajmaId,
+              nacinPlacanja: dok.nacinPlacanja,
+              stavke: r.grupirane.filter((s) => s.namjena === "NAJAM").map((s) => ({ uredajIds: s.uredajIds, iznos: s.iznos })),
+            })
+          : null;
       const snimka = {
         ...(await snimkaDokumenta(tx, f, dok.partnerId, dok.poslovnicaId, r.napomene)),
         racun: {
@@ -660,6 +675,7 @@ export async function izdajRacunUBazi(
         data: {
           status: "IZDAN",
           broj,
+          ...(ugovorNajmaId ? { ugovorNajmaId } : {}),
           godina: Number(datum.slice(0, 4)),
           redni,
           izdano: sada,
@@ -892,6 +908,8 @@ async function stornirajUBazi(db: PrismaClient, akter: Akter, racunId: string, s
         });
       }
       await tx.prodajniDokument.update({ where: { id: r.id }, data: { status: "STORNIRAN", verzija: { increment: 1 } } });
+      // rate najma s tog računa ponovno su za izdati
+      await tx.rataNajma.deleteMany({ where: { firmaId: f, dokumentId: r.id } });
       await zapisiDnevnik(tx, {
         firmaId: f,
         korisnikId: akter.korisnikId,

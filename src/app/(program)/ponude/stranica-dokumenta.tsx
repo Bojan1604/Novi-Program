@@ -17,7 +17,7 @@ import { SlanjeEposte } from "./eposta";
 import { KarticaERacuna } from "../racuni/kartica-eracuna";
 import { predlozak, vrstaPoruke, type VrstaPoruke } from "@/domain/eposta";
 import { pozivNaBrojRacuna } from "@/domain/hub3";
-import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, PonoviFiskalizaciju, Pretvori, Storniraj } from "./radnje";
+import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, PonoviFiskalizaciju, Pretvori, Storniraj, UgovorNajmaNacrta } from "./radnje";
 import { STATUSI_FISKALIZACIJE } from "@/domain/fiskalizacija";
 import { UredjivacDokumenta, type PocetniDokument } from "./uredjivac";
 
@@ -92,6 +92,14 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
 
   if (nacrt && smije) {
     const predujmovi = d.vrsta === "RACUN" ? await dostupniPredujmovi(k.db as never, k.firmaId, d.partnerId, d.id) : [];
+    const imaNajam = d.vrsta === "RACUN" && d.partnerId && d.stavke.some((x) => x.namjena === "NAJAM" && x.uredajId);
+    const ugovori = imaNajam
+      ? await k.db.ugovorNajma.findMany({
+          where: { firmaId: k.firmaId, partnerId: d.partnerId!, otkazan: null },
+          orderBy: { od: "desc" },
+          select: { id: true, broj: true },
+        })
+      : [];
     const pocetno: PocetniDokument = {
       id: d.id,
       vrsta,
@@ -133,6 +141,11 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
             danas={d0}
           />
         </Kartica>
+        {imaNajam && (
+          <Kartica naslov="Najam uređaja">
+            <UgovorNajmaNacrta id={d.id} ugovori={ugovori} odabran={d.ugovorNajmaId} />
+          </Kartica>
+        )}
         {d.vrsta === "RACUN" && predujmovi.length > 0 && (
           <Kartica naslov="Predujmovi kupca">
             <ul className="flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="predujmovi">

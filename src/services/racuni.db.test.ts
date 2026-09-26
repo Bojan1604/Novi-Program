@@ -146,11 +146,12 @@ describe("izdavanje računa", () => {
     expect(await prisma.brojac.findFirstOrThrow({ where: { vrsta: "racun:UR1:2" } })).toMatchObject({ zadnji: 1 });
   });
 
-  it("najam uređaja na računu ne mijenja stanje i koristi KPD najma", async () => {
+  it("najam uređaja na računu: uređaj ide u najam na ugovoru (korak 3.8), ne prodaje se; KPD najma", async () => {
     const { A, uStavka, ulaz, uredaji } = await pripremi();
     const n = await spremiNacrt(prisma, A, null, ulaz([{ ...uStavka(0, 5000), namjena: "NAJAM", kpd: "77.33.11" }]));
     await izdajRacun(prisma, A, n.id, SADA);
-    expect((await prisma.uredaj.findUniqueOrThrow({ where: { id: uredaji[0]!.id } })).stanje).toBe("NA_SKLADISTU");
+    expect((await prisma.uredaj.findUniqueOrThrow({ where: { id: uredaji[0]!.id } })).stanje).toBe("U_NAJMU");
+    expect((await prisma.prodajniDokument.findUniqueOrThrow({ where: { id: n.id } })).ugovorNajmaId).toBeTruthy();
     const s = await prisma.stavkaProdajnogDokumenta.findFirstOrThrow({ where: { dokumentId: n.id } });
     expect(s).toMatchObject({ vrstaIsporuke: "USLUGA", kpd: "77.33.11" });
   });
