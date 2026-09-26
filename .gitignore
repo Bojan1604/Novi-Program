@@ -56,3 +56,6 @@ next-env.d.ts
 # samopotpisani certifikat za HTTPS u lokalnoj mreži
 /.https/
 .mdm-agent-*.json
+
+# snimke stranica (npm run snimke)
+/snimke/

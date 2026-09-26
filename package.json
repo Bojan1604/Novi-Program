@@ -24,6 +24,7 @@
     "format:check": "prettier --check .",
     "db:velika": "tsx scripts/velika-baza.ts",
     "mjerenje": "tsx scripts/mjerenje.ts",
+    "snimke": "tsx scripts/snimke.ts",
     "mdm:agent": "tsx scripts/mdm-agent.ts"
   },
   "dependencies": {
@@ -59,6 +60,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axe-core": "^4.13.0",
     "dotenv": "^18.0.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",

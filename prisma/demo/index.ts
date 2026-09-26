@@ -11,6 +11,12 @@ import { demoUredaji } from "./uredaji";
 import { demoSifrarnici } from "./sifrarnici";
 import { demoProdaja } from "./prodaja";
 import { demoSkladiste } from "./skladiste";
+import { demoNajam } from "./najam";
+import { demoNabava } from "./nabava";
+import { demoTroskovi } from "./troskovi";
+import { demoServis } from "./servis";
+import { demoPortal } from "./portal";
+import { demoMdm } from "./mdm";
 
 export type Kolicine = {
   /** uređaja po firmi (velika baza: 300.000) */
@@ -44,6 +50,12 @@ export const KORACI: Korak[] = [
   { naziv: "Uređaji i primke", izvedi: demoUredaji },
   { naziv: "Skladišni dokumenti i inventure", izvedi: demoSkladiste },
   { naziv: "Prodaja", izvedi: demoProdaja },
+  { naziv: "Najam", izvedi: demoNajam },
+  { naziv: "Nabava", izvedi: demoNabava },
+  { naziv: "Troškovi", izvedi: demoTroskovi },
+  { naziv: "Servis", izvedi: demoServis },
+  { naziv: "Portal klijenta", izvedi: demoPortal },
+  { naziv: "MDM", izvedi: demoMdm },
 ];
 
 export async function napuniDemo(

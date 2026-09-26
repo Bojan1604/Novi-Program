@@ -3,6 +3,7 @@ import type { UlaznaStavka } from "../../src/domain/prodaja";
 import { pravaClana, type Akter } from "../../src/services/korisnici";
 import { cijenaZaKupca, izdajPonudu, izdajRacun, pretvori, spremiNacrt } from "../../src/services/prodaja";
 import { dodajUplatu } from "../../src/services/uplate";
+import { masovniRacuni } from "./racuni-masovno";
 import type { DemoKontekst } from "./index";
 
 /**
@@ -50,6 +51,8 @@ export async function demoProdaja(k: DemoKontekst): Promise<void> {
 
   const danasnji = danas();
   const pocetak = dodajDane(danasnji, -90);
+  // velika baza: ostatak računa u serijama, stariji od računa iz servisa (koji nastavljaju numeraciju)
+  await masovniRacuni(k, k.kolicine.racuna - brojRacuna, dodajDane(pocetak, -1));
   let u = 0;
   for (let i = 0; i < brojRacuna && u < uredaji.length; i++) {
     const datum = dodajDane(pocetak, Math.floor((i * 90) / brojRacuna));

@@ -1,18 +1,21 @@
 /**
  * npm run mjerenje -- http://localhost:3000 /uredaji /racuni …
+ * npm run mjerenje -- http://localhost:3000 --sve   (sve stranice, popisi s 200 redaka, izvještaji i kartice)
  * Prijavi se (MJERENJE_EMAIL / MJERENJE_LOZINKA, zadano demo administrator), otvori svaku
  * stranicu 3 puta i ispiše vrijeme odgovora poslužitelja i veličinu HTML-a. Pukne ako
  * stranica prelazi granice (0,5 s na poslužitelju, 1 MB).
  */
 import { existsSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { svePutanje } from "./lib/putanje";
 
 const GRANICA_MS = Number(process.env["MJERENJE_GRANICA_MS"] ?? 500);
 const GRANICA_BAJTOVA = 1_000_000;
 
 async function glavno(): Promise<void> {
-  const [adresa, ...putanje] = process.argv.slice(2);
-  if (!adresa || putanje.length === 0) throw new Error("Upotreba: npm run mjerenje -- <adresa> <putanja>…");
+  const [adresa, ...zadane] = process.argv.slice(2);
+  const putanje = zadane.length === 1 && zadane[0] === "--sve" ? await svePutanje() : zadane;
+  if (!adresa || putanje.length === 0) throw new Error("Upotreba: npm run mjerenje -- <adresa> <putanja>… | --sve");
   const lokalni = "/opt/pw-browsers/chromium";
   const preglednik = await chromium.launch(existsSync(lokalni) ? { executablePath: lokalni } : {});
   const stranica = await preglednik.newPage();
