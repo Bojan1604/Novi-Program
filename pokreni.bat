@@ -53,10 +53,17 @@ if not defined IMA_KLJUC (
 
 echo [1/6] Baza podataka (Docker)...
 docker compose up -d --wait baza
-if errorlevel 1 (
-  echo Baza se nije pokrenula. Provjerite Docker Desktop i je li port 5432 slobodan.
-  goto :greska
+if not errorlevel 1 goto :baza_radi
+rem Windows (Hyper-V/WSL) zna rezervirati raspon portova u kojem je 5432, ili port koristi drugi PostgreSQL:
+rem probaju se drugi portovi, a odabrani se upise u .env (BAZA_PORT i adrese baze)
+echo Port baze nije dostupan - probam drugi port...
+for %%p in (15432 25432 35432 45432 55432 6543) do (
+  call :postavi_port %%p
+  docker compose up -d --wait baza && goto :baza_radi
 )
+echo Baza se nije pokrenula. Provjerite je li Docker Desktop pokrenut.
+goto :greska
+:baza_radi
 
 echo.
 echo [2/6] Instalacija paketa (npm install)...
@@ -102,6 +109,11 @@ if errorlevel 1 (
   echo Program se zaustavio s greskom.
   goto :greska
 )
+exit /b 0
+
+:postavi_port
+echo   port %1
+powershell -NoProfile -Command "$p = '%1'; $s = @(Get-Content '.env'); if ($s -match '^BAZA_PORT=') { $s = $s -replace '^BAZA_PORT=.*$', ('BAZA_PORT=\"' + $p + '\"') } else { $s += ('BAZA_PORT=\"' + $p + '\"') }; $s = $s -replace '@localhost:\d+/', ('@localhost:' + $p + '/'); $s | Set-Content -Encoding utf8 '.env'"
 exit /b 0
 
 :greska

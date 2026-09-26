@@ -12,7 +12,8 @@ services:
       PGTZ: Europe/Zagreb
     ports:
       # samo s ovog računala — baza nikad nije otvorena prema mreži
-      - "127.0.0.1:5432:5432"
+      # BAZA_PORT u .env (pokreni.bat odabere slobodni ako Windows ne dopusti 5432)
+      - "127.0.0.1:${BAZA_PORT:-5432}:5432"
     volumes:
       - baza-podaci:/var/lib/postgresql/data
       - ./docker/baza-init:/docker-entrypoint-initdb.d:ro
