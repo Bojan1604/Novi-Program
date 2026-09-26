@@ -80,6 +80,7 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "servis.otpis": ["Administrator", "Voditelj"],
   "servis.obrisi": ["Administrator", "Voditelj"],
   "servis.prilozi": ["Administrator", "Voditelj", "Serviser"],
+  "portal.upravljaj": ["Administrator", "Voditelj"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {

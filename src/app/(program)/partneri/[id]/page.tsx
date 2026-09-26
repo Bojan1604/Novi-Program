@@ -7,6 +7,7 @@ import { jeUuid } from "@/domain/id";
 import { izvedeniPdvStatus, PDV_STATUSI } from "@/domain/partner";
 import { imaPosebno, imaPravo } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
+import { PristupPortalu } from "../portal";
 import { opcijeCjenika, partner } from "@/queries/partneri";
 import { AkcijePartnera } from "../aktivnost";
 import { ObrazacPartnera, type PocetniPartner } from "../obrazac";
@@ -118,6 +119,28 @@ export default async function Partner({ params }: PageProps<"/partneri/[id]">) {
       <Kartica naslov="Poslovnice">
         <Poslovnice partnerId={p.id} poslovnice={p.poslovnice} smijeUredivati={smijeUredivati} />
       </Kartica>
+      {imaPravo(k.prava, "portal", "pregled") && (
+        <Kartica naslov="Portal klijenata">
+          <PristupPortalu
+            partnerId={p.id}
+            smije={imaPravo(k.prava, "portal", "operativno")}
+            klijenti={(
+              await k.db.korisnikPortala.findMany({
+                where: { firmaId: k.firmaId, partnerId: p.id },
+                orderBy: { ime: "asc" },
+                select: { id: true, ime: true, email: true, aktivan: true, lozinkaHash: true, zadnjaPrijava: true },
+              })
+            ).map((x) => ({
+              id: x.id,
+              ime: x.ime,
+              email: x.email,
+              aktivan: x.aktivan,
+              imaLozinku: x.lozinkaHash !== null,
+              zadnjaPrijava: x.zadnjaPrijava ? datum.format(x.zadnjaPrijava) : null,
+            }))}
+          />
+        </Kartica>
+      )}
       {smijeUredivati && (
         <Kartica naslov="Radnje">
           <AkcijePartnera

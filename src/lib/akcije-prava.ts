@@ -74,6 +74,7 @@ export const AKCIJE = {
   "servis.otpis": { modul: "servis", razina: "puno" },
   "servis.obrisi": { modul: "servis", razina: "puno" },
   "servis.prilozi": { modul: "servis", razina: "operativno" },
+  "portal.upravljaj": { modul: "portal", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;

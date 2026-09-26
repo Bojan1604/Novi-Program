@@ -83,3 +83,37 @@ test("portal: prijava kvara s fotografijom, servis zaprima, klijent vidi napomen
   expect(pdf.headers()["content-type"]).toBe("application/pdf");
   await klijent.close();
 });
+
+test("pristup portalu na partneru: dodaj, poveznica za lozinku, isključenje odmah odjavljuje", async ({ page, browser }) => {
+  const p = test.info().project.name.toLowerCase();
+  const email = `novi-${p}@e2e.hr`;
+  await prijaviSe(page);
+  page.on("dialog", (d) => void d.accept());
+  await page.goto("/partneri?trazi=E2E%20Kupac");
+  await page.getByRole("link", { name: "E2E Kupac d.o.o." }).first().click();
+  const novi = page.getByRole("form", { name: "Novi klijent na portalu" });
+  await novi.getByLabel("Ime i prezime").fill(`Novi ${p}`);
+  await novi.getByLabel("E-pošta").fill(email);
+  await novi.getByRole("button", { name: "Dodaj pristup" }).click();
+  const poveznica = await novi.getByTestId("tajna-vrijednost").textContent();
+  expect(poveznica).toMatch(/\/portal\/lozinka\/[\w-]{40,}$/);
+  await expect(page.getByTestId("klijenti-portala")).toContainText(email);
+  await bezVodoravnogPomicanja(page);
+
+  const klijent = await browser.newPage({ viewport: page.viewportSize()! });
+  await klijent.goto(poveznica!);
+  await klijent.getByLabel("Nova lozinka").fill(E2E.klijent.lozinka);
+  await klijent.getByLabel("Ponovite lozinku").fill(E2E.klijent.lozinka);
+  await klijent.getByRole("button", { name: "Postavi lozinku" }).click();
+  await expect(klijent.getByText("Lozinka je postavljena.")).toBeVisible();
+  await bezVodoravnogPomicanja(klijent);
+  await prijaviKlijenta(klijent, email);
+
+  // isključenje na partneru → klijentova sljedeća stranica je prijava
+  const redak = page.getByTestId("klijenti-portala").locator("li", { hasText: email });
+  await redak.getByRole("button", { name: "Isključi" }).click();
+  await expect(redak.getByText("isključen", { exact: true })).toBeVisible();
+  await klijent.goto("/portal");
+  await expect(klijent).toHaveURL(/\/portal\/prijava$/);
+  await klijent.close();
+});
