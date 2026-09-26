@@ -41,6 +41,7 @@ type Red = {
   popust: string;
   stopa: number;
   vrstaIsporuke: "ROBA" | "USLUGA";
+  izvornaStavkaId?: string | null;
   upozorenje?: string;
 };
 
@@ -83,6 +84,7 @@ function uRed(s: PocetniDokument["stavke"][number]): Red {
     popust: s.popust ? iznosUpis(s.popust) : "",
     stopa: s.stopa,
     vrstaIsporuke: s.vrstaIsporuke ?? "ROBA",
+    izvornaStavkaId: s.izvornaStavkaId ?? null,
   };
 }
 
@@ -109,6 +111,7 @@ function procitajRed(r: Red, i: number): { stavka: UlaznaStavka | null; greska: 
       popust: p.vrijednost,
       stopa: r.stopa,
       vrstaIsporuke: r.vrstaIsporuke,
+      izvornaStavkaId: r.izvornaStavkaId ?? null,
     },
     greska: null,
   };
@@ -141,6 +144,8 @@ export function UredjivacDokumenta({
   const [kljucOdabira, setKljucOdabira] = useState(0);
   const serijski = useRef<HTMLInputElement>(null);
   const jePonuda = pocetno.vrsta === "PONUDA";
+  // odobrenje: kupac i stavke s izvornog računa — mijenjaju se samo količine (negativne) i uklanjaju stavke
+  const ogranicen = pocetno.vrsta === "ODOBRENJE";
 
   const [stanje, posalji, uTijeku] = useActionState(async (p: Awaited<ReturnType<typeof spremiDokumentAkcija>> | undefined, fd: FormData) => {
     const r = await spremiDokumentAkcija(p, fd);
@@ -267,7 +272,11 @@ export function UredjivacDokumenta({
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2">
-          <Pretrazivac izvor="/api/odabir/partneri?vrsta=kupac" oznaka="Kupac" pocetna={pocetno.partner} onPromjena={(s) => void odaberiKupca(s)} />
+          {ogranicen ? (
+            <Polje oznaka="Kupac" value={pocetno.partner?.naziv ?? "—"} disabled readOnly />
+          ) : (
+            <Pretrazivac izvor="/api/odabir/partneri?vrsta=kupac" oznaka="Kupac" pocetna={pocetno.partner} onPromjena={(s) => void odaberiKupca(s)} />
+          )}
         </div>
         {poslovnice.length > 0 && (
           <Odabir oznaka="Poslovnica" value={poslovnicaId} onChange={(e) => setPoslovnicaId(e.target.value)}>
@@ -302,7 +311,7 @@ export function UredjivacDokumenta({
         </Obavijest>
       )}
 
-      <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+      <div className={`flex flex-col gap-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800 ${ogranicen ? "hidden" : ""}`}>
         <div className="text-sm font-medium">Dodaj stavku</div>
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="flex flex-col gap-2">

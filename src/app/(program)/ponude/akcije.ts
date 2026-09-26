@@ -8,9 +8,19 @@ import { normalizirajSerijski } from "@/domain/stanja-uredaja";
 import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
-import { cijenaZaKupca, izdajPonudu, izdajRacun, obrisiNacrt, pretvori, spremiNacrt, statusKupca } from "@/services/prodaja";
+import {
+  cijenaZaKupca,
+  izdajPonudu,
+  izdajRacun,
+  napraviOdobrenje,
+  obrisiNacrt,
+  pretvori,
+  spremiNacrt,
+  statusKupca,
+  stornirajRacun,
+} from "@/services/prodaja";
 
-const putanja = (vrsta: string) => (vrsta === "RACUN" ? "/racuni" : "/ponude");
+const putanja = (vrsta: string) => (["RACUN", "STORNO", "ODOBRENJE"].includes(vrsta) ? "/racuni" : "/ponude");
 
 const id = z.string().max(40).nullable().optional();
 const STAVKA = z.object({
@@ -28,6 +38,7 @@ const STAVKA = z.object({
   popust: z.number().int(),
   stopa: z.number().int(),
   vrstaIsporuke: z.enum(["ROBA", "USLUGA"]).optional(),
+  izvornaStavkaId: z.string().max(40).nullable().optional(),
 });
 const DOKUMENT = z.object({
   id: z.string().max(40).nullable(),
@@ -68,7 +79,7 @@ export async function izdajAkcija(dokId: string) {
   return akcija("prodaja.izdaj", async (k) => {
     const dok = jeUuid(dokId) ? await k.db.prodajniDokument.findFirst({ where: { id: dokId, firmaId: k.firmaId }, select: { vrsta: true } }) : null;
     if (!dok) return { ok: false as const, greska: "Dokument ne postoji." };
-    const { broj } = dok.vrsta === "RACUN" ? await izdajRacun(db, k, dokId) : await izdajPonudu(db, k, dokId);
+    const { broj } = dok.vrsta === "RACUN" || dok.vrsta === "ODOBRENJE" ? await izdajRacun(db, k, dokId) : await izdajPonudu(db, k, dokId);
     revalidatePath(`${putanja(dok.vrsta)}/${dokId}`);
     revalidatePath(putanja(dok.vrsta));
     revalidatePath("/uredaji");
@@ -201,4 +212,21 @@ export async function artiklAkcija(vrsta: "UREDAJ" | "MODEL" | "USLUGA", oznaka:
       },
     };
   });
+}
+
+export async function odobrenjeAkcija(racunId: string) {
+  const r = await akcija("prodaja.odobrenje", async (k) => ({ ok: true as const, podaci: await napraviOdobrenje(db, k, racunId) }));
+  if (r.ok) redirect(`/racuni/${r.podaci.id}`);
+  return r;
+}
+
+export async function stornoAkcija(racunId: string, skladisteId: string) {
+  const r = await akcija("prodaja.storno", async (k) => {
+    const s = await stornirajRacun(db, k, racunId, String(skladisteId));
+    revalidatePath("/racuni");
+    revalidatePath("/uredaji");
+    return { ok: true as const, podaci: s };
+  });
+  if (r.ok) redirect(`/racuni/${r.podaci.id}`);
+  return r;
 }

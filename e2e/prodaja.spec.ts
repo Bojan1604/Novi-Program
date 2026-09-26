@@ -97,3 +97,62 @@ test("račun: skenirani uređaj, izdavanje s brojem, uređaj prodan, izdani se n
   await expect(page.getByTestId("povijest")).toContainText(/Račun \d+\/PP1\/1/);
   await bezVodoravnogPomicanja(page);
 });
+
+async function izdajRacunZa(page: import("@playwright/test").Page, dodaj: () => Promise<void>) {
+  await page.goto("/racuni/nova");
+  await page.getByRole("combobox", { name: "Kupac" }).fill("E2E Kupac");
+  await page.getByRole("option", { name: /E2E Kupac d\.o\.o\./ }).click();
+  await dodaj();
+  await page.getByRole("button", { name: "Spremi nacrt" }).click();
+  await expect(page).toHaveURL(/\/racuni\/[0-9a-f-]{36}$/);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Izdaj račun" }).click();
+  await expect(page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ })).toBeVisible();
+}
+
+test("storno računa vraća uređaj na odabrano skladište", async ({ page }) => {
+  const serijski = `E2E-STORNO-${test.info().project.name.toUpperCase()}`;
+  await prijaviSe(page);
+  await izdajRacunZa(page, async () => {
+    await page.getByLabel("Serijski broj uređaja").fill(serijski);
+    await page.getByLabel("Serijski broj uređaja").press("Enter");
+    await expect(page.getByLabel("Naziv stavke 1")).toHaveValue(/E2E Laptop 14/);
+  });
+  await page.getByLabel("Skladište za vraćene uređaje").selectOption({ label: "E2E Split" });
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Storniraj" }).click();
+  await expect(page.getByRole("heading", { name: /Storno računa \d+\/PP1\/1/ })).toBeVisible();
+  await expect(page.getByTestId("zbrojevi")).toContainText("-1.250,00 €");
+  await page.goto(`/uredaji/sn/${serijski}`);
+  await expect(page.getByText("Na skladištu").first()).toBeVisible();
+  await expect(page.getByText("E2E Split").first()).toBeVisible();
+});
+
+test("odobrenje za dio usluge; ostatak se ne može prijeći", async ({ page }) => {
+  await prijaviSe(page);
+  await izdajRacunZa(page, async () => {
+    await page.getByLabel("Vrsta", { exact: true }).selectOption("USLUGA");
+    await page.getByRole("combobox", { name: "Usluga" }).fill("E2E Instal");
+    await page.getByRole("option", { name: /E2E Instalacija/ }).click();
+    await page.getByLabel("Količina stavke 1").fill("2");
+    await page.getByLabel("KPD stavke 1").fill("62.09.20");
+  });
+  await page.getByRole("button", { name: "Odobrenje" }).click();
+  await expect(page.getByRole("heading", { name: "Odobrenje (nacrt)" })).toBeVisible();
+  await expect(page.getByRole("form", { name: "Dodavanje stavke" })).toHaveCount(0);
+  await expect(page.getByLabel("Količina stavke 1")).toHaveValue("-2");
+  await page.getByLabel("Količina stavke 1").fill("-3");
+  await page.getByRole("button", { name: "Spremi nacrt" }).click();
+  await expect(page.getByText("Spremljeno.")).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Izdaj odobrenje" }).click();
+  await expect(page.getByText("odobrava se više nego što je bilo na računu")).toBeVisible();
+  await page.getByLabel("Količina stavke 1").fill("-1");
+  await page.getByRole("button", { name: "Spremi nacrt" }).click();
+  await expect(page.getByText("Spremljeno.")).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Izdaj odobrenje" }).click();
+  await expect(page.getByRole("heading", { name: /Odobrenje \d+\/PP1\/1/ })).toBeVisible();
+  await expect(page.getByTestId("zbrojevi")).toContainText("-50,00 €");
+  await expect(page.getByTestId("stanje-placanja")).toContainText("Za povrat kupcu50,00 €");
+});

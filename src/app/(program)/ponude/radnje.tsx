@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
-import { izdajAkcija, obrisiNacrtAkcija, pretvoriAkcija } from "./akcije";
+import { klaseUnosa } from "@/components/ui/polje";
+import { izdajAkcija, obrisiNacrtAkcija, odobrenjeAkcija, pretvoriAkcija, stornoAkcija } from "./akcije";
 
 function Radnja({
   akcija,
@@ -50,4 +51,32 @@ export function ObrisiNacrt({ id }: { id: string }) {
 
 export function Pretvori({ id, u, oznaka }: { id: string; u: string; oznaka: string }) {
   return <Radnja akcija={() => pretvoriAkcija(id, u)} oznaka={oznaka} />;
+}
+
+export function Odobrenje({ id }: { id: string }) {
+  return <Radnja akcija={() => odobrenjeAkcija(id)} oznaka="Odobrenje" />;
+}
+
+export function Storniraj({ id, skladista }: { id: string; skladista: { id: string; naziv: string }[] }) {
+  const [skladiste, setSkladiste] = useState(skladista[0]?.id ?? "");
+  return (
+    <div className="flex items-end gap-2">
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="text-neutral-500">Uređaji na skladište</span>
+        <select className={klaseUnosa} value={skladiste} onChange={(e) => setSkladiste(e.target.value)} aria-label="Skladište za vraćene uređaje">
+          {skladista.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.naziv}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Radnja
+        akcija={() => stornoAkcija(id, skladiste)}
+        oznaka="Storniraj"
+        potvrda="Stornirati račun? Nastaje storno u istom nizu brojeva, prodani uređaji se vraćaju na skladište."
+        varijanta="opasni"
+      />
+    </div>
+  );
 }

@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { danas, jeDatum, usporedi } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
 import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
+import { ukupnoZaPlacanje } from "@/domain/odobrenja";
 import { provjeriUplatu, stanjePlacanja } from "@/domain/uplate";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zapisiDnevnik } from "./dnevnik";
@@ -9,7 +10,7 @@ import type { Akter } from "./korisnici";
 
 type Tx = Prisma.TransactionClient;
 
-const PLATIVI = ["RACUN", "ODOBRENJE", "PREDUJAM", "STORNO"];
+const PLATIVI = ["RACUN", "ODOBRENJE", "PREDUJAM"];
 
 async function zakljucajDokument(tx: Tx, firmaId: string, dokumentId: string) {
   await tx.$queryRaw`SELECT id FROM "ProdajniDokument" WHERE id = ${dokumentId}::uuid AND "firmaId" = ${firmaId}::uuid FOR UPDATE`;
@@ -20,7 +21,8 @@ async function zakljucajDokument(tx: Tx, firmaId: string, dokumentId: string) {
   if (!d) throw new GreskaKorisniku("Račun ne postoji.");
   return {
     ...d,
-    ukupnoC: centiIzDecimala(d.ukupno.toFixed(2)),
+    // storniran račun više se ne naplaćuje — sve plaćeno po njemu je „za povrat“
+    ukupnoC: ukupnoZaPlacanje(d.vrsta, d.status, centiIzDecimala(d.ukupno.toFixed(2))),
     uplateC: d.uplate.map((u) => ({ iznos: centiIzDecimala(u.iznos.toFixed(2)), ponistena: u.ponistena })),
   };
 }

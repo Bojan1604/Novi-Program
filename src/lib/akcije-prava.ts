@@ -41,6 +41,8 @@ export const AKCIJE = {
   "prodaja.obrisi": { modul: "prodaja", razina: "operativno" },
   "prodaja.podaci": { modul: "prodaja", razina: "operativno" },
   "uplate.unos": { modul: "prodaja", razina: "operativno" },
+  "prodaja.storno": { modul: "prodaja", razina: "puno" },
+  "prodaja.odobrenje": { modul: "prodaja", razina: "puno" },
   "uplate.ponisti": { modul: "prodaja", razina: "puno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 

@@ -47,6 +47,8 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "prodaja.obrisi": ["Administrator", "Voditelj", "Prodavač"],
   "prodaja.podaci": ["Administrator", "Voditelj", "Prodavač"],
   "uplate.unos": ["Administrator", "Voditelj", "Prodavač"],
+  "prodaja.storno": ["Administrator", "Voditelj"],
+  "prodaja.odobrenje": ["Administrator", "Voditelj"],
   "uplate.ponisti": ["Administrator", "Voditelj"],
 };
 

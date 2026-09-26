@@ -6,13 +6,14 @@ import { Tablica } from "@/components/ui/tablica";
 import { formatirajIznos } from "@/domain/novac";
 import { jedan, sortiranje, stranica, velicina, vise } from "@/domain/popis";
 import { imaPravo } from "@/domain/prava";
+import { VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
 import { pristupStranici } from "@/lib/akcija";
 import { popisProdaje } from "@/queries/prodaja";
 
 export const metadata = { title: "Računi · ERP-WMS" };
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
-const VRSTE = ["RACUN"];
+const VRSTE = ["RACUN", "STORNO", "ODOBRENJE"];
 
 export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
   const k = await pristupStranici("/racuni");
@@ -45,6 +46,11 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
       <Kartica>
         <div className="mb-3 flex flex-col gap-2 sm:flex-row">
           <PoljePretrage placeholder="Broj, kupac, napomena, serijski" />
+          <FilterVise
+            oznaka="Vrsta"
+            parametar="vrsta"
+            opcije={VRSTE.map((v) => ({ vrijednost: v, naziv: VRSTE_PRODAJE[v as VrstaProdaje].naziv }))}
+          />
           <FilterVise
             oznaka="Status"
             parametar="status"
@@ -82,6 +88,20 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
           veza={(d) => `/racuni/${d.id}`}
           stupci={[
             { kljuc: "broj", naslov: "Broj", sortira: "broj", prikaz: (d) => d.broj ?? <Znacka>nacrt</Znacka> },
+            {
+              kljuc: "vrsta",
+              naslov: "Vrsta",
+              prikaz: (d) =>
+                d.vrsta === "RACUN" ? (
+                  d.status === "STORNIRAN" ? (
+                    <Znacka boja="crvena">storniran</Znacka>
+                  ) : (
+                    ""
+                  )
+                ) : (
+                  VRSTE_PRODAJE[d.vrsta as VrstaProdaje]?.naziv
+                ),
+            },
             { kljuc: "dospijece", naslov: "Dospijeće", prikaz: (d) => (d.dospijece ? datum.format(d.dospijece) : "") },
             { kljuc: "datum", naslov: "Datum", sortira: "datum", prikaz: (d) => datum.format(d.datum) },
             { kljuc: "kupac", naslov: "Kupac", prikaz: (d) => d.partner?.naziv ?? "" },
@@ -96,7 +116,8 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
             { kljuc: "korisnik", naslov: "Izradio", prikaz: (d) => d.korisnik },
           ]}
           podnozje={[
-            "Izdano ukupno",
+            "Ukupno (s stornima)",
+            "",
             "",
             "",
             "",

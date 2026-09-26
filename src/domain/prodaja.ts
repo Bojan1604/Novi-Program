@@ -9,6 +9,8 @@ export const VRSTE_PRODAJE = {
   PONUDA: { naziv: "Ponuda", prefiks: "PON", brojac: "ponuda" },
   PREDRACUN: { naziv: "Predračun", prefiks: "PRED", brojac: "predracun" },
   RACUN: { naziv: "Račun", prefiks: "", brojac: "racun" },
+  STORNO: { naziv: "Storno računa", prefiks: "", brojac: "racun" },
+  ODOBRENJE: { naziv: "Odobrenje", prefiks: "", brojac: "racun" },
 } as const;
 export type VrstaProdaje = keyof typeof VRSTE_PRODAJE;
 
@@ -21,6 +23,8 @@ export const PRETVORBE: Record<VrstaProdaje, VrstaProdaje[]> = {
   PONUDA: ["PREDRACUN", "RACUN"],
   PREDRACUN: ["RACUN"],
   RACUN: [],
+  STORNO: [],
+  ODOBRENJE: [],
 };
 
 export const VRSTE_STAVKI = { UREDAJ: "Uređaj", MODEL: "Model", USLUGA: "Usluga", RUCNA: "Ručna stavka" } as const;
@@ -47,6 +51,8 @@ export type UlaznaStavka = {
   stopa: number;
   /** samo ručna stavka: roba ili usluga */
   vrstaIsporuke?: VrstaIsporuke;
+  /** odobrenje: stavka izvornog računa */
+  izvornaStavkaId?: string | null;
 };
 
 /** Roba ili usluga: prodaja uređaja/modela je roba, najam i usluge su usluga, ručna po izboru. */
@@ -94,7 +100,7 @@ export function grupirajUredaje(stavke: readonly (UlaznaStavka & { serijskiBroj?
       r.push({ ...ostalo, uredajIds: [], serijski: [] });
       continue;
     }
-    const kljuc = [s.modelId, s.naziv, s.namjena, s.cijena, s.popust, s.stopa, s.kpd ?? "", Math.sign(s.kolicina)].join("|");
+    const kljuc = [s.modelId, s.naziv, s.namjena, s.cijena, s.popust, s.stopa, s.kpd ?? "", Math.sign(s.kolicina), s.izvornaStavkaId ?? ""].join("|");
     const g = grupe.get(kljuc);
     if (g) {
       g.kolicina += s.kolicina;

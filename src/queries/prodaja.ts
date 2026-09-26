@@ -48,9 +48,20 @@ export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaj
     f.placanje === "OTVORENI"
       ? { AND: [osnova, { status: "IZDAN", ukupno: { gt: placeno } }] }
       : f.placanje === "ZA_POVRAT"
-        ? { AND: [osnova, { status: { not: "NACRT" }, ukupno: { lt: placeno } }] }
+        ? {
+            AND: [
+              osnova,
+              { vrsta: { not: "STORNO" } },
+              {
+                OR: [
+                  { status: "IZDAN", ukupno: { lt: placeno } },
+                  { status: "STORNIRAN", placeno: { gt: 0 } },
+                ],
+              },
+            ],
+          }
         : f.placanje === "PLACENI"
-          ? { AND: [osnova, { status: { not: "NACRT" }, ukupno: { equals: placeno } }] }
+          ? { AND: [osnova, { status: "IZDAN", ukupno: { equals: placeno } }] }
           : osnova;
   const s = f.sort.smjer;
   const orderBy: Prisma.ProdajniDokumentOrderByWithRelationInput[] =
@@ -59,7 +70,7 @@ export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaj
       : f.sort.kljuc === "ukupno"
         ? [{ ukupno: s }, { id: s }]
         : [{ datum: s }, { stvoreno: s }];
-  const [ukupno, redovi, zbroj] = await Promise.all([
+  const [ukupno, redovi, zbroj, otvoreno] = await Promise.all([
     db.prodajniDokument.count({ where }),
     db.prodajniDokument.findMany({
       where,
@@ -81,13 +92,16 @@ export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaj
         partner: { select: { id: true, naziv: true } },
       },
     }),
-    db.prodajniDokument.aggregate({ where: { AND: [where, { status: "IZDAN" }] }, _sum: { osnovica: true, ukupno: true, placeno: true } }),
+    // promet: izdani i stornirani s njihovim stornima (poništavaju se), bez nacrta
+    db.prodajniDokument.aggregate({ where: { AND: [where, { status: { in: ["IZDAN", "STORNIRAN"] } }] }, _sum: { osnovica: true, ukupno: true } }),
+    // otvoreno: samo važeći računi i odobrenja
+    db.prodajniDokument.aggregate({ where: { AND: [where, { status: "IZDAN", vrsta: { not: "STORNO" } }] }, _sum: { ukupno: true, placeno: true } }),
   ]);
   return {
     ukupno,
     zbrojOsnovica: centiIzDecimala((zbroj._sum.osnovica ?? 0).toString()),
     zbrojUkupno: centiIzDecimala((zbroj._sum.ukupno ?? 0).toString()),
-    zbrojOtvoreno: centiIzDecimala((zbroj._sum.ukupno ?? 0).toString()) - centiIzDecimala((zbroj._sum.placeno ?? 0).toString()),
+    zbrojOtvoreno: centiIzDecimala((otvoreno._sum.ukupno ?? 0).toString()) - centiIzDecimala((otvoreno._sum.placeno ?? 0).toString()),
     redovi: redovi.map((r) => ({
       ...r,
       osnovica: centiIzDecimala(r.osnovica.toFixed(2)),

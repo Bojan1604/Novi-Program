@@ -793,33 +793,35 @@ model ProdajniDokument {
 }
 
 model StavkaProdajnogDokumenta {
-  id            String  @id @default(uuid(7)) @db.Uuid
-  firmaId       String  @db.Uuid
-  dokumentId    String  @db.Uuid
-  redoslijed    Int
+  id              String  @id @default(uuid(7)) @db.Uuid
+  firmaId         String  @db.Uuid
+  dokumentId      String  @db.Uuid
+  redoslijed      Int
   /// UREDAJ (točno taj serijski), MODEL, USLUGA, RUCNA
-  vrsta         String
+  vrsta           String
   /// PRODAJA ili NAJAM
-  namjena       String  @default("PRODAJA")
-  uredajId      String? @db.Uuid
-  modelId       String? @db.Uuid
-  uslugaId      String? @db.Uuid
-  naziv         String
-  opis          String?
-  kpd           String?
-  jedinica      String  @default("kom")
+  namjena         String  @default("PRODAJA")
+  uredajId        String? @db.Uuid
+  modelId         String? @db.Uuid
+  uslugaId        String? @db.Uuid
+  naziv           String
+  opis            String?
+  kpd             String?
+  jedinica        String  @default("kom")
   /// tisućinke (1 kom = 1000)
-  kolicina      Int
-  cijena        Decimal @db.Decimal(14, 2)
+  kolicina        Int
+  cijena          Decimal @db.Decimal(14, 2)
   /// stotinke postotka
-  popust        Int     @default(0)
+  popust          Int     @default(0)
   /// ROBA ili USLUGA (najam je usluga)
-  vrstaIsporuke String
+  vrstaIsporuke   String
   /// stopa i kategorija PDV-a (src/domain/pdv.ts)
-  stopa         Int
-  kategorija    String
+  stopa           Int
+  kategorija      String
   /// iznos bez PDV-a nakon popusta
-  iznos         Decimal @db.Decimal(14, 2)
+  iznos           Decimal @db.Decimal(14, 2)
+  /// odobrenje/storno: stavka izvornog računa na koju se odnosi
+  izvornaStavkaId String? @db.Uuid
 
   firma    Firma            @relation(fields: [firmaId], references: [id])
   dokument ProdajniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])

@@ -9,9 +9,10 @@ import { formatirajKolicinu, jeVrstaProdaje, PRETVORBE, VRSTE_PRODAJE, type Vrst
 import type { Kontekst } from "@/lib/akcija";
 import { prodajniDokument } from "@/queries/prodaja";
 import { NACINI_PLACANJA, postavkeFirme, statusKupca, uUlaznu } from "@/services/prodaja";
+import { ukupnoZaPlacanje } from "@/domain/odobrenja";
 import { NAZIVI_STATUSA, stanjePlacanja } from "@/domain/uplate";
 import { PonistiUplatu, UnosUplate } from "../racuni/placanje";
-import { IzdajDokument, ObrisiNacrt, Pretvori } from "./radnje";
+import { IzdajDokument, ObrisiNacrt, Odobrenje, Pretvori, Storniraj } from "./radnje";
 import { UredjivacDokumenta, type PocetniDokument } from "./uredjivac";
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
@@ -121,10 +122,18 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
 
   const snimka = d.snimka as { napomene?: string[] } | null;
   const placanje = stanjePlacanja(
-    centiIzDecimala(d.ukupno.toFixed(2)),
+    ukupnoZaPlacanje(d.vrsta, d.status, centiIzDecimala(d.ukupno.toFixed(2))),
     d.uplate.map((u) => ({ iznos: centiIzDecimala(u.iznos.toFixed(2)), ponistena: u.ponistena })),
   );
   const smijePonistiti = imaPravo(k.prava, "prodaja", "puno");
+  const skladista =
+    d.vrsta === "RACUN" && d.status === "IZDAN"
+      ? await k.db.skladiste.findMany({
+          where: { firmaId: k.firmaId, aktivan: true },
+          orderBy: [{ zadano: "desc" }, { naziv: "asc" }],
+          select: { id: true, naziv: true },
+        })
+      : [];
   return (
     <Stranica sirina="7xl">
       <NaslovStranice
@@ -135,6 +144,12 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
             {smije &&
               !nacrt &&
               PRETVORBE[vrsta]?.map((u) => <Pretvori key={u} id={d.id} u={u} oznaka={`Napravi ${VRSTE_PRODAJE[u].naziv.toLowerCase()}`} />)}
+            {d.vrsta === "RACUN" && d.status === "IZDAN" && imaPravo(k.prava, "prodaja", "puno") && (
+              <>
+                <Odobrenje id={d.id} />
+                {skladista.length > 0 && <Storniraj id={d.id} skladista={skladista} />}
+              </>
+            )}
             <GumbVeza href={putanja(d.vrsta)}>Natrag</GumbVeza>
           </>
         }
@@ -222,7 +237,7 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
         {d.napomena && <p className="mt-3 text-sm whitespace-pre-line">{d.napomena}</p>}
         <p className="mt-3 text-xs text-neutral-500">Izradio {d.korisnik}</p>
       </Kartica>
-      {d.vrsta === "RACUN" && !nacrt && (
+      {(d.vrsta === "RACUN" || d.vrsta === "ODOBRENJE") && !nacrt && (
         <Kartica naslov={`Plaćanje · ${NAZIVI_STATUSA[placanje.status]}`}>
           <dl className="mb-3 grid grid-cols-3 gap-3 text-sm tabular-nums" data-testid="stanje-placanja">
             <div>
