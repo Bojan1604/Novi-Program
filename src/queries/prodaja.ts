@@ -10,6 +10,8 @@ export type FilterProdaje = {
   trazi?: string;
   status: string[];
   partnerId?: string;
+  /** OTVORENI (duguje), ZA_POVRAT (preplaćeni), PLACENI */
+  placanje?: string;
   sort: Sortiranje<"datum" | "broj" | "ukupno">;
   stranica: number;
   velicina: number;
@@ -40,7 +42,16 @@ export function uvjetProdaje(
 }
 
 export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaje, zadaneVrste: string[]) {
-  const where = uvjetProdaje(firmaId, f, zadaneVrste);
+  const osnova = uvjetProdaje(firmaId, f, zadaneVrste);
+  const placeno = db.prodajniDokument.fields.placeno;
+  const where: Prisma.ProdajniDokumentWhereInput =
+    f.placanje === "OTVORENI"
+      ? { AND: [osnova, { status: "IZDAN", ukupno: { gt: placeno } }] }
+      : f.placanje === "ZA_POVRAT"
+        ? { AND: [osnova, { status: { not: "NACRT" }, ukupno: { lt: placeno } }] }
+        : f.placanje === "PLACENI"
+          ? { AND: [osnova, { status: { not: "NACRT" }, ukupno: { equals: placeno } }] }
+          : osnova;
   const s = f.sort.smjer;
   const orderBy: Prisma.ProdajniDokumentOrderByWithRelationInput[] =
     f.sort.kljuc === "broj"
@@ -65,17 +76,24 @@ export async function popisProdaje(db: DbFirme, firmaId: string, f: FilterProdaj
         dospijece: true,
         osnovica: true,
         ukupno: true,
+        placeno: true,
         korisnik: true,
         partner: { select: { id: true, naziv: true } },
       },
     }),
-    db.prodajniDokument.aggregate({ where: { AND: [where, { status: "IZDAN" }] }, _sum: { osnovica: true, ukupno: true } }),
+    db.prodajniDokument.aggregate({ where: { AND: [where, { status: "IZDAN" }] }, _sum: { osnovica: true, ukupno: true, placeno: true } }),
   ]);
   return {
     ukupno,
     zbrojOsnovica: centiIzDecimala((zbroj._sum.osnovica ?? 0).toString()),
     zbrojUkupno: centiIzDecimala((zbroj._sum.ukupno ?? 0).toString()),
-    redovi: redovi.map((r) => ({ ...r, osnovica: centiIzDecimala(r.osnovica.toFixed(2)), ukupno: centiIzDecimala(r.ukupno.toFixed(2)) })),
+    zbrojOtvoreno: centiIzDecimala((zbroj._sum.ukupno ?? 0).toString()) - centiIzDecimala((zbroj._sum.placeno ?? 0).toString()),
+    redovi: redovi.map((r) => ({
+      ...r,
+      osnovica: centiIzDecimala(r.osnovica.toFixed(2)),
+      ukupno: centiIzDecimala(r.ukupno.toFixed(2)),
+      placeno: centiIzDecimala(r.placeno.toFixed(2)),
+    })),
   };
 }
 
@@ -87,6 +105,7 @@ export async function prodajniDokument(db: DbFirme, firmaId: string, id: string)
       partner: { select: { id: true, naziv: true, drzava: true, pdvBroj: true, pdvStatus: true, oib: true } },
       poslovnica: { select: { id: true, naziv: true } },
       stavke: { orderBy: { redoslijed: "asc" }, include: { uredaj: { select: { serijski: true, stanje: true } } } },
+      uplate: { orderBy: [{ datum: "asc" }, { stvoreno: "asc" }] },
     },
   });
   if (!d) return null;

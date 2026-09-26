@@ -77,6 +77,21 @@ test("račun: skenirani uređaj, izdavanje s brojem, uređaj prodan, izdani se n
   await expect(page.getByTestId("stavke-dokumenta")).toContainText(`S/N: ${serijski}`);
   await expect(page.getByRole("button", { name: "Spremi nacrt" })).toHaveCount(0);
 
+  // plaćanje: djelomično 1.000,00 → otvoreno 250,00; zatim 300,00 → preplata 50,00; povrat 50,00 → plaćen
+  const unos = page.getByRole("form", { name: "Upis uplate" });
+  const stanjePl = page.getByTestId("stanje-placanja");
+  await expect(unos.getByLabel("Iznos (€)")).toHaveValue("1.250,00");
+  await unos.getByLabel("Iznos (€)").fill("1.000,00");
+  await unos.getByRole("button", { name: "Upiši uplatu" }).click();
+  await expect(stanjePl).toContainText("Otvoreno250,00 €");
+  await page.getByRole("form", { name: "Upis uplate" }).getByLabel("Iznos (€)").fill("300");
+  await page.getByRole("form", { name: "Upis uplate" }).getByRole("button", { name: "Upiši uplatu" }).click();
+  await expect(stanjePl).toContainText("Za povrat kupcu50,00 €");
+  await expect(page.getByRole("form", { name: "Upis uplate" }).getByLabel("Iznos povrata (€)")).toHaveValue("50,00");
+  await page.getByRole("form", { name: "Upis uplate" }).getByRole("button", { name: "Upiši povrat kupcu" }).click();
+  await expect(page.getByRole("heading", { name: "Plaćanje · Plaćen" })).toBeVisible();
+  await expect(page.getByTestId("uplate").locator("li")).toHaveCount(3);
+
   await page.goto(`/uredaji/sn/${serijski}`);
   await expect(page.getByText("Prodan").first()).toBeVisible();
   await expect(page.getByTestId("povijest")).toContainText(/Račun \d+\/PP1\/1/);

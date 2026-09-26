@@ -73,6 +73,7 @@ model Firma {
   stavkeInventure    StavkaInventure[]
   stavkeProdaje      StavkaProdajnogDokumenta[]
   uredajiNaStavkama  UredajNaStavci[]
+  uplate             Uplata[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -765,6 +766,8 @@ model ProdajniDokument {
   osnovica      Decimal   @default(0) @db.Decimal(14, 2)
   pdv           Decimal   @default(0) @db.Decimal(14, 2)
   ukupno        Decimal   @default(0) @db.Decimal(14, 2)
+  /// zbroj neponištenih uplata (održava se u istoj transakciji kao uplata) — za popis otvorenih računa
+  placeno       Decimal   @default(0) @db.Decimal(14, 2)
   /// podaci firme, kupca i tekstovi u trenutku izdavanja (izdani dokument se ne mijenja kad se promijene postavke)
   snimka        Json?
   /// dokument iz kojeg je nastao (ponuda → predračun → račun)
@@ -780,6 +783,7 @@ model ProdajniDokument {
   partner    Partner?                   @relation(fields: [firmaId, partnerId], references: [firmaId, id])
   poslovnica Poslovnica?                @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
   stavke     StavkaProdajnogDokumenta[]
+  uplate     Uplata[]
 
   @@unique([firmaId, id])
   @@unique([firmaId, vrsta, godina, redni])
@@ -843,4 +847,28 @@ model UredajNaStavci {
 
   @@unique([stavkaId, uredajId])
   @@index([firmaId, uredajId])
+}
+
+/// Uplata kupca po računu (pozitivna) ili povrat kupcu (negativan). Poništena ostaje zapisana.
+model Uplata {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  firmaId          String   @db.Uuid
+  dokumentId       String   @db.Uuid
+  datum            DateTime @db.Date
+  iznos            Decimal  @db.Decimal(14, 2)
+  /// T transakcijski, G gotovina, K kartica, O ostalo
+  nacin            String   @default("T")
+  opis             String?
+  ponistena        Boolean  @default(false)
+  razlogPonistenja String?
+  korisnikId       String?  @db.Uuid
+  korisnik         String   @default("Sustav")
+  stvoreno         DateTime @default(now()) @db.Timestamptz(3)
+
+  firma    Firma            @relation(fields: [firmaId], references: [id])
+  dokument ProdajniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])
+
+  @@unique([firmaId, id])
+  @@index([firmaId, dokumentId])
+  @@index([firmaId, datum(sort: Desc)])
 }

@@ -8,7 +8,9 @@ import { imaPravo } from "@/domain/prava";
 import { formatirajKolicinu, jeVrstaProdaje, PRETVORBE, VRSTE_PRODAJE, type VrstaProdaje } from "@/domain/prodaja";
 import type { Kontekst } from "@/lib/akcija";
 import { prodajniDokument } from "@/queries/prodaja";
-import { postavkeFirme, statusKupca, uUlaznu } from "@/services/prodaja";
+import { NACINI_PLACANJA, postavkeFirme, statusKupca, uUlaznu } from "@/services/prodaja";
+import { NAZIVI_STATUSA, stanjePlacanja } from "@/domain/uplate";
+import { PonistiUplatu, UnosUplate } from "../racuni/placanje";
 import { IzdajDokument, ObrisiNacrt, Pretvori } from "./radnje";
 import { UredjivacDokumenta, type PocetniDokument } from "./uredjivac";
 
@@ -118,6 +120,11 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
   }
 
   const snimka = d.snimka as { napomene?: string[] } | null;
+  const placanje = stanjePlacanja(
+    centiIzDecimala(d.ukupno.toFixed(2)),
+    d.uplate.map((u) => ({ iznos: centiIzDecimala(u.iznos.toFixed(2)), ponistena: u.ponistena })),
+  );
+  const smijePonistiti = imaPravo(k.prava, "prodaja", "puno");
   return (
     <Stranica sirina="7xl">
       <NaslovStranice
@@ -215,6 +222,55 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
         {d.napomena && <p className="mt-3 text-sm whitespace-pre-line">{d.napomena}</p>}
         <p className="mt-3 text-xs text-neutral-500">Izradio {d.korisnik}</p>
       </Kartica>
+      {d.vrsta === "RACUN" && !nacrt && (
+        <Kartica naslov={`Plaćanje · ${NAZIVI_STATUSA[placanje.status]}`}>
+          <dl className="mb-3 grid grid-cols-3 gap-3 text-sm tabular-nums" data-testid="stanje-placanja">
+            <div>
+              <dt className="text-xs text-neutral-500">Plaćeno</dt>
+              <dd>{formatirajIznos(placanje.placeno)} €</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">Otvoreno</dt>
+              <dd className={placanje.otvoreno ? "font-semibold" : ""}>{formatirajIznos(placanje.otvoreno)} €</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">Za povrat kupcu</dt>
+              <dd className={placanje.zaPovrat ? "font-semibold text-amber-700 dark:text-amber-400" : ""}>{formatirajIznos(placanje.zaPovrat)} €</dd>
+            </div>
+          </dl>
+          {d.uplate.length > 0 && (
+            <ul className="mb-3 flex flex-col divide-y divide-neutral-100 text-sm dark:divide-neutral-900" data-testid="uplate">
+              {d.uplate.map((u) => {
+                const iznos = centiIzDecimala(u.iznos.toFixed(2));
+                return (
+                  <li
+                    key={u.id}
+                    className={`flex flex-wrap items-center justify-between gap-2 py-1.5 ${u.ponistena ? "text-neutral-400 line-through" : ""}`}
+                  >
+                    <span>
+                      {datum.format(u.datum)} · {iznos < 0 ? "povrat kupcu" : "uplata"} {formatirajIznos(Math.abs(iznos))} € ·{" "}
+                      {NACINI_PLACANJA[u.nacin] ?? u.nacin}
+                      {u.opis && ` · ${u.opis}`}
+                      <span className="text-xs text-neutral-500"> · {u.korisnik}</span>
+                      {u.ponistena && <span className="text-xs no-underline"> (poništeno: {u.razlogPonistenja})</span>}
+                    </span>
+                    {!u.ponistena && smijePonistiti && <PonistiUplatu dokumentId={d.id} uplataId={u.id} iznos={iznos} />}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {smije && (placanje.otvoreno > 0 || placanje.zaPovrat > 0 || d.uplate.length === 0) && (
+            <UnosUplate
+              key={`${placanje.otvoreno}-${placanje.zaPovrat}-${d.uplate.length}`}
+              dokumentId={d.id}
+              otvoreno={placanje.otvoreno}
+              zaPovrat={placanje.zaPovrat}
+              danas={d0}
+            />
+          )}
+        </Kartica>
+      )}
     </Stranica>
   );
 }

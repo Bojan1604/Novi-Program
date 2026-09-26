@@ -22,6 +22,7 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
     trazi: jedan(sp["trazi"]),
     status: vise(sp["status"]),
     partnerId: jedan(sp["partner"]),
+    placanje: jedan(sp["placanje"]),
     sort: sortiranje(sp, ["datum", "broj", "ukupno"] as const, { kljuc: "datum", smjer: "desc" }),
     stranica: stranica(sp["stranica"]),
     velicina: velicina(sp["velicina"]),
@@ -53,6 +54,23 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
               { vrijednost: "STORNIRAN", naziv: "Stornirani" },
             ]}
           />
+          <nav className="flex flex-wrap gap-1 text-sm" aria-label="Plaćanje">
+            {[
+              ["", "Svi"],
+              ["OTVORENI", "Otvoreni"],
+              ["ZA_POVRAT", "Za povrat"],
+              ["PLACENI", "Plaćeni"],
+            ].map(([v, n]) => (
+              <GumbVeza
+                key={v}
+                malen
+                varijanta={(f.placanje ?? "") === v ? "primarni" : "sekundarni"}
+                href={`/racuni?${new URLSearchParams({ ...Object.fromEntries(Object.entries(ravni).filter(([a, b]) => a !== "placanje" && a !== "stranica" && typeof b === "string")), ...(v ? { placanje: v } : {}) } as Record<string, string>)}`}
+              >
+                {n}
+              </GumbVeza>
+            ))}
+          </nav>
         </div>
         <Tablica
           testId="popis-racuna"
@@ -69,9 +87,24 @@ export default async function Racuni({ searchParams }: PageProps<"/racuni">) {
             { kljuc: "kupac", naslov: "Kupac", prikaz: (d) => d.partner?.naziv ?? "" },
             { kljuc: "osnovica", naslov: "Osnovica", desno: true, prikaz: (d) => `${formatirajIznos(d.osnovica)} €` },
             { kljuc: "ukupno", naslov: "Ukupno", desno: true, sortira: "ukupno", prikaz: (d) => `${formatirajIznos(d.ukupno)} €` },
+            {
+              kljuc: "otvoreno",
+              naslov: "Otvoreno",
+              desno: true,
+              prikaz: (d) => (d.status === "NACRT" ? "" : d.ukupno - d.placeno === 0 ? "" : `${formatirajIznos(d.ukupno - d.placeno)} €`),
+            },
             { kljuc: "korisnik", naslov: "Izradio", prikaz: (d) => d.korisnik },
           ]}
-          podnozje={["Izdano ukupno", "", "", "", `${formatirajIznos(r.zbrojOsnovica)} €`, `${formatirajIznos(r.zbrojUkupno)} €`, ""]}
+          podnozje={[
+            "Izdano ukupno",
+            "",
+            "",
+            "",
+            `${formatirajIznos(r.zbrojOsnovica)} €`,
+            `${formatirajIznos(r.zbrojUkupno)} €`,
+            `${formatirajIznos(r.zbrojOtvoreno)} €`,
+            "",
+          ]}
         />
         <div className="mt-3">
           <Stranicenje putanja="/racuni" parametri={ravni} stranica={f.stranica} velicina={f.velicina} ukupno={r.ukupno} />

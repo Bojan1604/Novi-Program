@@ -2,6 +2,7 @@ import { danas, dodajDane } from "../../src/domain/datum";
 import type { UlaznaStavka } from "../../src/domain/prodaja";
 import { pravaClana, type Akter } from "../../src/services/korisnici";
 import { cijenaZaKupca, izdajPonudu, izdajRacun, pretvori, spremiNacrt } from "../../src/services/prodaja";
+import { dodajUplatu } from "../../src/services/uplate";
 import type { DemoKontekst } from "./index";
 
 /**
@@ -99,6 +100,13 @@ export async function demoProdaja(k: DemoKontekst): Promise<void> {
       stavke,
     });
     await izdajRacun(prisma, A, n.id, new Date(`${danasnji}T12:00:00Z`));
+    // većina plaćena (u roku), neki djelomično, ostali otvoreni
+    const ukupno = Number((await prisma.prodajniDokument.findUniqueOrThrow({ where: { id: n.id }, select: { ukupno: true } })).ukupno) * 100;
+    const datumUplate = dodajDane(datum, s.cijeli(0, 20));
+    if (datumUplate <= danasnji && s.vjerojatnost(0.8)) {
+      const iznos = s.vjerojatnost(0.9) ? Math.round(ukupno) : Math.round(ukupno / 2);
+      await dodajUplatu(prisma, A, n.id, { datum: datumUplate, iznos, nacin: "T", opis: `Izvod ${i + 1}` }, new Date(`${danasnji}T12:00:00Z`));
+    }
   }
 
   // ponuda → predračun, i jedna ponuda u nacrtu

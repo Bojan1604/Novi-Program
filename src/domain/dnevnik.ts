@@ -45,6 +45,7 @@ export const NAZIVI_ENTITETA: Record<string, string> = {
   Odobrenje: "Odobrenje",
   Inventura: "Inventura",
   ProdajniDokument: "Prodajni dokument",
+  Uplata: "Uplata",
 };
 
 const OSJETLJIVA_MALA = new Set([...OSJETLJIVA_POLJA].map((p) => p.toLowerCase()));

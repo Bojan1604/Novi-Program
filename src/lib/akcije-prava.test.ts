@@ -46,6 +46,8 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "prodaja.pretvori": ["Administrator", "Voditelj", "Prodavač"],
   "prodaja.obrisi": ["Administrator", "Voditelj", "Prodavač"],
   "prodaja.podaci": ["Administrator", "Voditelj", "Prodavač"],
+  "uplate.unos": ["Administrator", "Voditelj", "Prodavač"],
+  "uplate.ponisti": ["Administrator", "Voditelj"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
