@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { danas, datum as uDatum, jeDatum, usporedi as usporediDatume } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
-import { opisSkeniranog, usporedi, type UredajUProgramu } from "@/domain/inventura";
+import { opisSkeniranog, type UredajUProgramu } from "@/domain/inventura";
 import { normalizirajSerijski, provjeriSerijski, type Stanje } from "@/domain/stanja-uredaja";
 import { oznakaDokumenta } from "@/domain/zaprimanje";
 import { GreskaKorisniku } from "@/lib/greske";
@@ -121,7 +121,19 @@ export async function skenirajUInventuru(db: PrismaClient, akter: Akter, id: str
 export async function ukloniIzInventure(db: PrismaClient, akter: Akter, id: string, serijski: string): Promise<void> {
   await db.$transaction(async (tx) => {
     const inv = await otvorena(tx, akter.firmaId, id);
-    await tx.stavkaInventure.deleteMany({ where: { firmaId: akter.firmaId, inventuraId: inv.id, serijski: normalizirajSerijski(serijski) } });
+    const sn = normalizirajSerijski(serijski);
+    const r = await tx.stavkaInventure.deleteMany({ where: { firmaId: akter.firmaId, inventuraId: inv.id, serijski: sn } });
+    if (r.count === 0) return;
+    // uklanjanje mijenja rezultat inventure — mora ostati trag
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "inventure.ukloni",
+      entitet: "Inventura",
+      entitetId: inv.id,
+      opis: `Iz inventure ${inv.broj} uklonjen skenirani ${sn}`,
+    });
   });
 }
 
@@ -134,43 +146,27 @@ export async function zakljuciInventuru(db: PrismaClient, akter: Akter, id: stri
     async (tx) => {
       const f = akter.firmaId;
       const inv = await otvorena(tx, f, id);
-      await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE "firmaId" = ${f}::uuid AND "skladisteId" = ${inv.skladisteId}::uuid ORDER BY id FOR SHARE`;
-      const ocekivani = (await tx.uredaj.findMany({ where: { firmaId: f, skladisteId: inv.skladisteId }, select: ODABIR_UREDAJA })).map(uProgramu);
-      const stavke = await tx.stavkaInventure.findMany({ where: { inventuraId: inv.id }, select: { serijski: true } });
-      const skeniraniUredaji = await tx.uredaj.findMany({
-        where: { firmaId: f, serijski: { in: stavke.map((s) => s.serijski) } },
-        select: ODABIR_UREDAJA,
-      });
-      const mapa = new Map(skeniraniUredaji.map((u) => [u.serijski, uProgramu(u)]));
-      const r = usporedi(
-        inv.skladisteId,
-        ocekivani,
-        stavke.map((s) => ({ serijski: s.serijski, uredaj: mapa.get(s.serijski) ?? null })),
-      );
-      const skeniraniSet = new Set(stavke.map((s) => s.serijski));
-      for (const s of r.stavke) {
-        if (skeniraniSet.has(s.serijski)) {
-          await tx.stavkaInventure.update({
-            where: { inventuraId_serijski: { inventuraId: inv.id, serijski: s.serijski } },
-            data: { rezultat: s.rezultat, uredajId: s.uredajId, stanje: s.stanje, skladiste: s.skladiste },
-          });
-        }
-      }
-      const manjak = r.stavke.filter((s) => s.rezultat === "MANJAK");
-      if (manjak.length) {
-        await tx.stavkaInventure.createMany({
-          data: manjak.map((s) => ({
-            firmaId: f,
-            inventuraId: inv.id,
-            serijski: s.serijski,
-            uredajId: s.uredajId,
-            rezultat: "MANJAK",
-            stanje: s.stanje,
-            skladiste: s.skladiste,
-            skenirano: 0,
-          })),
-        });
-      }
+      // skup-operacije u bazi (inventura može imati desetke tisuća stavki); pravila su ista kao `usporedi` u domeni
+      // (rezultate provjerava inventure.db.test.ts). Transakcija je REPEATABLE READ — jedna slika stanja.
+      await tx.$executeRaw`
+        UPDATE "StavkaInventure" s SET
+          "uredajId" = u.id,
+          rezultat = CASE WHEN u.id IS NULL THEN 'NEPOZNAT' WHEN u."skladisteId" = ${inv.skladisteId}::uuid THEN 'PRONADJEN' ELSE 'VISAK' END,
+          stanje = u.stanje::text,
+          skladiste = sk.naziv
+        FROM "StavkaInventure" s2
+        LEFT JOIN "Uredaj" u ON u."firmaId" = ${f}::uuid AND u.serijski = s2.serijski
+        LEFT JOIN "Skladiste" sk ON sk.id = u."skladisteId"
+        WHERE s.id = s2.id AND s."inventuraId" = ${inv.id}::uuid`;
+      await tx.$executeRaw`
+        INSERT INTO "StavkaInventure" (id, "firmaId", "inventuraId", serijski, "uredajId", rezultat, stanje, skladiste, skenirano, vrijeme)
+        SELECT gen_random_uuid(), ${f}::uuid, ${inv.id}::uuid, u.serijski, u.id, 'MANJAK', u.stanje::text, sk.naziv, 0, now()
+        FROM "Uredaj" u JOIN "Skladiste" sk ON sk.id = u."skladisteId"
+        WHERE u."firmaId" = ${f}::uuid AND u."skladisteId" = ${inv.skladisteId}::uuid
+          AND NOT EXISTS (SELECT 1 FROM "StavkaInventure" s WHERE s."inventuraId" = ${inv.id}::uuid AND s.serijski = u.serijski)`;
+      const brojevi = await tx.stavkaInventure.groupBy({ by: ["rezultat"], where: { inventuraId: inv.id }, _count: true });
+      const n = (x: string) => brojevi.find((b) => b.rezultat === x)?._count ?? 0;
+      const r = { pronadjeno: n("PRONADJEN"), manjak: n("MANJAK"), visak: n("VISAK") + n("NEPOZNAT"), ocekivano: n("PRONADJEN") + n("MANJAK") };
       await tx.inventura.update({
         where: { id: inv.id },
         data: { status: "ZAKLJUCENA", zakljuceno: new Date(), ocekivano: r.ocekivano, pronadjeno: r.pronadjeno, manjak: r.manjak, visak: r.visak },
@@ -186,6 +182,6 @@ export async function zakljuciInventuru(db: PrismaClient, akter: Akter, id: stri
       });
       return { ocekivano: r.ocekivano, pronadjeno: r.pronadjeno, manjak: r.manjak, visak: r.visak };
     },
-    { timeout: 120_000 },
+    { timeout: 120_000, isolationLevel: "RepeatableRead" },
   );
 }

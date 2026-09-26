@@ -66,7 +66,12 @@ export async function popisDokumenata(db: DbFirme, firmaId: string, f: FilterDok
   return { ukupno, redovi, zbrojUredaja: zbroj._sum.brojUredaja ?? 0 };
 }
 
-export async function skladisniDokument(db: DbFirme, firmaId: string, id: string) {
+export async function skladisniDokument(
+  db: DbFirme,
+  firmaId: string,
+  id: string,
+  str: { stranica: number; velicina: number } = { stranica: 1, velicina: 100 },
+) {
   if (!jeUuid(id)) return null;
   const d = await db.skladisniDokument.findFirst({
     where: { firmaId, id },
@@ -76,6 +81,8 @@ export async function skladisniDokument(db: DbFirme, firmaId: string, id: string
       partner: { select: { id: true, naziv: true } },
       stavke: {
         orderBy: { uredaj: { serijski: "asc" } },
+        skip: (str.stranica - 1) * str.velicina,
+        take: str.velicina,
         select: {
           staroStanje: true,
           uredaj: {

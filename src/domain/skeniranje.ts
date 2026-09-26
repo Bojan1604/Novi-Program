@@ -18,7 +18,11 @@ export function serijskiIzKoda(sadrzaj: string): string | null {
     const url = tryUrl(t);
     const i = url ? url.pathname.indexOf(PUTANJA_NALJEPNICE) : -1;
     if (!url || i < 0) return null;
-    t = decodeURIComponent(url.pathname.slice(i + PUTANJA_NALJEPNICE.length).split("/")[0] ?? "");
+    try {
+      t = decodeURIComponent(url.pathname.slice(i + PUTANJA_NALJEPNICE.length).split("/")[0] ?? "");
+    } catch {
+      return null; // pokvaren QR (neispravno kodiranje)
+    }
   } else {
     const gs1 = /\(21\)([^()\u001d]+)/.exec(t) ?? /^(?:\][A-Za-z]\d)?01\d{14}21([^\u001d]+)/.exec(t);
     t = gs1 ? gs1[1]! : t.replace(/^(?:s\/n|sn|serial(?:\s*no\.?)?|ser\.?\s*no\.?|serijski(?:\s*broj)?)\s*[:#.]?\s*/i, "");

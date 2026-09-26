@@ -61,7 +61,14 @@ export async function popisPrimki(db: DbFirme, firmaId: string, f: FilterPrimki,
   };
 }
 
-export async function primka(db: DbFirme, firmaId: string, id: string, vidiNabavne: boolean) {
+/** Primka sa stranicom uređaja (primka može imati 5.000 uređaja — nikad sve odjednom). */
+export async function primka(
+  db: DbFirme,
+  firmaId: string,
+  id: string,
+  vidiNabavne: boolean,
+  str: { stranica: number; velicina: number } = { stranica: 1, velicina: 100 },
+) {
   const p = await db.primka.findFirst({
     where: { id, firmaId },
     include: {
@@ -69,6 +76,8 @@ export async function primka(db: DbFirme, firmaId: string, id: string, vidiNabav
       skladiste: { select: { naziv: true } },
       uredaji: {
         orderBy: { serijski: "asc" },
+        skip: (str.stranica - 1) * str.velicina,
+        take: str.velicina,
         select: {
           id: true,
           serijski: true,

@@ -167,12 +167,25 @@ export async function izdajDokument(db: PrismaClient, akter: Akter, ulaz: UlazDo
 async function izvrsi(
   tx: Tx,
   akter: Akter,
-  dok: { id: string; vrsta: string; broj: string; skladisteUId: string | null; partnerId: string | null; razlog: string | null },
+  dok: {
+    id: string;
+    vrsta: string;
+    broj: string;
+    skladisteIzId: string | null;
+    skladisteUId: string | null;
+    partnerId: string | null;
+    razlog: string | null;
+  },
 ): Promise<void> {
   const stavke = await tx.stavkaSkladisnogDokumenta.findMany({
     where: { firmaId: akter.firmaId, dokumentId: dok.id },
-    select: { uredajId: true, uredaj: { select: { stanje: true } } },
+    select: { uredajId: true, uredaj: { select: { serijski: true, stanje: true, skladisteId: true } } },
   });
+  // ponovna provjera u trenutku provedbe (izlaz se provodi tek nakon odobrenja — uređaj se u međuvremenu mogao pomaknuti)
+  await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE "firmaId" = ${akter.firmaId}::uuid AND id = ANY(${stavke.map((s) => s.uredajId)}::uuid[]) ORDER BY id FOR UPDATE`;
+  const zaglavlje = { vrsta: dok.vrsta as VrstaDokumenta, skladisteIzId: dok.skladisteIzId, skladisteUId: dok.skladisteUId, razlog: dok.razlog };
+  const greske = stavke.map((s) => provjeriUredaj(zaglavlje, { ...s.uredaj, stanje: s.uredaj.stanje as Stanje })).filter((g): g is string => !!g);
+  if (greske.length) throw new GreskaKorisniku(greske.slice(0, 5).join(" "));
   const poRadnji = new Map<VrstaRadnje, string[]>();
   for (const s of stavke) {
     const r = radnjaDokumenta(dok.vrsta as VrstaDokumenta, s.uredaj.stanje as Stanje);

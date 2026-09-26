@@ -36,15 +36,19 @@ export function NoviDokument({ vrsta, danas, skladista }: { vrsta: VrstaDokument
   const dodaj = async (serijski: string[]) => {
     const novi = serijski.filter((s, i) => serijski.indexOf(s) === i);
     setPopis((p) => [...p, ...novi.filter((s) => !p.includes(s))]);
-    const r = await provjeriSkeniraneAkcija(novi);
-    if (!r.ok) return;
-    const m = new Map(r.podaci.map((x) => [x.serijski, x]));
-    setInfo((st) => ({
-      ...st,
-      ...Object.fromEntries(
-        novi.map((s) => [s, m.has(s) ? { model: m.get(s)!.model, stanje: m.get(s)!.stanje, lokacija: m.get(s)!.lokacija } : null]),
-      ),
-    }));
+    // provjera u serijama od 500 (koliko vraća jedan upit), dokument ih smije imati do 5.000
+    for (let i = 0; i < novi.length; i += 500) {
+      const dio = novi.slice(i, i + 500);
+      const r = await provjeriSkeniraneAkcija(dio);
+      if (!r.ok) return;
+      const m = new Map(r.podaci.map((x) => [x.serijski, x]));
+      setInfo((st) => ({
+        ...st,
+        ...Object.fromEntries(
+          dio.map((s) => [s, m.has(s) ? { model: m.get(s)!.model, stanje: m.get(s)!.stanje, lokacija: m.get(s)!.lokacija } : null]),
+        ),
+      }));
+    }
   };
 
   const [stanje, posalji, uTijeku] = useActionState(izdajDokumentAkcija, undefined);

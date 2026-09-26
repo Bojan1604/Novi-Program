@@ -126,7 +126,7 @@ describe("izlaz i odobrenje", () => {
     const o2 = await prisma.odobrenje.findFirstOrThrow({ where: { firmaId: firma.id, status: "CEKA" } });
     const kupac = await prisma.partner.create({ data: { firmaId: firma.id, naziv: "Kupac" } });
     await prisma.$transaction((tx) => promijeniStanje(tx, voditelj, [u.id], "prodaja", { partnerId: kupac.id }));
-    await expect(odluciOZahtjevu(prisma, voditelj2, o2.id, true, null)).rejects.toThrow("radnja „otpis“ nije moguća");
+    await expect(odluciOZahtjevu(prisma, voditelj2, o2.id, true, null)).rejects.toThrow("Uređaj IZL002 nije u odabranom skladištu (Prodan).");
     expect(await prisma.odobrenje.findUniqueOrThrow({ where: { id: o2.id } })).toMatchObject({ status: "CEKA" });
     void split;
   });
@@ -157,5 +157,39 @@ describe("povrat", () => {
       });
     const radnje = await prisma.dogadajUredaja.findMany({ where: { dokumentId: r.id }, orderBy: { radnja: "asc" } });
     expect(radnje.map((x) => x.radnja)).toEqual(["ponistenjeOtpisa", "povratIzNajma"]);
+  });
+});
+
+describe("veze uređaja s dokumentima (pregled faze 1)", () => {
+  it("uređaj na izlazu koji čeka: serijski zaključan, primka se ne može stornirati, uređaj se ne može obrisati", async () => {
+    const { voditelj, ulaz, zagreb, firma } = await pripremi();
+    const { zaprimi, stornirajPrimku } = await import("./primke");
+    const { ispraviUredaj, obrisiUredaj } = await import("./uredaji");
+    const model = await prisma.modelUredaja.findFirstOrThrow({ where: { firmaId: firma.id } });
+    const p = await zaprimi(
+      prisma,
+      voditelj,
+      {
+        datum: "2026-09-25",
+        skladisteId: zagreb.id,
+        dobavljacId: null,
+        stanjeRobeId: null,
+        dokumentDobavljaca: null,
+        napomena: null,
+        knjiziUTroskove: false,
+        stavke: [{ serijski: "VEZA001", modelId: model.id, nabavnaCijena: null }],
+      },
+      SADA,
+    );
+    await izdajDokument(prisma, voditelj, ulaz({ vrsta: "IZLAZ", skladisteUId: null, razlog: "Oštećen", serijski: ["VEZA001"] }), SADA);
+    const u = await prisma.uredaj.findFirstOrThrow({ where: { serijski: "VEZA001" } });
+    await expect(ispraviUredaj(prisma, voditelj, u.id, { verzija: u.verzija, serijski: "VEZA002" })).rejects.toThrow("Izlaz IZL-1/2026");
+    await expect(stornirajPrimku(prisma, voditelj, p.id)).rejects.toThrow("uređaji su već korišteni (VEZA001)");
+    await expect(obrisiUredaj(prisma, voditelj, u.id)).rejects.toThrow();
+    const najava = await prisma.uredaj.create({
+      data: { firmaId: firma.id, serijski: "BEZPRIMKE1", modelId: model.id, stanje: "NA_SKLADISTU", skladisteId: zagreb.id },
+    });
+    await izdajDokument(prisma, voditelj, ulaz({ vrsta: "IZLAZ", skladisteUId: null, razlog: "Oštećen", serijski: ["BEZPRIMKE1"] }), SADA);
+    await expect(obrisiUredaj(prisma, voditelj, najava.id)).rejects.toThrow("Izlaz IZL-2/2026");
   });
 });

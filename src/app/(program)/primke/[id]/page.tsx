@@ -4,10 +4,12 @@ import { GumbVeza } from "@/components/ui/gumb";
 import { GumbNaljepnice } from "@/components/ui/naljepnice";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Kartica, NaslovStranice, Stranica, Znacka } from "@/components/ui/stranica";
+import { Stranicenje } from "@/components/ui/stranicenje";
 import { Tablica } from "@/components/ui/tablica";
 import { danas } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
 import { formatirajIznos } from "@/domain/novac";
+import { stranica, velicina } from "@/domain/popis";
 import { imaPosebno, imaPravo } from "@/domain/prava";
 import { STANJA, type Stanje } from "@/domain/stanja-uredaja";
 import { pristupStranici } from "@/lib/akcija";
@@ -17,7 +19,7 @@ import { StornoPrimke } from "../storno";
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
 
-export default async function Primka({ params }: PageProps<"/primke/[id]">) {
+export default async function Primka({ params, searchParams }: PageProps<"/primke/[id]">) {
   const { id } = await params;
   const k = await pristupStranici("/primke");
   const vidiNabavne = imaPosebno(k.prava, "costs");
@@ -40,7 +42,9 @@ export default async function Primka({ params }: PageProps<"/primke/[id]">) {
   }
 
   if (!jeUuid(id)) notFound();
-  const p = await primka(k.db, k.firmaId, id, vidiNabavne);
+  const sp = await searchParams;
+  const str = { stranica: stranica(sp["stranica"]), velicina: velicina(sp["velicina"]) };
+  const p = await primka(k.db, k.firmaId, id, vidiNabavne, str);
   if (!p) notFound();
   return (
     <Stranica sirina="7xl">
@@ -98,6 +102,11 @@ export default async function Primka({ params }: PageProps<"/primke/[id]">) {
             ]}
             podnozje={vidiNabavne && p.nabavnaVrijednost !== null ? ["Ukupno", "", "", "", `${formatirajIznos(p.nabavnaVrijednost)} €`] : undefined}
           />
+        )}
+        {p.status !== "STORNIRANA" && (
+          <div className="mt-3">
+            <Stranicenje putanja={`/primke/${p.id}`} parametri={{}} stranica={str.stranica} velicina={str.velicina} ukupno={p.brojUredaja} />
+          </div>
         )}
       </Kartica>
       {p.napomena && <Kartica naslov="Napomena">{p.napomena}</Kartica>}

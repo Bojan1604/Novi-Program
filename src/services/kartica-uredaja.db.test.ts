@@ -78,6 +78,13 @@ describe("ispravak uređaja", () => {
     await expect(ispraviUredaj(prisma, skladistar, u1.id, { verzija: v, nabavnaCijena: 1_00 })).rejects.toThrow(
       "Nemate pravo mijenjati nabavnu cijenu.",
     );
+    // ista vrijednost kao spremljena daje istu poruku (ne otkriva cijenu)
+    await expect(ispraviUredaj(prisma, skladistar, u1.id, { verzija: v, nabavnaCijena: 450_00 })).rejects.toThrow(
+      "Nemate pravo mijenjati nabavnu cijenu.",
+    );
+    await expect(ispraviUredaj(prisma, skladistar, u1.id, { verzija: v, nabavnaCijena: null })).rejects.toThrow(
+      "Nemate pravo mijenjati nabavnu cijenu.",
+    );
     await ispraviUredaj(prisma, skladistar, u1.id, { verzija: v, napomena: "ogrebotina" });
   });
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Polje } from "@/domain/polja";
 import { procitajPolja } from "@/domain/polja";
+import { imaPosebno } from "@/domain/prava";
 import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
@@ -27,7 +28,8 @@ const POLJA: Polje[] = [
 export async function ispraviUredajAkcija(id: string, _p: Odgovor | undefined, fd: FormData) {
   return akcija("uredaji.ispravak", async (k) => {
     // šalju se samo polja koja su na obrascu (zaključana i skrivena se ne šalju → ne mijenjaju se)
-    const prisutna = POLJA.filter((p) => fd.has(p.ime));
+    const vidiNabavne = imaPosebno(k.prava, "costs");
+    const prisutna = POLJA.filter((p) => fd.has(p.ime) && (vidiNabavne || p.ime !== "nabavnaCijena"));
     const r = procitajPolja(prisutna, (ime) => (fd.get(ime) as string | null) ?? null);
     if (!r.ok) return { ok: false as const, greska: "Provjerite označena polja.", polja: r.polja };
     const verzija = Number(fd.get("verzija"));

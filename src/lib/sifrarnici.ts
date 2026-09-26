@@ -89,6 +89,11 @@ export const SIFRARNICI: DefinicijaSifrarnika[] = [
     reference: [
       { model: "uredaj", polje: "skladisteId", naziv: "uređaja" },
       { model: "primka", polje: "skladisteId", naziv: "primki" },
+      { model: "dogadajUredaja", polje: "skladisteOdId", naziv: "događaja u povijesti uređaja" },
+      { model: "dogadajUredaja", polje: "skladisteDoId", naziv: "događaja u povijesti uređaja" },
+      { model: "skladisniDokument", polje: "skladisteIzId", naziv: "skladišnih dokumenata" },
+      { model: "skladisniDokument", polje: "skladisteUId", naziv: "skladišnih dokumenata" },
+      { model: "inventura", polje: "skladisteId", naziv: "inventura" },
     ],
     jedinstvenaKvacica: "zadano",
   },

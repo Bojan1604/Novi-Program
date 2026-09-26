@@ -16,6 +16,8 @@ type Tx = Prisma.TransactionClient;
 export const REFERENCE_PARTNERA: { model: string; polje: string; naziv: string }[] = [
   { model: "uredaj", polje: "partnerId", naziv: "uređaja" },
   { model: "primka", polje: "dobavljacId", naziv: "primki" },
+  { model: "dogadajUredaja", polje: "partnerId", naziv: "događaja u povijesti uređaja" },
+  { model: "skladisniDokument", polje: "partnerId", naziv: "skladišnih dokumenata" },
 ];
 
 function zaDnevnik(p: Record<string, unknown>) {
@@ -272,6 +274,8 @@ export async function postaviCijenu(
   }
   if (cijenaCenti !== null && cijenaCenti < 0) throw new GreskaKorisniku("Cijena ne smije biti negativna.");
   await db.$transaction(async (tx) => {
+    // dvije kartice postavljaju istu cijenu → jedna čeka drugu (inače P2002 na jedinstvenom ključu)
+    await zakljucajKljuc(tx, `cjenik:${cjenikId}`);
     const c = await tx.cjenik.findFirst({ where: { id: cjenikId, firmaId: akter.firmaId } });
     if (!c) throw new GreskaKorisniku("Cjenik ne postoji.");
     const artikl = modelId

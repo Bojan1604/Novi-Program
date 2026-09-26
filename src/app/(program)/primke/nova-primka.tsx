@@ -40,11 +40,17 @@ export function NovaPrimka({
   const popis = redovi.map((r) => r.serijski).join("\n");
   useEffect(() => {
     if (!popis) return;
+    // odgovor za stari popis se odbacuje (sporiji raniji zahtjev ne smije prepisati noviji);
+    // upozorenja se ionako prikazuju samo za serijske koji su još na popisu
+    let vazece = true;
     const t = setTimeout(async () => {
       const r = await provjeriSerijskeAkcija(popis.split("\n"));
-      if (r.ok) setPostojeci(new Map(r.podaci!.map((p) => [p.serijski, p.primka ?? p.stanje])));
+      if (vazece && r.ok) setPostojeci(new Map(r.podaci!.map((p) => [p.serijski, p.primka ?? p.stanje])));
     }, 400);
-    return () => clearTimeout(t);
+    return () => {
+      vazece = false;
+      clearTimeout(t);
+    };
   }, [popis]);
 
   const nabavnaCenti = (): number | null | "greska" => {

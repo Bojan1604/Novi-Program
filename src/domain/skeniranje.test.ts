@@ -15,6 +15,7 @@ describe("serijski iz koda", () => {
     expect(serijskiIzKoda("https://erp.firma.hr/uredaji/sn/PF3ABC12")).toBe("PF3ABC12");
     expect(serijskiIzKoda("http://192.168.1.10:3000/uredaji/sn/AB%2F123")).toBe("AB/123");
     expect(serijskiIzKoda("https://www.dell.com/support")).toBeNull();
+    expect(serijskiIzKoda("https://x/uredaji/sn/%E0%A4%A")).toBeNull();
   });
   it("GS1: (21) serijski i sirovi oblik s GS znakom", () => {
     expect(serijskiIzKoda("(01)09506000134352(21)ABC123456")).toBe("ABC123456");

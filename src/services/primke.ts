@@ -157,11 +157,21 @@ export async function stornirajPrimku(db: PrismaClient, akter: Akter, id: string
     const p = await tx.primka.findFirst({ where: { id, firmaId: f } });
     if (!p) throw new GreskaKorisniku("Primka ne postoji.");
     if (p.status === "STORNIRANA") throw new GreskaKorisniku("Primka je već stornirana.");
+    // prvo zaključaj uređaje, pa čitaj (inače bi ih drugi dokument mogao uzeti između)
+    await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE "primkaId" = ${id}::uuid AND "firmaId" = ${f}::uuid ORDER BY id FOR UPDATE`;
     const uredaji = await tx.uredaj.findMany({
       where: { primkaId: id, firmaId: f },
-      select: { id: true, serijski: true, stanje: true, _count: { select: { dogadaji: true } } },
+      select: {
+        id: true,
+        serijski: true,
+        stanje: true,
+        _count: { select: { dogadaji: true, stavkeDokumenata: true, stavkeInventure: true } },
+      },
     });
-    const pomaknuti = uredaji.filter((u) => u.stanje !== "NA_SKLADISTU" || u._count.dogadaji > 1);
+    // korišten = pomaknut, na bilo kojem dokumentu (i onom koji čeka odobrenje) ili skeniran u inventuri
+    const pomaknuti = uredaji.filter(
+      (u) => u.stanje !== "NA_SKLADISTU" || u._count.dogadaji > 1 || u._count.stavkeDokumenata > 0 || u._count.stavkeInventure > 0,
+    );
     if (pomaknuti.length) {
       throw new GreskaKorisniku(
         `Primka se ne može stornirati: uređaji su već korišteni (${pomaknuti
@@ -170,9 +180,15 @@ export async function stornirajPrimku(db: PrismaClient, akter: Akter, id: string
           .join(", ")}${pomaknuti.length > 5 ? " …" : ""}).`,
       );
     }
-    await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE "primkaId" = ${id}::uuid ORDER BY id FOR UPDATE`;
+    await tx.prilog.deleteMany({ where: { firmaId: f, entitet: "Uredaj", entitetId: { in: uredaji.map((u) => u.id) } } });
     await tx.dogadajUredaja.deleteMany({ where: { firmaId: f, uredajId: { in: uredaji.map((u) => u.id) } } });
-    await tx.uredaj.deleteMany({ where: { firmaId: f, primkaId: id } });
+    try {
+      await tx.uredaj.deleteMany({ where: { firmaId: f, primkaId: id } });
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2003")
+        throw new GreskaKorisniku("Primka se ne može stornirati: uređaji su povezani s drugim zapisima.");
+      throw e;
+    }
     await tx.primka.update({ where: { id }, data: { status: "STORNIRANA" } });
     await zapisiDnevnik(tx, {
       firmaId: f,

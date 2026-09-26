@@ -4,6 +4,7 @@ import { jeUuid } from "@/domain/id";
 import { dopustenaPolja, mozeSeObrisati, promijenjenaPolja, type PoljeIspravka, type VezeUredaja } from "@/domain/kartica-uredaja";
 import { centiIzDecimala, centiUDecimal } from "@/domain/novac";
 import { imaPosebno } from "@/domain/prava";
+import { VRSTE_DOKUMENATA, type VrstaDokumenta } from "@/domain/skladisni-dokumenti";
 import { prijelaz, provjeriSerijski, type Stanje, type VrstaRadnje } from "@/domain/stanja-uredaja";
 import { GreskaKorisniku } from "@/lib/greske";
 import { zapisiDnevnik } from "./dnevnik";
@@ -206,7 +207,7 @@ export async function stvoriUredaje(
 
 /** Veze uređaja s dokumentima (za pravila ispravka i brisanja) — iz primke i povijesti. */
 export async function vezeUredaja(tx: Tx, firmaId: string, uredajId: string, primkaId: string | null): Promise<VezeUredaja> {
-  const [primka, dokumenti] = await Promise.all([
+  const [primka, dokumenti, stavke, inventure] = await Promise.all([
     primkaId ? tx.primka.findFirst({ where: { id: primkaId, firmaId }, select: { broj: true } }) : null,
     tx.dogadajUredaja.findMany({
       where: { firmaId, uredajId, dokumentVrsta: { not: null } },
@@ -214,8 +215,18 @@ export async function vezeUredaja(tx: Tx, firmaId: string, uredajId: string, pri
       select: { dokumentVrsta: true, dokumentBroj: true },
       take: 100,
     }),
+    // i dokumenti koji još čekaju odobrenje ili su odbijeni (nemaju događaj u povijesti)
+    tx.stavkaSkladisnogDokumenta.findMany({ where: { firmaId, uredajId }, select: { dokument: { select: { vrsta: true, broj: true } } }, take: 100 }),
+    tx.stavkaInventure.findMany({ where: { firmaId, uredajId }, select: { inventura: { select: { broj: true } } }, take: 100 }),
   ]);
-  return { primka: primka?.broj ?? null, dokumenti: dokumenti.map((d) => ({ vrsta: d.dokumentVrsta!, broj: d.dokumentBroj })) };
+  return {
+    primka: primka?.broj ?? null,
+    dokumenti: [
+      ...dokumenti.map((d) => ({ vrsta: d.dokumentVrsta!, broj: d.dokumentBroj })),
+      ...stavke.map((x) => ({ vrsta: VRSTE_DOKUMENATA[x.dokument.vrsta as VrstaDokumenta]?.naziv ?? x.dokument.vrsta, broj: x.dokument.broj })),
+      ...inventure.map((x) => ({ vrsta: "Inventura", broj: x.inventura.broj })),
+    ],
+  };
 }
 
 export type IspravakUredaja = {
@@ -258,6 +269,8 @@ const dan = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 export async function ispraviUredaj(db: PrismaClient, akter: Akter, id: string, ulaz: IspravakUredaja): Promise<void> {
   if (!jeUuid(id)) throw new GreskaKorisniku("Uređaj ne postoji.");
   const vidiNabavne = imaPosebno(akter.prava, "costs");
+  // bez prava se nabavna ne smije ni poslati — inače bi se usporedbom („ništa nije promijenjeno“) mogla pogoditi
+  if (!vidiNabavne && ulaz.nabavnaCijena !== undefined) throw new GreskaKorisniku("Nemate pravo mijenjati nabavnu cijenu.");
   await db.$transaction(async (tx) => {
     const f = akter.firmaId;
     await tx.$queryRaw`SELECT id FROM "Uredaj" WHERE id = ${id}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
@@ -368,7 +381,13 @@ export async function obrisiUredaj(db: PrismaClient, akter: Akter, id: string): 
     if (!r.ok) throw new GreskaKorisniku(r.razlog);
     await tx.prilog.deleteMany({ where: { firmaId: f, entitet: "Uredaj", entitetId: id } });
     await tx.dogadajUredaja.deleteMany({ where: { firmaId: f, uredajId: id } });
-    await tx.uredaj.delete({ where: { id } });
+    try {
+      await tx.uredaj.delete({ where: { id } });
+    } catch (e) {
+      // zaštita ako neki budući modul poveže uređaj, a nije dodan u vezeUredaja
+      if ((e as { code?: string }).code === "P2003") throw new GreskaKorisniku("Uređaj je povezan s drugim zapisima i ne može se obrisati.");
+      throw e;
+    }
     await zapisiDnevnik(tx, {
       firmaId: f,
       korisnikId: akter.korisnikId,

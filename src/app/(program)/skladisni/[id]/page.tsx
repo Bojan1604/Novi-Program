@@ -4,8 +4,10 @@ import { GumbVeza } from "@/components/ui/gumb";
 import { GumbNaljepnice } from "@/components/ui/naljepnice";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Kartica, NaslovStranice, Stranica } from "@/components/ui/stranica";
+import { Stranicenje } from "@/components/ui/stranicenje";
 import { Tablica } from "@/components/ui/tablica";
 import { danas } from "@/domain/datum";
+import { stranica, velicina } from "@/domain/popis";
 import { imaPravo } from "@/domain/prava";
 import { jeVrsta, VRSTE_DOKUMENATA, type VrstaDokumenta } from "@/domain/skladisni-dokumenti";
 import { STANJA, type Stanje } from "@/domain/stanja-uredaja";
@@ -36,7 +38,9 @@ export default async function SkladisniDokument({ params, searchParams }: PagePr
     );
   }
 
-  const d = await skladisniDokument(k.db, k.firmaId, id);
+  const sp = await searchParams;
+  const str = { stranica: stranica(sp["stranica"]), velicina: velicina(sp["velicina"]) };
+  const d = await skladisniDokument(k.db, k.firmaId, id, str);
   if (!d) notFound();
   const o = d.odobrenje;
   const smijeOdluciti = o?.status === "CEKA" && imaPravo(k.prava, "uredaji", "puno") && o.podnioId !== k.korisnikId;
@@ -105,6 +109,9 @@ export default async function SkladisniDokument({ params, searchParams }: PagePr
             { kljuc: "sada", naslov: "Stanje sada", prikaz: (s) => STANJA[s.uredaj.stanje as Stanje] },
           ]}
         />
+        <div className="mt-3">
+          <Stranicenje putanja={`/skladisni/${d.id}`} parametri={{}} stranica={str.stranica} velicina={str.velicina} ukupno={d.brojUredaja} />
+        </div>
       </Kartica>
       {d.napomena && <Kartica naslov="Napomena">{d.napomena}</Kartica>}
       <p className="text-xs text-neutral-500">Izdao {d.korisnik}</p>
