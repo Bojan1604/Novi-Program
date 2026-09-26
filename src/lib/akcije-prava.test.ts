@@ -80,6 +80,7 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "dosljednost.popravi": ["Administrator"],
   "kopije.izradi": ["Administrator"],
   "kopije.vrati": ["Administrator"],
+  "uvoz.stari-program": ["Administrator"],
   "opasna.brisanje": ["Administrator"],
   "opasna.dnevnik": ["Administrator"],
   "servis.zaprimi": ["Administrator", "Voditelj", "Serviser"],
@@ -128,6 +129,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/postavke": ["Administrator", "Voditelj"],
   "/provjera": ["Administrator", "Voditelj"],
   "/kopije": ["Administrator"],
+  "/uvoz": ["Administrator"],
   "/opasna-zona": ["Administrator"],
 };
 
@@ -216,6 +218,7 @@ describe("izbornik", () => {
       "/postavke",
       "/provjera",
       "/kopije",
+      "/uvoz",
       "/opasna-zona",
       "/firme",
       "/moj-racun",

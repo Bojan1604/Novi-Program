@@ -1,0 +1,76 @@
+{
+  "format": "erp-wms-uvoz",
+  "verzija": 1,
+  "izvor": "Stari program 3.2",
+  "kategorije": ["Prijenosno računalo", "Monitor"],
+  "proizvodjaci": ["Dell", "HP"],
+  "skladista": ["Glavno skladište", "Split"],
+  "modeli": [
+    {
+      "sifra": "DL-5440",
+      "naziv": "Latitude 5440",
+      "proizvodjac": "Dell",
+      "kategorija": "Prijenosno računalo",
+      "preporucenaCijena": "899.00",
+      "jamstvoMjeseci": 36,
+      "kpd": "26.20.11"
+    },
+    { "sifra": "HP-E24", "naziv": "EliteDisplay E24", "proizvodjac": "HP", "kategorija": "Monitor", "preporucenaCijena": 189.9 }
+  ],
+  "usluge": [{ "sifra": "INST", "naziv": "Instalacija", "jedinica": "h", "cijena": "40.00", "kpd": "62.09.20" }],
+  "partneri": [
+    {
+      "sifra": "K001",
+      "naziv": "Primjer d.o.o.",
+      "oib": "33392005961",
+      "adresa": "Ilica 1",
+      "postanskiBroj": "10000",
+      "mjesto": "Zagreb",
+      "email": "racuni@primjer.hr",
+      "kupac": true,
+      "rokPlacanjaDana": 30
+    },
+    { "sifra": "D001", "naziv": "Distributer GmbH", "drzava": "DE", "pdvBroj": "DE123456789", "kupac": false, "dobavljac": true }
+  ],
+  "uredaji": [
+    {
+      "serijski": "UV-0001",
+      "model": "DL-5440",
+      "stanje": "NA_SKLADISTU",
+      "skladiste": "Split",
+      "nabavnaCijena": "650.00",
+      "nabavniDatum": "2025-03-01",
+      "jamstvoDo": "2028-03-01",
+      "ram": "16 GB"
+    },
+    { "serijski": "UV-0002", "model": "DL-5440", "stanje": "PRODAN", "partner": "K001", "nabavnaCijena": "640.00" },
+    { "serijski": "UV-0003", "model": "HP-E24", "stanje": "U_NAJMU", "partner": "K001" },
+    { "serijski": "UV-0004", "model": "HP-E24", "stanje": "OTPISAN" }
+  ],
+  "racuni": [
+    {
+      "broj": "41/PP1/1",
+      "datum": "2025-11-20",
+      "dospijece": "2025-12-20",
+      "partner": "K001",
+      "nacinPlacanja": "T",
+      "stavke": [
+        { "naziv": "Dell Latitude 5440", "serijski": "UV-0002", "kolicina": 1, "cijena": "899.00", "stopa": 25 },
+        { "naziv": "Instalacija", "vrstaIsporuke": "USLUGA", "jedinica": "h", "kolicina": 1.5, "cijena": "40.00", "popust": 10, "stopa": 25 }
+      ],
+      "ukupno": "1191.25",
+      "uplate": [{ "datum": "2025-12-01", "iznos": "1191.25", "nacin": "T" }],
+      "zki": "0123456789abcdef0123456789abcdef",
+      "jir": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+    }
+  ],
+  "ugovoriNajma": [
+    {
+      "broj": "UG-17/2025",
+      "partner": "K001",
+      "od": "2025-06-01",
+      "naplacenoDo": "2025-12",
+      "uredaji": [{ "serijski": "UV-0003", "cijena": "12.00" }]
+    }
+  ]
+}

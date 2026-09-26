@@ -76,6 +76,8 @@ export const AKCIJE = {
   /** kopija sadrži sve (i nabavne cijene) — preuzimanje i vraćanje uz to traže administratora (servis/ruta) */
   "kopije.izradi": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "kopije.vrati": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
+  /** uvoz upisuje sve (i nabavne cijene) */
+  "uvoz.stari-program": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "opasna.brisanje": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "opasna.dnevnik": { modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "servis.zaprimi": { modul: "servis", razina: "operativno" },
@@ -127,6 +129,7 @@ export const STRANICE = {
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
   "/provjera": { naziv: "Provjera dosljednosti", modul: "postavke", razina: "pregled" },
   "/kopije": { naziv: "Sigurnosne kopije", modul: "postavke", razina: "puno", posebno: "opasnaZona" },
+  "/uvoz": { naziv: "Uvoz iz starog programa", modul: "postavke", razina: "puno", posebno: "opasnaZona" },
   "/opasna-zona": { naziv: "Opasna zona", modul: "postavke", razina: "puno", posebno: "opasnaZona" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;
 

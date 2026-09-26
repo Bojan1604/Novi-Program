@@ -483,6 +483,35 @@ export async function oznaciIzvanPrograma(db: PrismaClient, akter: Akter, ugovor
   });
 }
 
+/**
+ * Uvoz iz starog programa (7.1): sve neizdane rate ugovora do zadanog mjeseca (uključivo) označe se
+ * „izdano izvan programa“ — stari program ih je već naplatio, pa ih program ne nudi ponovno.
+ */
+export async function oznaciNaplacenoDo(db: PrismaClient, akter: Akter, ugovorId: string, doMjeseca: Mjesec): Promise<number> {
+  if (!jeUuid(ugovorId) || !jeMjesec(doMjeseca)) throw new GreskaKorisniku("Ugovor ne postoji.");
+  const f = akter.firmaId;
+  return db.$transaction(async (tx) => {
+    const ug = await zakljucajUgovor(tx, f, ugovorId);
+    const n = await podaciZaNaplatu(tx, f, ugovorId);
+    const nove = n.motor.flatMap((plan) =>
+      rateUredaja(n.uvjeti, plan, n.fakturirano, doMjeseca)
+        .filter((r) => r.izvor !== "FAKTURIRANO")
+        .map((r) => ({ firmaId: f, planId: plan.uredajId, mjesec: mj(r.mjesec), iznos: centiUDecimal(r.iznos), korisnikId: akter.korisnikId })),
+    );
+    if (nove.length) await tx.rataNajma.createMany({ data: nove });
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.izvan",
+      entitet: "UgovorNajma",
+      entitetId: ugovorId,
+      opis: `Ugovor ${ug.broj}: ${nove.length} rata do ${MJESECI_KRATKO(doMjeseca)} označeno kao izdano izvan programa (uvoz)`,
+    });
+    return nove.length;
+  });
+}
+
 // ——— raspored (korak 3.5) ———
 
 export type IzmjenaMjeseca = { vrsta: "PAUZA" } | { vrsta: "RUCNO"; iznos: number } | { vrsta: "PLAN" };
