@@ -14,8 +14,12 @@ const SVI = ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"
  */
 const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "racun.lozinka": SVI,
+  "firme.prebaci": SVI,
+  "firme.poziv-odgovor": SVI,
+  "firme.nova": SVI,
   "racun.dva-koraka": SVI,
   "korisnici.dodaj": ["Administrator"],
+  "korisnici.poziv": ["Administrator"],
   "korisnici.uredi": ["Administrator"],
   "korisnici.lozinka": ["Administrator"],
   "uloge.spremi": ["Administrator"],
@@ -100,6 +104,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/dnevnik": ["Administrator", "Voditelj"],
   "/sifrarnici": ["Administrator", "Voditelj", "Prodavač", "Skladištar"],
   "/moj-racun": SVI,
+  "/firme": SVI,
   "/partneri": SVI,
   "/cjenici": SVI,
   "/primke": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
@@ -178,6 +183,7 @@ describe("izbornik", () => {
       "/skladisni",
       "/inventure",
       "/sifrarnici",
+      "/firme",
       "/moj-racun",
     ]);
     expect(putanje("Administrator")).toEqual([
@@ -211,6 +217,7 @@ describe("izbornik", () => {
       "/provjera",
       "/kopije",
       "/opasna-zona",
+      "/firme",
       "/moj-racun",
     ]);
     expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/izvjestaji");

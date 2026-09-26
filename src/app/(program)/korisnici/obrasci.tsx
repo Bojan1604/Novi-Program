@@ -7,7 +7,7 @@ import { Obavijest } from "@/components/ui/obavijest";
 import { Kvacica, Odabir, Polje } from "@/components/ui/polje";
 import { MODULI, NAZIVI_RAZINA, POSEBNA, POPIS_MODULA, POPIS_POSEBNIH, RAZINE, type Iznimke, type Prava } from "@/domain/prava";
 import type { Odgovor } from "@/lib/greske";
-import { dodajKorisnikaAkcija, postaviLozinkuAkcija, urediKorisnikaAkcija } from "./akcije";
+import { dodajKorisnikaAkcija, otkaziPozivAkcija, postaviLozinkuAkcija, pozoviAkcija, urediKorisnikaAkcija } from "./akcije";
 
 type Uloga = { id: string; naziv: string };
 
@@ -19,7 +19,7 @@ function Poruka({ stanje }: { stanje: Odgovor<unknown> | undefined }) {
 export function DodajKorisnika({ uloge }: { uloge: Uloga[] }) {
   const [stanje, akcija, uTijeku] = useActionState(dodajKorisnikaAkcija, undefined);
   return (
-    <Obrazac akcija={akcija} className="grid gap-3 sm:grid-cols-2" key={stanje?.ok ? "novi" : "isti"}>
+    <Obrazac akcija={akcija} className="grid gap-3 sm:grid-cols-2" key={stanje?.ok ? "novi" : "isti"} aria-label="Novi korisnik">
       <Polje oznaka="Ime i prezime" name="ime" required autoComplete="off" />
       <Polje oznaka="E-pošta" name="email" type="email" required autoComplete="off" />
       <Polje
@@ -148,5 +148,42 @@ export function NovaLozinka({ korisnikId }: { korisnikId: string }) {
         </Gumb>
       </div>
     </Obrazac>
+  );
+}
+
+/** Poziv osobi koja već ima račun (npr. radi u drugoj firmi) — prihvaća ga sama na stranici Firme. */
+export function PozoviKorisnika({ uloge }: { uloge: Uloga[] }) {
+  const [s, posalji, uTijeku] = useActionState(pozoviAkcija, undefined);
+  return (
+    <Obrazac akcija={posalji} className="flex flex-col gap-3" aria-label="Poziv u firmu">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Polje oznaka="E-pošta" name="email" type="email" required />
+        <Odabir oznaka="Uloga" name="ulogaId" defaultValue={uloge.find((u) => u.naziv !== "Administrator")?.id}>
+          {uloge.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.naziv}
+            </option>
+          ))}
+        </Odabir>
+      </div>
+      <div>
+        <Gumb type="submit" disabled={uTijeku}>
+          Pošalji poziv
+        </Gumb>
+      </div>
+      {s && (s.ok ? <Obavijest vrsta="uspjeh">{s.poruka}</Obavijest> : <Obavijest vrsta="greska">{s.greska}</Obavijest>)}
+    </Obrazac>
+  );
+}
+
+export function OtkaziPoziv({ id }: { id: string }) {
+  const [s, posalji, uTijeku] = useActionState(() => otkaziPozivAkcija(id), undefined);
+  return (
+    <form action={posalji} className="inline-flex items-center gap-2">
+      {s && !s.ok && <span className="text-sm text-red-700 dark:text-red-400">{s.greska}</span>}
+      <Gumb type="submit" malen varijanta="tihi" disabled={uTijeku}>
+        Otkaži
+      </Gumb>
+    </form>
   );
 }

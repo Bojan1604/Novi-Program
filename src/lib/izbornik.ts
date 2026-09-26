@@ -9,7 +9,7 @@ const GRUPE: { grupa: string; putanje: PutanjaStranice[] }[] = [
   { grupa: "Nabava", putanje: ["/nabava", "/ulazni", "/troskovi", "/knjigovodja"] },
   { grupa: "Partneri", putanje: ["/partneri", "/cjenici"] },
   { grupa: "Skladište", putanje: ["/uredaji", "/skeniranje", "/primke", "/skladisni", "/odobrenja", "/inventure", "/sifrarnici"] },
-  { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik", "/postavke", "/provjera", "/kopije", "/opasna-zona", "/moj-racun"] },
+  { grupa: "Sustav", putanje: ["/korisnici", "/uloge", "/dnevnik", "/postavke", "/provjera", "/kopije", "/opasna-zona", "/firme", "/moj-racun"] },
 ];
 
 export const IZBORNIK: StavkaIzbornika[] = GRUPE.flatMap(({ grupa, putanje }) =>

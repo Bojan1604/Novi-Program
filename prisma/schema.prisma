@@ -126,6 +126,7 @@ model Firma {
   mdmZapisi            MdmZapis[]
   mdmSnimke            MdmSnimka[]
   logotipi             LogoFirme[]
+  poziviUFirmu         PozivUFirmu[]
   sigurnosneKopije     SigurnosnaKopija[]
 }
 
@@ -145,6 +146,8 @@ model Korisnik {
   totpUkljucen    Boolean   @default(false)
   /// zadnji iskorišteni vremenski korak — isti kod ne prolazi dvaput
   totpZadnjiKorak Int?
+  /// firma u kojoj je korisnik zadnji put radio (6.8) — prijava ulazi u nju ako je članstvo još aktivno
+  zadnjaFirmaId   String?   @db.Uuid
 
   clanstva       ClanstvoFirme[]
   sesije         Sesija[]
@@ -215,6 +218,7 @@ model Uloga {
 
   firma    Firma           @relation(fields: [firmaId], references: [id])
   clanstva ClanstvoFirme[]
+  pozivi   PozivUFirmu[]
 
   @@unique([firmaId, naziv])
   @@unique([firmaId, id])
@@ -1784,4 +1788,24 @@ model SigurnosnaKopija {
 
   @@unique([firmaId, id])
   @@index([firmaId, vrijeme(sort: Desc)])
+}
+
+/// Poziv postojećem korisniku (iz druge firme) u ovu firmu (6.8). Korisnik ga sam prihvaća u „Firme“ —
+/// firma ne može sama pripojiti tuđi račun ni saznati njegovu lozinku.
+model PozivUFirmu {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  firmaId    String   @db.Uuid
+  /// e-pošta pozvanog (mala slova)
+  email      String
+  ulogaId    String   @db.Uuid
+  korisnikId String?  @db.Uuid
+  korisnik   String   @default("Sustav")
+  stvoreno   DateTime @default(now()) @db.Timestamptz(3)
+
+  firma Firma @relation(fields: [firmaId], references: [id])
+  uloga Uloga @relation(fields: [firmaId, ulogaId], references: [firmaId, id], onDelete: Cascade)
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, email])
+  @@index([email])
 }

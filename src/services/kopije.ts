@@ -25,8 +25,8 @@ import { napraviZadaneUloge, type Akter } from "./korisnici";
 
 export const FORMAT_KOPIJE = "erp-wms-kopija";
 const VERZIJA = 1;
-/** privremeno (sesije), sama kopija i članstva korisnika (vraća se samo onaj tko vraća) */
-export const IZUZETE_TABLICE = new Set(["Sesija", "SesijaPortala", "SigurnosnaKopija", "ClanstvoFirme"]);
+/** privremeno (sesije), sama kopija, članstva korisnika (vraća se samo onaj tko vraća) i pozivi u firmu */
+export const IZUZETE_TABLICE = new Set(["Sesija", "SesijaPortala", "SigurnosnaKopija", "ClanstvoFirme", "PozivUFirmu"]);
 /** jedinstveni indeksi preko cijele baze (bez firmaId) koje vraćanje zna obraditi — test pukne za novi */
 export const GLOBALNO_JEDINSTVENI = new Set([
   "KorisnikPortala.poveznicaHash",

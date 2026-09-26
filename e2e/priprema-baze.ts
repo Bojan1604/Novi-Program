@@ -99,6 +99,9 @@ async function priprema(): Promise<void> {
       // prijava u dva koraka: zaseban korisnik po projektu
       { ime: "Dva koraka R", email: "dvakoraka-racunalo@e2e.hr", uloga: "Prodavač" },
       { ime: "Dva koraka M", email: "dvakoraka-mobitel@e2e.hr", uloga: "Prodavač" },
+      // više firmi: zaseban administrator po projektu (prelazak mijenja firmu u koju ulazi prijava)
+      { ime: "Firme R", email: "firme-racunalo@e2e.hr", uloga: "Administrator" },
+      { ime: "Firme M", email: "firme-mobitel@e2e.hr", uloga: "Administrator" },
     ]) {
       const korisnik = await prisma.korisnik.create({ data: { ime: k.ime, email: k.email, lozinkaHash } });
       await prisma.clanstvoFirme.create({ data: { firmaId: firma.id, korisnikId: korisnik.id, ulogaId: uloge[k.uloga]! } });

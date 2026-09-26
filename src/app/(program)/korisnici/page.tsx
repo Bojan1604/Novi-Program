@@ -4,7 +4,7 @@ import { Tablica } from "@/components/ui/tablica";
 import { imaPravo } from "@/domain/prava";
 import { pristupStranici } from "@/lib/akcija";
 import { popisClanova, popisUloga } from "@/queries/korisnici";
-import { DodajKorisnika } from "./obrasci";
+import { DodajKorisnika, OtkaziPoziv, PozoviKorisnika } from "./obrasci";
 
 export const metadata = { title: "Korisnici · ERP-WMS" };
 
@@ -12,8 +12,14 @@ const datumVrijeme = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", time
 
 export default async function Korisnici() {
   const k = await pristupStranici("/korisnici");
-  const [clanovi, uloge] = await Promise.all([popisClanova(k.db, k.firmaId), popisUloga(k.db, k.firmaId)]);
   const smijeDodati = imaPravo(k.prava, "korisnici", "puno");
+  const [clanovi, uloge, pozivi] = await Promise.all([
+    popisClanova(k.db, k.firmaId),
+    popisUloga(k.db, k.firmaId),
+    smijeDodati
+      ? k.db.pozivUFirmu.findMany({ where: { firmaId: k.firmaId }, orderBy: { stvoreno: "desc" }, include: { uloga: { select: { naziv: true } } } })
+      : [],
+  ]);
 
   return (
     <Stranica>
@@ -50,6 +56,26 @@ export default async function Korisnici() {
       {smijeDodati && (
         <Kartica naslov="Novi korisnik">
           <DodajKorisnika uloge={uloge.map(({ id, naziv }) => ({ id, naziv }))} />
+        </Kartica>
+      )}
+      {smijeDodati && (
+        <Kartica naslov="Poziv osobi koja već ima račun">
+          <PozoviKorisnika uloge={uloge.map(({ id, naziv }) => ({ id, naziv }))} />
+          {pozivi.length > 0 && (
+            <ul
+              className="mt-3 divide-y divide-neutral-200 border-t border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800"
+              data-testid="pozivi-firme"
+            >
+              {pozivi.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0 break-all">
+                    {p.email} — {p.uloga.naziv} <span className="text-neutral-500">(čeka prihvaćanje)</span>
+                  </span>
+                  <OtkaziPoziv id={p.id} />
+                </li>
+              ))}
+            </ul>
+          )}
         </Kartica>
       )}
     </Stranica>

@@ -9,13 +9,15 @@ import { izbornikZa } from "@/domain/izbornik";
 import { trenutniKontekst } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import { IZBORNIK } from "@/lib/izbornik";
+import { mojeFirme } from "@/services/firme";
 import { odjaviSe } from "./akcije";
+import { OdabirFirme } from "./firme/obrasci";
 
 export default async function ProgramLayout({ children }: LayoutProps<"/">) {
   const k = await trenutniKontekst();
   if (!k) redirect("/prijava");
   const stavke: StavkaNav[] = izbornikZa(k.prava, IZBORNIK).map(({ naziv, putanja, grupa }) => ({ naziv, putanja, grupa }));
-  const firma = await db.firma.findUnique({ where: { id: k.firmaId }, select: { boja: true } });
+  const [firma, firme] = await Promise.all([db.firma.findUnique({ where: { id: k.firmaId }, select: { boja: true } }), mojeFirme(db, k.korisnikId)]);
   const t = (await cookies()).get("tema")?.value;
   const tema: Tema = t === "tamna" || t === "svijetla" ? t : "sustav";
 
@@ -27,9 +29,13 @@ export default async function ProgramLayout({ children }: LayoutProps<"/">) {
             <MobilniIzbornik stavke={stavke} />
             <div className="min-w-0">
               <div className="font-semibold">ERP-WMS</div>
-              <div className="truncate text-xs text-neutral-600 dark:text-neutral-400" data-testid="firma">
-                {k.sesija.firma.naziv}
-              </div>
+              {firme.length > 1 ? (
+                <OdabirFirme firme={firme.map(({ id, naziv }) => ({ id, naziv }))} trenutna={k.firmaId} />
+              ) : (
+                <div className="truncate text-xs text-neutral-600 dark:text-neutral-400" data-testid="firma">
+                  {k.sesija.firma.naziv}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">

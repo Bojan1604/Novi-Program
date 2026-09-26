@@ -135,3 +135,8 @@ export function sigurnaPutanja(putanja: string | null | undefined): string {
   if (url.pathname === "/prijava" || url.pathname.startsWith("/prijava/")) return "/";
   return url.pathname + url.search;
 }
+
+/** Firma u koju prijava ulazi: zadnja u kojoj je korisnik radio (ako je članstvo još aktivno), inače najstarije članstvo. */
+export function odaberiClanstvo<T extends { firmaId: string }>(clanstva: readonly T[], zadnjaFirmaId: string | null): T | undefined {
+  return clanstva.find((c) => c.firmaId === zadnjaFirmaId) ?? clanstva[0];
+}

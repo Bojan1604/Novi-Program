@@ -5,6 +5,7 @@ import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { iznimkeIzObrasca, tekst } from "@/lib/obrazac";
+import { otkaziPoziv, pozoviKorisnika } from "@/services/firme";
 import { dodajKorisnika, postaviLozinku, urediKorisnika } from "@/services/korisnici";
 
 export async function dodajKorisnikaAkcija(_p: Odgovor<{ korisnikId: string }> | undefined, fd: FormData) {
@@ -43,5 +44,21 @@ export async function postaviLozinkuAkcija(korisnikId: string, _p: Odgovor | und
     if (lozinka !== String(fd.get("ponovljena") ?? "")) return { ok: false as const, greska: "Lozinke se ne podudaraju." };
     await postaviLozinku(db, k, korisnikId, lozinka);
     return { ok: true as const, poruka: "Lozinka je promijenjena; korisnik je odjavljen sa svih uređaja." };
+  });
+}
+
+export async function pozoviAkcija(_p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("korisnici.poziv", async (k): Promise<Odgovor> => {
+    await pozoviKorisnika(db, k, { email: tekst(fd, "email"), ulogaId: tekst(fd, "ulogaId") });
+    revalidatePath("/korisnici");
+    return { ok: true, poruka: "Poziv je spremljen — osoba ga prihvaća na stranici Firme nakon prijave." };
+  });
+}
+
+export async function otkaziPozivAkcija(id: string): Promise<Odgovor> {
+  return akcija("korisnici.poziv", async (k): Promise<Odgovor> => {
+    await otkaziPoziv(db, k, id);
+    revalidatePath("/korisnici");
+    return { ok: true, poruka: "Poziv je otkazan." };
   });
 }

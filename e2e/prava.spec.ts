@@ -15,11 +15,12 @@ test.describe("uloge i prava", () => {
     await expect(page.getByRole("heading", { name: "Korisnici" })).toBeVisible();
 
     const email = `novi-${test.info().project.name}-${Date.now()}@e2e.hr`;
-    await page.getByLabel("Ime i prezime").fill("Novi Skladištar");
-    await page.getByLabel("E-pošta").fill(email);
-    await page.getByLabel("Početna lozinka").fill("Pocetna-lozinka-1");
-    await page.getByLabel("Uloga").selectOption({ label: "Skladištar" });
-    await page.getByRole("button", { name: "Dodaj korisnika" }).click();
+    const obrazac = page.getByRole("form", { name: "Novi korisnik" });
+    await obrazac.getByLabel("Ime i prezime").fill("Novi Skladištar");
+    await obrazac.getByLabel("E-pošta").fill(email);
+    await obrazac.getByLabel("Početna lozinka").fill("Pocetna-lozinka-1");
+    await obrazac.getByLabel("Uloga").selectOption({ label: "Skladištar" });
+    await obrazac.getByRole("button", { name: "Dodaj korisnika" }).click();
     await expect(page.getByText("Korisnik je dodan.")).toBeVisible();
     await expect(page.getByTestId("popis-korisnika")).toContainText(email);
   });

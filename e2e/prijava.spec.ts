@@ -23,7 +23,7 @@ test.describe("prijava", () => {
 
   test("prijava, rad kroz više klikova, odjava", async ({ page, context }) => {
     await prijaviSe(page);
-    await expect(page.getByTestId("firma")).toHaveText(E2E.firma);
+    await expect(page.getByTestId("firma")).toContainText(E2E.firma);
     await expect(page.getByRole("heading", { name: `Dobro došli, ${E2E.admin.ime}` })).toBeVisible();
 
     // kolačić: httpOnly, preko http-a nije Secure (inače mobitel na lokalnoj mreži gubi prijavu)

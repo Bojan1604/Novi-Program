@@ -57,6 +57,7 @@ export const NAZIVI_ENTITETA: Record<string, string> = {
   MdmProfil: "MDM profil",
   MdmAplikacija: "MDM aplikacija",
   SigurnosnaKopija: "Sigurnosna kopija",
+  PozivUFirmu: "Poziv u firmu",
   Inventura: "Inventura",
   ProdajniDokument: "Prodajni dokument",
   Uplata: "Uplata",

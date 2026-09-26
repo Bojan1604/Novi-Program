@@ -12,6 +12,7 @@ import {
   istekSesije,
   jeEmail,
   normalizirajEmail,
+  odaberiClanstvo,
   odluciOPrijavi,
   porukaZakljucano,
   PROZOR_POKUSAJA_MS,
@@ -73,12 +74,11 @@ export async function prijavi(db: PrismaClient, ulaz: UlazPrijave, sada = new Da
           clanstva: {
             where: { aktivno: true, firma: { aktivna: true } },
             orderBy: { stvoreno: "asc" },
-            take: 1,
           },
         },
       });
       const lozinkaTocna = await bcrypt.compare(ulaz.lozinka, korisnik?.lozinkaHash ?? hashZaUsporedbu());
-      const clanstvo = korisnik?.clanstva[0];
+      const clanstvo = korisnik ? odaberiClanstvo(korisnik.clanstva, korisnik.zadnjaFirmaId) : undefined;
 
       if (!korisnik || !lozinkaTocna || !korisnik.aktivan || !clanstvo) {
         await tx.pokusajPrijave.create({ data: { email, ip, uspjeh: false, vrijeme: sada } });
@@ -142,9 +142,9 @@ export async function dovrsiPrijavu(
     await tx.$queryRaw`SELECT id FROM "Korisnik" WHERE id = ${p.korisnikId}::uuid FOR UPDATE`;
     const k = await tx.korisnik.findUniqueOrThrow({
       where: { id: p.korisnikId },
-      include: { clanstva: { where: { aktivno: true, firma: { aktivna: true } }, orderBy: { stvoreno: "asc" }, take: 1 } },
+      include: { clanstva: { where: { aktivno: true, firma: { aktivna: true } }, orderBy: { stvoreno: "asc" } } },
     });
-    const clanstvo = k.clanstva[0];
+    const clanstvo = odaberiClanstvo(k.clanstva, k.zadnjaFirmaId);
     if (!k.aktivan || !clanstvo || !k.totpUkljucen) {
       await tx.prijavaDrugiKorak.delete({ where: { id } });
       return ISTEKLO;

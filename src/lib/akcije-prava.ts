@@ -8,12 +8,17 @@ export { zadovoljava, type PotrebnoPravo } from "@/domain/prava";
  */
 export const AKCIJE = {
   "korisnici.dodaj": { modul: "korisnici", razina: "puno" },
+  "korisnici.poziv": { modul: "korisnici", razina: "puno" },
   "korisnici.uredi": { modul: "korisnici", razina: "puno" },
   "korisnici.lozinka": { modul: "korisnici", razina: "puno" },
   "uloge.spremi": { modul: "korisnici", razina: "puno" },
   "uloge.obrisi": { modul: "korisnici", razina: "puno" },
   "racun.lozinka": { samoPrijava: true },
   "racun.dva-koraka": { samoPrijava: true },
+  "firme.prebaci": { samoPrijava: true },
+  "firme.poziv-odgovor": { samoPrijava: true },
+  /** servis dopušta samo administratoru trenutne firme */
+  "firme.nova": { samoPrijava: true },
   "sifrarnici.spremi": { modul: "sifrarnici", razina: "operativno" },
   "sifrarnici.aktivnost": { modul: "sifrarnici", razina: "operativno" },
   "sifrarnici.obrisi": { modul: "sifrarnici", razina: "puno" },
@@ -97,6 +102,7 @@ export const STRANICE = {
   "/dnevnik": { naziv: "Dnevnik promjena", posebno: "log" },
   "/sifrarnici": { naziv: "Šifrarnici", modul: "sifrarnici", razina: "pregled" },
   "/moj-racun": { naziv: "Moj račun", samoPrijava: true },
+  "/firme": { naziv: "Firme", samoPrijava: true },
   "/partneri": { naziv: "Partneri", modul: "partneri", razina: "pregled" },
   "/cjenici": { naziv: "Cjenici", modul: "partneri", razina: "pregled" },
   "/primke": { naziv: "Primke", modul: "uredaji", razina: "pregled" },
