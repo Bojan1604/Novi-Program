@@ -29,6 +29,11 @@ import { promijeniStanje } from "./uredaji";
 
 export type Tx = Prisma.TransactionClient;
 
+/** Vlastita transakcija ili unutar postojeće (npr. izdavanje rata najma u jednoj transakciji). */
+function uTransakciji<T>(db: PrismaClient | Tx, fn: (tx: Tx) => Promise<T>, opcije?: { timeout?: number }): Promise<T> {
+  return "$transaction" in db ? (db as PrismaClient).$transaction(fn, opcije) : fn(db);
+}
+
 export const NAJVISE_STAVKI = 1000;
 const d = (x: string) => new Date(`${x}T00:00:00Z`);
 const datumIzBaze = (x: Date) => uDatum(x.toISOString().slice(0, 10));
@@ -76,7 +81,12 @@ async function provjeriReference(tx: Tx, firmaId: string, stavke: readonly Ulazn
  * Spremi nacrt (novi ili postojeći). Izdani dokument se ne može mijenjati.
  * Iznosi, kategorije PDV-a i zbrojevi računaju se ovdje (preglednik ih samo prikazuje).
  */
-export async function spremiNacrt(db: PrismaClient, akter: Akter, id: string | null, ulaz: UlazDokumenta): Promise<{ id: string; verzija: number }> {
+export async function spremiNacrt(
+  db: PrismaClient | Tx,
+  akter: Akter,
+  id: string | null,
+  ulaz: UlazDokumenta,
+): Promise<{ id: string; verzija: number }> {
   if (!jeVrstaProdaje(ulaz.vrsta)) throw new GreskaKorisniku("Nepoznata vrsta dokumenta.");
   if (ulaz.vrsta === "ODOBRENJE" && !imaPravo(akter.prava, "prodaja", "puno"))
     throw new GreskaKorisniku("Odobrenje smije mijenjati samo korisnik s punim pravom prodaje.");
@@ -99,7 +109,7 @@ export async function spremiNacrt(db: PrismaClient, akter: Akter, id: string | n
     if (g) throw new GreskaKorisniku(g);
   });
 
-  return db.$transaction(async (tx) => {
+  return uTransakciji(db, async (tx) => {
     const f = akter.firmaId;
     let stari: { id: string; verzija: number } | null = null;
     if (id) {
@@ -462,13 +472,20 @@ export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sad
 }
 
 /** Nakon izdavanja: slanje CIS-u; greška ne poništava račun (naknadna dostava). */
-async function porukaFiskalizacije(db: PrismaClient, firmaId: string, id: string, sada: Date): Promise<string> {
+export async function porukaFiskalizacije(db: PrismaClient, firmaId: string, id: string, sada: Date): Promise<string> {
   const f = await fiskaliziraj(db, firmaId, id, sada);
   return "jir" in f ? "Fiskaliziran." : `Fiskalizacija nije uspjela (${f.greska}) — ponovit će se automatski.`;
 }
 
-async function izdajRacunUBazi(db: PrismaClient, akter: Akter, id: string, sada: Date): Promise<{ broj: string; fiskalizirati: boolean }> {
-  return db.$transaction(
+/** Izdavanje bez slanja CIS-u (poziva se i unutar tuđe transakcije; slanje nakon nje: `porukaFiskalizacije`). */
+export async function izdajRacunUBazi(
+  db: PrismaClient | Tx,
+  akter: Akter,
+  id: string,
+  sada: Date,
+): Promise<{ broj: string; fiskalizirati: boolean }> {
+  return uTransakciji(
+    db,
     async (tx) => {
       const f = akter.firmaId;
       await tx.$queryRaw`SELECT id FROM "ProdajniDokument" WHERE id = ${id}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;

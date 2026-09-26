@@ -51,6 +51,8 @@ export const AKCIJE = {
   "najam.ugovor": { modul: "najam", razina: "operativno" },
   "najam.otkaz": { modul: "najam", razina: "puno" },
   "najam.prilozi": { modul: "najam", razina: "operativno" },
+  "najam.izdaj": { modul: "najam", razina: "operativno" },
+  "najam.izvan": { modul: "najam", razina: "operativno" },
 } as const satisfies Record<string, PotrebnoPravo>;
 
 export type KljucAkcije = keyof typeof AKCIJE;
@@ -75,6 +77,7 @@ export const STRANICE = {
   "/racuni": { naziv: "Računi", modul: "prodaja", razina: "pregled" },
   "/eracuni": { naziv: "eRačuni", modul: "prodaja", razina: "pregled" },
   "/najam": { naziv: "Ugovori o najmu", modul: "najam", razina: "pregled" },
+  "/najam/rate": { naziv: "Rate za izdati", modul: "najam", razina: "operativno" },
   "/marze": { naziv: "Marže", modul: "prodaja", razina: "pregled", posebno: "costs" },
   "/postavke": { naziv: "Postavke firme", modul: "postavke", razina: "pregled" },
 } as const satisfies Record<string, { naziv: string } & PotrebnoPravo>;

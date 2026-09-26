@@ -140,7 +140,9 @@ export function UredajiUgovora({
   );
 }
 
-export function DodajUredaje({ ugovorId, od }: { ugovorId: string; od: string }) {
+export function DodajUredaje({ ugovorId, od, otvoreno }: { ugovorId: string; od: string; otvoreno: boolean }) {
+  // otvorenost se pamti u pregledniku (nakon dodavanja se ploča ne zatvara pa poruka ostaje vidljiva)
+  const [otvoren, setOtvoren] = useState(otvoreno);
   const [kljuc, setKljuc] = useState(0);
   const [stanje, posalji, uTijeku] = useActionState(async (p: Awaited<ReturnType<typeof dodajUredajeAkcija>> | undefined, fd: FormData) => {
     const r = await dodajUredajeAkcija(ugovorId, p, fd);
@@ -148,36 +150,45 @@ export function DodajUredaje({ ugovorId, od }: { ugovorId: string; od: string })
     return r;
   }, undefined);
   return (
-    <Obrazac key={kljuc} akcija={posalji} className="flex flex-col gap-3" aria-label="Dodavanje uređaja na ugovor">
-      <label className="flex flex-col gap-1">
-        <span className="text-sm font-medium">Serijski brojevi (svaki u svom redu ili odvojeni razmakom)</span>
-        <textarea name="serijski" rows={3} required className={`${klaseUnosa} font-mono`} />
-      </label>
-      <div className="grid gap-2 sm:grid-cols-3 sm:items-end">
-        <Polje oznaka="Naplata od" name="od" type="date" required defaultValue={od} />
-        <Polje
-          oznaka="€/mj. bez PDV-a"
-          name="cijena"
-          inputMode="decimal"
-          required
-          greska={stanje && !stanje.ok ? stanje.polja?.["cijena"] : undefined}
-        />
-        <fieldset className="flex flex-col gap-1 text-sm">
-          <legend className="font-medium">Uređaji su</legend>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="izvor" value="SKLADISTE" defaultChecked /> na skladištu
+    <details
+      className="mt-4 rounded-md border border-neutral-200 p-3 dark:border-neutral-800"
+      open={otvoren}
+      onToggle={(e) => setOtvoren(e.currentTarget.open)}
+    >
+      <summary className="cursor-pointer text-sm font-medium">Dodaj uređaje</summary>
+      <div className="mt-3">
+        <Obrazac key={kljuc} akcija={posalji} className="flex flex-col gap-3" aria-label="Dodavanje uređaja na ugovor">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium">Serijski brojevi (svaki u svom redu ili odvojeni razmakom)</span>
+            <textarea name="serijski" rows={3} required className={`${klaseUnosa} font-mono`} />
           </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="izvor" value="KLIJENT" /> već kod klijenta
-          </label>
-        </fieldset>
+          <div className="grid gap-2 sm:grid-cols-3 sm:items-end">
+            <Polje oznaka="Naplata od" name="od" type="date" required defaultValue={od} />
+            <Polje
+              oznaka="€/mj. bez PDV-a"
+              name="cijena"
+              inputMode="decimal"
+              required
+              greska={stanje && !stanje.ok ? stanje.polja?.["cijena"] : undefined}
+            />
+            <fieldset className="flex flex-col gap-1 text-sm">
+              <legend className="font-medium">Uređaji su</legend>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="izvor" value="SKLADISTE" defaultChecked /> na skladištu
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="izvor" value="KLIJENT" /> već kod klijenta
+              </label>
+            </fieldset>
+          </div>
+          <div>
+            <Gumb type="submit" varijanta="primarni" disabled={uTijeku}>
+              Dodaj na ugovor
+            </Gumb>
+          </div>
+          {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+        </Obrazac>
       </div>
-      <div>
-        <Gumb type="submit" varijanta="primarni" disabled={uTijeku}>
-          Dodaj na ugovor
-        </Gumb>
-      </div>
-      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
-    </Obrazac>
+    </details>
   );
 }

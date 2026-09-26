@@ -815,6 +815,8 @@ model ProdajniDokument {
   fiskalSljedeci DateTime? @db.Timestamptz(3)
   /// slanje u tijeku do (zauzimanje: isti račun ne šalju istovremeno dva procesa)
   fiskalSaljeDo  DateTime? @db.Timestamptz(3)
+  /// račun za najam: ugovor čije su rate na računu
+  ugovorNajmaId  String?   @db.Uuid
   stvoreno       DateTime  @default(now()) @db.Timestamptz(3)
   azurirano      DateTime  @updatedAt @db.Timestamptz(3)
 
@@ -834,6 +836,7 @@ model ProdajniDokument {
   @@index([firmaId, partnerId])
   @@index([firmaId, izvorId])
   @@index([fiskalStatus, fiskalSljedeci])
+  @@index([firmaId, ugovorNajmaId])
 }
 
 model StavkaProdajnogDokumenta {

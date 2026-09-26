@@ -1,7 +1,12 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { danas, dodajDane } from "@/domain/datum";
 import { jeUuid } from "@/domain/id";
+import type { UlaznaStavka } from "@/domain/prodaja";
 import {
   cijenaUMjesecu,
+  rateUredaja,
+  zaIzdati,
+  type Rata,
   jeMjesec,
   kljucRate,
   mjesecOd,
@@ -18,6 +23,7 @@ import { GreskaKorisniku } from "@/lib/greske";
 import { sljedeciBroj } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
+import { izdajRacunUBazi, porukaFiskalizacije, spremiNacrt } from "./prodaja";
 import { promijeniStanje } from "./uredaji";
 
 const najranijiDatum = (...x: (string | null)[]) => x.filter((y): y is string => !!y).sort()[0] ?? null;
@@ -182,7 +188,7 @@ export async function podaciZaNaplatu(tx: Tx | PrismaClient, firmaId: string, ug
           id: true,
           serijski: true,
           stanje: true,
-          model: { select: { naziv: true, kpdNajam: true, proizvodjac: { select: { naziv: true } } } },
+          model: { select: { id: true, naziv: true, kpdNajam: true, proizvodjac: { select: { naziv: true } } } },
         },
       },
       cijene: { orderBy: { od: "asc" } },
@@ -326,6 +332,144 @@ export async function postaviCijenu(
       entitet: "UgovorNajma",
       entitetId: ugovorId,
       opis: `Ugovor ${ug.broj}: ${(u.iznos / 100).toFixed(2)} €/mj. od ${u.od}${u.doMjeseca ? ` do ${u.doMjeseca} (sezona)` : ""} za ${odabrani.length} uređaja`,
+    });
+  });
+}
+
+// ——— rate za izdati (korak 3.4) ———
+
+const MJESECI_KRATKO = (m: Mjesec) => `${m.slice(5)}/${m.slice(0, 4)}`;
+
+/** Rate za izdati do mjeseca, grupirane za račun: isti model, mjesec, iznos i broj dana = jedna stavka. */
+export function stavkeRata(n: Awaited<ReturnType<typeof podaciZaNaplatu>>, rate: Rata[]): { stavke: UlaznaStavka[]; greska: string | null } {
+  const bezKpd = new Set<string>();
+  const grupe = new Map<string, { s: UlaznaStavka; serijski: string[] }>();
+  for (const r of rate) {
+    const p = n.planovi.find((x) => x.id === r.uredajId)!;
+    const m = p.uredaj.model;
+    if (!m.kpdNajam) bezKpd.add(`${m.proizvodjac.naziv} ${m.naziv}`);
+    const kljuc = [m.id, r.mjesec, r.iznos, r.dana, r.danaUMjesecu].join("|");
+    const g = grupe.get(kljuc);
+    if (g) {
+      g.s.kolicina += 1000;
+      g.serijski.push(p.uredaj.serijski);
+      continue;
+    }
+    grupe.set(kljuc, {
+      serijski: [p.uredaj.serijski],
+      s: {
+        vrsta: "MODEL",
+        namjena: "NAJAM",
+        modelId: m.id,
+        naziv: `Najam ${m.proizvodjac.naziv} ${m.naziv} ${MJESECI_KRATKO(r.mjesec)}${r.dana < r.danaUMjesecu ? ` (${r.dana}/${r.danaUMjesecu} dana)` : ""}`,
+        kpd: m.kpdNajam,
+        jedinica: "mj",
+        kolicina: 1000,
+        cijena: r.iznos,
+        popust: 0,
+        stopa: 2500,
+      },
+    });
+  }
+  if (bezKpd.size) return { stavke: [], greska: `Modeli bez KPD oznake za najam (upišite je u šifrarniku): ${[...bezKpd].slice(0, 5).join(", ")}` };
+  const stavke = [...grupe.values()]
+    .sort((a, b) => a.s.naziv.localeCompare(b.s.naziv, "hr"))
+    .map((g) => ({ ...g.s, opis: `S/N: ${g.serijski.sort().join(", ")}` }));
+  return { stavke, greska: null };
+}
+
+/**
+ * Izdavanje rata ugovora do mjeseca kao jedan račun s današnjim datumom — u jednoj transakciji:
+ * ugovor zaključan (dvije kartice = jedan račun), rate zapisane uz račun (ista rata ne može se naplatiti dvaput).
+ */
+export async function izdajRate(
+  db: PrismaClient,
+  akter: Akter,
+  ugovorId: string,
+  doMjeseca: Mjesec,
+  sada = new Date(),
+): Promise<{ id: string; broj: string; fiskal: string | null }> {
+  if (!jeUuid(ugovorId)) throw new GreskaKorisniku("Ugovor ne postoji.");
+  if (!jeMjesec(doMjeseca)) throw new GreskaKorisniku("Mjesec nije ispravan.");
+  const f = akter.firmaId;
+  const r = await db.$transaction(
+    async (tx) => {
+      const ug = await zakljucajUgovor(tx, f, ugovorId);
+      const n = await podaciZaNaplatu(tx, f, ugovorId);
+      const rate = zaIzdati(n.uvjeti, n.motor, n.fakturirano, doMjeseca);
+      if (!rate.length) throw new GreskaKorisniku("Nema rata za izdati.");
+      const { stavke, greska } = stavkeRata(n, rate);
+      if (greska) throw new GreskaKorisniku(greska);
+      const dat = danas(sada);
+      const nacrt = await spremiNacrt(tx, akter, null, {
+        vrsta: "RACUN",
+        verzija: 0,
+        partnerId: ug.partnerId,
+        poslovnicaId: ug.poslovnicaId,
+        datum: dat,
+        vrijediDo: null,
+        dospijece: dodajDane(dat, ug.rokPlacanjaDana),
+        popust: 0,
+        napomena: [`Ugovor o najmu ${ug.broj}`, ug.napomenaRacuna].filter(Boolean).join("\n"),
+        nacinPlacanja: ug.nacinPlacanja as "T",
+        stavke,
+      });
+      await tx.prodajniDokument.update({ where: { id: nacrt.id }, data: { ugovorNajmaId: ugovorId } });
+      const izdan = await izdajRacunUBazi(tx, akter, nacrt.id, sada);
+      const ime = (await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";
+      await tx.rataNajma.createMany({
+        data: rate.map((x) => ({
+          firmaId: f,
+          planId: x.uredajId,
+          mjesec: mj(x.mjesec),
+          iznos: centiUDecimal(x.iznos),
+          dokumentId: nacrt.id,
+          korisnikId: akter.korisnikId,
+          korisnik: ime,
+        })),
+      });
+      await zapisiDnevnik(tx, {
+        firmaId: f,
+        korisnikId: akter.korisnikId,
+        ip: akter.ip,
+        radnja: "najam.izdaj",
+        entitet: "UgovorNajma",
+        entitetId: ugovorId,
+        opis: `Ugovor ${ug.broj}: izdan račun ${izdan.broj} za ${rate.length} rata (do ${MJESECI_KRATKO(doMjeseca)})`,
+      });
+      return { id: nacrt.id, ...izdan };
+    },
+    { timeout: 120_000 },
+  );
+  return { id: r.id, broj: r.broj, fiskal: r.fiskalizirati ? await porukaFiskalizacije(db, f, r.id, sada) : null };
+}
+
+/** „Izdano izvan programa“: rata se označava naplaćenom bez računa u programu (npr. stari program). */
+export async function oznaciIzvanPrograma(db: PrismaClient, akter: Akter, ugovorId: string, planId: string, mjesec: Mjesec, izvan: boolean) {
+  if (!jeUuid(ugovorId) || !jeUuid(planId) || !jeMjesec(mjesec)) throw new GreskaKorisniku("Rata ne postoji.");
+  const f = akter.firmaId;
+  await db.$transaction(async (tx) => {
+    const ug = await zakljucajUgovor(tx, f, ugovorId);
+    const n = await podaciZaNaplatu(tx, f, ugovorId);
+    const plan = n.motor.find((p) => p.uredajId === planId);
+    if (!plan) throw new GreskaKorisniku("Uređaj nije na ovom ugovoru.");
+    const serijski = n.planovi.find((p) => p.id === planId)!.uredaj.serijski;
+    if (izvan) {
+      const rata = rateUredaja(n.uvjeti, plan, n.fakturirano, mjesec).find((x) => x.mjesec === mjesec);
+      if (!rata || rata.izvor === "FAKTURIRANO") throw new GreskaKorisniku("Ta rata je već izdana ili ne postoji.");
+      await tx.rataNajma.create({ data: { firmaId: f, planId, mjesec: mj(mjesec), iznos: centiUDecimal(rata.iznos), korisnikId: akter.korisnikId } });
+    } else {
+      const obrisano = await tx.rataNajma.deleteMany({ where: { firmaId: f, planId, mjesec: mj(mjesec), dokumentId: null } });
+      if (!obrisano.count) throw new GreskaKorisniku("Rata nije označena kao izdana izvan programa (rata s računa se ispravlja odobrenjem).");
+    }
+    await zapisiDnevnik(tx, {
+      firmaId: f,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "najam.izvan",
+      entitet: "UgovorNajma",
+      entitetId: ugovorId,
+      opis: `Ugovor ${ug.broj}, ${serijski}, ${MJESECI_KRATKO(mjesec)}: ${izvan ? "izdano izvan programa" : "vraćeno za izdavanje"}`,
     });
   });
 }
