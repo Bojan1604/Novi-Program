@@ -27,6 +27,7 @@ export async function urediKorisnikaAkcija(korisnikId: string, _p: Odgovor | und
   return akcija("korisnici.uredi", async (k) => {
     await urediKorisnika(db, k, korisnikId, {
       ime: tekst(fd, "ime"),
+      oib: tekst(fd, "oib"),
       ulogaId: tekst(fd, "ulogaId"),
       iznimke: iznimkeIzObrasca(fd),
       aktivno: fd.get("aktivno") === "on",

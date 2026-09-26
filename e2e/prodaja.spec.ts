@@ -75,6 +75,11 @@ test("račun: skenirani uređaj, izdavanje s brojem, uređaj prodan, izdani se n
   await page.getByRole("button", { name: "Izdaj račun" }).click();
   await expect(page.getByRole("heading", { name: /Račun \d+\/PP1\/1/ })).toBeVisible();
   await expect(page.getByTestId("stavke-dokumenta")).toContainText(`S/N: ${serijski}`);
+  // gotovina → fiskaliziran (demo način: ZKI i izmišljeni JIR)
+  const fisk = page.getByTestId("fiskalizacija");
+  await expect(fisk).toContainText("fiskaliziran");
+  await expect(fisk).toContainText(/ZKI: [0-9a-f]{32}/);
+  await expect(fisk).toContainText(/JIR: [0-9a-f-]{36}/);
   const pdf = await page.request.get((await page.getByRole("link", { name: "PDF" }).getAttribute("href"))!);
   expect(pdf.headers()["content-type"]).toBe("application/pdf");
   expect((await pdf.body()).toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);

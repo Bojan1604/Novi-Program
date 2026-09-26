@@ -8,6 +8,7 @@ import { normalizirajSerijski } from "@/domain/stanja-uredaja";
 import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
+import { fiskaliziraj } from "@/services/fiskalizacija";
 import {
   cijenaZaKupca,
   izdajPonudu,
@@ -80,11 +81,13 @@ export async function izdajAkcija(dokId: string) {
   return akcija("prodaja.izdaj", async (k) => {
     const dok = jeUuid(dokId) ? await k.db.prodajniDokument.findFirst({ where: { id: dokId, firmaId: k.firmaId }, select: { vrsta: true } }) : null;
     if (!dok) return { ok: false as const, greska: "Dokument ne postoji." };
-    const { broj } = ["RACUN", "ODOBRENJE", "PREDUJAM"].includes(dok.vrsta) ? await izdajRacun(db, k, dokId) : await izdajPonudu(db, k, dokId);
+    const { broj, fiskal } = ["RACUN", "ODOBRENJE", "PREDUJAM"].includes(dok.vrsta)
+      ? await izdajRacun(db, k, dokId)
+      : { ...(await izdajPonudu(db, k, dokId)), fiskal: null };
     revalidatePath(`${putanja(dok.vrsta)}/${dokId}`);
     revalidatePath(putanja(dok.vrsta));
     revalidatePath("/uredaji");
-    return { ok: true as const, poruka: `Izdano: ${broj}` };
+    return { ok: true as const, poruka: `Izdano: ${broj}${fiskal ? `. ${fiskal}` : ""}` };
   });
 }
 
@@ -237,5 +240,16 @@ export async function dodajPredujamAkcija(racunId: string, predujamId: string) {
     await dodajPredujam(db, k, racunId, predujamId);
     revalidatePath(`/racuni/${racunId}`);
     return { ok: true as const, poruka: "Predujam je odbijen na računu." };
+  });
+}
+
+/** Ponovno slanje CIS-u (naknadna dostava na zahtjev; inače ide automatski). */
+export async function ponoviFiskalizacijuAkcija(racunId: string) {
+  return akcija("prodaja.izdaj", async (k) => {
+    if (!jeUuid(racunId)) return { ok: false as const, greska: "Račun ne postoji." };
+    const r = await fiskaliziraj(db, k.firmaId, racunId);
+    revalidatePath(`/racuni/${racunId}`);
+    revalidatePath("/racuni");
+    return "jir" in r ? { ok: true as const, poruka: "Račun je fiskaliziran." } : { ok: false as const, greska: r.greska };
   });
 }

@@ -107,8 +107,15 @@ export async function pdfDokumenta(d: PodaciPdf): Promise<Buffer> {
   doc.font("o").fontSize(8.5);
   let yp = y;
   for (const [n, v] of d.podaci) {
-    doc.fillColor(SIVA).text(n, L + W * 0.55, yp, { width: W * 0.2 });
-    doc.fillColor("#000").text(v, L + W * 0.75, yp, { width: W * 0.25, align: "right" });
+    doc
+      .fontSize(8.5)
+      .fillColor(SIVA)
+      .text(n, L + W * 0.55, yp, { width: W * 0.17 });
+    // dugi kodovi (ZKI, JIR) sitnijim slovima
+    doc
+      .fontSize(v.length > 24 ? 6.5 : 8.5)
+      .fillColor("#000")
+      .text(v, L + W * 0.72, yp, { width: W * 0.28, align: "right" });
     yp = doc.y + 1;
   }
   y = Math.max(krajKupca, yp) + 14;

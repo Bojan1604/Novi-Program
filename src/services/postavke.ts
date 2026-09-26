@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { procitajPrimatelje } from "@/domain/eposta";
+import { NACINI_FISKALIZACIJE, type NacinFiskalizacije } from "@/domain/fiskalizacija";
 import { jeIban } from "@/domain/hub3";
+import { ucitajP12, type Certifikat } from "@/lib/fiskalizacija/certifikat";
 import { provjeriOznakuProstora, provjeriOznakuUredaja } from "@/domain/numeracija";
 import { GreskaKorisniku } from "@/lib/greske";
 import { sifriraj } from "@/lib/tajne";
@@ -90,4 +92,56 @@ export async function probnaPoruka(db: PrismaClient, akter: Akter): Promise<void
   } catch (e) {
     throw new GreskaKorisniku(`Slanje nije uspjelo: ${(e as Error).message.slice(0, 300)}`);
   }
+}
+
+export type UlazFiskalizacije = {
+  nacin: string;
+  /** novi certifikat (.p12) s lozinkom; null = ne mijenja se */
+  certifikat: { sadrzaj: Buffer; lozinka: string } | null;
+};
+
+/** Način fiskalizacije i FINA certifikat (šifriran u bazi; lozinka se nikad ne vraća pregledniku ni u dnevnik). */
+export async function spremiFiskalizaciju(db: PrismaClient, akter: Akter, u: UlazFiskalizacije): Promise<Record<string, string>> {
+  if (!(u.nacin in NACINI_FISKALIZACIJE)) return { fiskalNacin: "Nepoznat način fiskalizacije." };
+  let cert: Certifikat | null = null;
+  if (u.certifikat) {
+    if (u.certifikat.sadrzaj.length > 100_000) return { certifikat: "Datoteka certifikata je prevelika." };
+    try {
+      cert = ucitajP12(u.certifikat.sadrzaj, u.certifikat.lozinka);
+    } catch {
+      return { certifikat: "Certifikat se ne može otvoriti — provjerite datoteku (.p12) i lozinku." };
+    }
+    if (cert.vrijediDo.getTime() < Date.now()) return { certifikat: `Certifikat je istekao ${cert.vrijediDo.toLocaleDateString("hr-HR")}.` };
+  }
+  await db.$transaction(async (tx) => {
+    const stara = await tx.firma.findUniqueOrThrow({ where: { id: akter.firmaId } });
+    if ((u.nacin === "TEST" || u.nacin === "PRODUKCIJA") && !cert && !stara.fiskalCertifikat)
+      throw new GreskaKorisniku("Za testni CIS i produkciju učitajte certifikat.");
+    await tx.firma.update({
+      where: { id: akter.firmaId },
+      data: {
+        fiskalNacin: u.nacin,
+        ...(cert && u.certifikat
+          ? {
+              fiskalCertifikat: sifriraj(u.certifikat.sadrzaj.toString("base64")),
+              fiskalLozinka: sifriraj(u.certifikat.lozinka),
+              fiskalCertNaziv: cert.naziv,
+              fiskalCertVrijedi: cert.vrijediDo,
+            }
+          : {}),
+      },
+    });
+    await zapisiDnevnik(tx, {
+      firmaId: akter.firmaId,
+      korisnikId: akter.korisnikId,
+      ip: akter.ip,
+      radnja: "postavke.fiskalizacija",
+      entitet: "Firma",
+      entitetId: akter.firmaId,
+      opis: `Fiskalizacija: ${NACINI_FISKALIZACIJE[u.nacin as NacinFiskalizacije]}${cert ? ` (novi certifikat: ${cert.naziv})` : ""}`,
+      staro: { fiskalNacin: stara.fiskalNacin, certifikat: stara.fiskalCertNaziv },
+      novo: { fiskalNacin: u.nacin, certifikat: cert?.naziv ?? stara.fiskalCertNaziv },
+    });
+  });
+  return {};
 }

@@ -16,7 +16,8 @@ import { PonistiUplatu, UnosUplate } from "../racuni/placanje";
 import { SlanjeEposte } from "./eposta";
 import { predlozak, vrstaPoruke, type VrstaPoruke } from "@/domain/eposta";
 import { pozivNaBrojRacuna } from "@/domain/hub3";
-import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, Pretvori, Storniraj } from "./radnje";
+import { IzdajDokument, ObrisiNacrt, OdbijPredujam, Odobrenje, PonoviFiskalizaciju, Pretvori, Storniraj } from "./radnje";
+import { STATUSI_FISKALIZACIJE } from "@/domain/fiskalizacija";
 import { UredjivacDokumenta, type PocetniDokument } from "./uredjivac";
 
 const datum = new Intl.DateTimeFormat("hr-HR", { dateStyle: "short", timeZone: "UTC" });
@@ -234,6 +235,29 @@ export async function StranicaDokumenta({ id, vrstaNovog, k }: { id: string; vrs
             <div>
               <dt className="text-xs text-neutral-500">Poslovnica</dt>
               <dd>{d.poslovnica.naziv}</dd>
+            </div>
+          )}
+          {d.fiskalStatus && d.fiskalStatus !== "NIJE_POTREBNO" && (
+            <div className="col-span-2 sm:col-span-4" data-testid="fiskalizacija">
+              <dt className="text-xs text-neutral-500">Fiskalizacija</dt>
+              <dd className="flex flex-col gap-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  {d.fiskalStatus === "FISKALIZIRAN" ? (
+                    <Znacka boja="zelena">fiskaliziran</Znacka>
+                  ) : (
+                    <Znacka boja="zuta">{STATUSI_FISKALIZACIJE.CEKA.toLowerCase()}</Znacka>
+                  )}
+                  {firma.fiskalNacin === "DEMO" && <Znacka>demo</Znacka>}
+                  {d.fiskalStatus === "CEKA" && smije && <PonoviFiskalizaciju id={d.id} />}
+                </span>
+                <span className="font-mono text-xs break-all">ZKI: {d.zki}</span>
+                {d.jir && <span className="font-mono text-xs break-all">JIR: {d.jir}</span>}
+                {d.fiskalStatus === "CEKA" && d.fiskalGreska && (
+                  <span className="text-xs text-red-700 dark:text-red-400">
+                    {d.fiskalGreska} (pokušaja: {d.fiskalPokusaja})
+                  </span>
+                )}
+              </dd>
             </div>
           )}
         </dl>

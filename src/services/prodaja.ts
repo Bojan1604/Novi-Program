@@ -22,9 +22,10 @@ import { preostalo, provjeriPredujmove, type PreostaloPredujma } from "@/domain/
 import { sljedeciBroj, sljedeciBrojSDatumom } from "./brojac";
 import { zapisiDnevnik } from "./dnevnik";
 import type { Akter } from "./korisnici";
+import { fiskaliziraj, pripremiFiskalizaciju } from "./fiskalizacija";
 import { promijeniStanje } from "./uredaji";
 
-type Tx = Prisma.TransactionClient;
+export type Tx = Prisma.TransactionClient;
 
 export const NAJVISE_STAVKI = 1000;
 const d = (x: string) => new Date(`${x}T00:00:00Z`);
@@ -430,8 +431,19 @@ export { NACINI_PLACANJA } from "@/domain/prodaja";
  * uređaji istog modela spojeni u jednu stavku, prodani uređaji prelaze u „Prodan“ kroz jedino pravilo prijelaza,
  * snimka postavki firme — kasnija promjena postavki ne mijenja izdani račun.
  */
-export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sada = new Date()): Promise<{ broj: string }> {
+export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sada = new Date()): Promise<{ broj: string; fiskal: string | null }> {
   if (!jeUuid(id)) throw new GreskaKorisniku("Račun ne postoji.");
+  const { broj, fiskalizirati } = await izdajRacunUBazi(db, akter, id, sada);
+  return { broj, fiskal: fiskalizirati ? await porukaFiskalizacije(db, akter.firmaId, id, sada) : null };
+}
+
+/** Nakon izdavanja: slanje CIS-u; greška ne poništava račun (naknadna dostava). */
+async function porukaFiskalizacije(db: PrismaClient, firmaId: string, id: string, sada: Date): Promise<string> {
+  const f = await fiskaliziraj(db, firmaId, id, sada);
+  return "jir" in f ? "Fiskaliziran." : `Fiskalizacija nije uspjela (${f.greska}) — ponovit će se automatski.`;
+}
+
+async function izdajRacunUBazi(db: PrismaClient, akter: Akter, id: string, sada: Date): Promise<{ broj: string; fiskalizirati: boolean }> {
   return db.$transaction(
     async (tx) => {
       const f = akter.firmaId;
@@ -439,7 +451,7 @@ export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sad
       const dok = await tx.prodajniDokument.findFirst({
         where: { id, firmaId: f },
         include: {
-          partner: { select: { drzava: true, pdvBroj: true, pdvStatus: true, aktivan: true } },
+          partner: { select: { drzava: true, pdvBroj: true, pdvStatus: true, aktivan: true, oib: true } },
           stavke: { orderBy: { redoslijed: "asc" }, include: { uredaj: { select: { serijski: true } } } },
         },
       });
@@ -566,6 +578,16 @@ export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sad
           poKategoriji: r.zbrojevi.poKategoriji,
         },
       };
+      const fiskal = await pripremiFiskalizaciju(tx, {
+        firma,
+        korisnikId: akter.korisnikId,
+        vrsta: dok.vrsta,
+        nacinPlacanja: dok.nacinPlacanja,
+        kupacImaOib: !!dok.partner?.oib,
+        redni,
+        ukupno: r.zbrojevi.ukupno,
+        vrijeme: sada,
+      });
       await tx.prodajniDokument.update({
         where: { id },
         data: {
@@ -575,6 +597,7 @@ export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sad
           redni,
           izdano: sada,
           snimka,
+          ...fiskal,
           osnovica: centiUDecimal(r.zbrojevi.osnovica),
           pdv: centiUDecimal(r.zbrojevi.pdv),
           ukupno: centiUDecimal(r.zbrojevi.ukupno),
@@ -588,9 +611,9 @@ export async function izdajRacun(db: PrismaClient, akter: Akter, id: string, sad
         radnja: "prodaja.izdajRacun",
         entitet: "ProdajniDokument",
         entitetId: id,
-        opis: `Izdan${jeOdobrenje ? "o odobrenje" : " račun"} ${broj} (${(r.zbrojevi.ukupno / 100).toFixed(2)} €, uređaja: ${prodaniUredaji.length})`,
+        opis: `Izdan${jeOdobrenje ? "o odobrenje" : " račun"} ${broj} (${(r.zbrojevi.ukupno / 100).toFixed(2)} €, uređaja: ${prodaniUredaji.length})${fiskal.zki ? `, ZKI ${fiskal.zki}` : ""}`,
       });
-      return { broj };
+      return { broj, fiskalizirati: fiskal.fiskalStatus === "CEKA" };
     },
     { timeout: 60_000 },
   );
@@ -700,16 +723,24 @@ export async function stornirajRacun(
   racunId: string,
   skladisteId: string,
   sada = new Date(),
-): Promise<{ id: string; broj: string }> {
+): Promise<{ id: string; broj: string; fiskal: string | null }> {
   if (!jeUuid(racunId)) throw new GreskaKorisniku("Račun ne postoji.");
   if (!jeUuid(skladisteId)) throw new GreskaKorisniku("Odaberite skladište za vraćene uređaje.");
+  const s = await stornirajUBazi(db, akter, racunId, skladisteId, sada);
+  return { id: s.id, broj: s.broj, fiskal: s.fiskalizirati ? await porukaFiskalizacije(db, akter.firmaId, s.id, sada) : null };
+}
+
+async function stornirajUBazi(db: PrismaClient, akter: Akter, racunId: string, skladisteId: string, sada: Date) {
   return db.$transaction(
     async (tx) => {
       const f = akter.firmaId;
       await tx.$queryRaw`SELECT id FROM "ProdajniDokument" WHERE id = ${racunId}::uuid AND "firmaId" = ${f}::uuid FOR UPDATE`;
       const r = await tx.prodajniDokument.findFirst({
         where: { id: racunId, firmaId: f },
-        include: { stavke: { orderBy: { redoslijed: "asc" }, include: { uredaji: { select: { uredajId: true } } } } },
+        include: {
+          stavke: { orderBy: { redoslijed: "asc" }, include: { uredaji: { select: { uredajId: true } } } },
+          partner: { select: { oib: true } },
+        },
       });
       if (!r) throw new GreskaKorisniku("Račun ne postoji.");
       const brojOdobrenja = await tx.prodajniDokument.count({ where: { firmaId: f, izvorId: r.id, vrsta: "ODOBRENJE", status: "IZDAN" } });
@@ -727,6 +758,21 @@ export async function stornirajRacun(
       const broj = brojRacuna(redni, firma.oznakaProstora, firma.oznakaUredaja);
       const ime = (await tx.korisnik.findUnique({ where: { id: akter.korisnikId }, select: { ime: true } }))?.ime ?? "Nepoznat";
       const neg = (x: Prisma.Decimal) => x.negated();
+      const snimka = (r.snimka as { racun?: object } | null) ?? {};
+      // storno se fiskalizira ako je fiskaliziran izvorni račun (isti način plaćanja, iznosi s minusom)
+      const fiskal =
+        r.fiskalStatus && r.fiskalStatus !== "NIJE_POTREBNO"
+          ? await pripremiFiskalizaciju(tx, {
+              firma,
+              korisnikId: akter.korisnikId,
+              vrsta: "STORNO",
+              nacinPlacanja: r.nacinPlacanja,
+              kupacImaOib: !!r.partner?.oib,
+              redni,
+              ukupno: -centiIzDecimala(r.ukupno.toFixed(2)),
+              vrijeme: sada,
+            })
+          : { fiskalStatus: "NIJE_POTREBNO" };
       const storno = await tx.prodajniDokument.create({
         data: {
           firmaId: f,
@@ -747,9 +793,10 @@ export async function stornirajRacun(
           ukupno: neg(r.ukupno),
           izvorId: r.id,
           izdano: sada,
-          snimka: { ...((r.snimka as object | null) ?? {}), stornoRacuna: r.broj },
+          snimka: { ...snimka, ...(snimka.racun ? { racun: { ...snimka.racun, operater: ime } } : {}), stornoRacuna: r.broj },
           korisnikId: akter.korisnikId,
           korisnik: ime,
+          ...fiskal,
         },
       });
       for (const s of r.stavke) {
@@ -781,7 +828,7 @@ export async function stornirajRacun(
         staro: { status: "IZDAN" },
         novo: { status: "STORNIRAN" },
       });
-      return { id: storno.id, broj };
+      return { id: storno.id, broj, fiskalizirati: fiskal.fiskalStatus === "CEKA" };
     },
     { timeout: 60_000 },
   );

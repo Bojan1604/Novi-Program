@@ -1,3 +1,4 @@
+import { qrProvjere } from "@/domain/fiskalizacija";
 import { jeUuid } from "@/domain/id";
 import { hub3Tekst, jeIban, pozivNaBrojRacuna } from "@/domain/hub3";
 import { centiIzDecimala, formatirajIznos } from "@/domain/novac";
@@ -78,6 +79,8 @@ export async function podaciZaPdf(db: DbFirme, firmaId: string, id: string): Pro
   if (jeRacun) podaci.push(["Način plaćanja", NACINI_PLACANJA[s.racun?.nacinPlacanja ?? d.nacinPlacanja] ?? d.nacinPlacanja]);
   if (s.racun) podaci.push(["Prostor / uređaj", `${s.racun.oznakaProstora} / ${s.racun.oznakaUredaja}`], ["Operater", s.racun.operater]);
   if (izvor?.broj && (d.vrsta === "STORNO" || d.vrsta === "ODOBRENJE")) podaci.push(["Za račun", izvor.broj]);
+  if (d.zki) podaci.push(["ZKI", d.zki]);
+  if (d.jir) podaci.push(["JIR", d.jir]);
   const poziv = d.redni && d.godina ? pozivNaBrojRacuna(d.redni, d.godina) : null;
   if (poziv && ukupno > 0 && d.vrsta !== "PONUDA") podaci.push(["Poziv na broj", `HR00 ${poziv}`]);
 
@@ -151,7 +154,7 @@ export async function podaciZaPdf(db: DbFirme, firmaId: string, id: string): Pro
       napomena: d.napomena,
       podnozje: f.podnozje,
       hub3,
-      qr: null,
+      qr: d.zki && d.izdano ? qrProvjere({ jir: d.jir, zki: d.zki, vrijeme: d.izdano, ukupno }) : null,
     },
   };
 }

@@ -5,7 +5,7 @@ import { akcija } from "@/lib/akcija";
 import { db } from "@/lib/db";
 import type { Odgovor } from "@/lib/greske";
 import { tekst } from "@/lib/obrazac";
-import { probnaPoruka, spremiPostavkeFirme } from "@/services/postavke";
+import { probnaPoruka, spremiFiskalizaciju, spremiPostavkeFirme } from "@/services/postavke";
 
 const ili = (fd: FormData, ime: string) => tekst(fd, ime) || null;
 
@@ -45,5 +45,19 @@ export async function probnaPorukaAkcija() {
   return akcija("postavke.spremi", async (k) => {
     await probnaPoruka(db, k);
     return { ok: true as const, poruka: "Probna poruka je poslana na Vašu e-poštu." };
+  });
+}
+
+export async function spremiFiskalizacijuAkcija(_p: Odgovor | undefined, fd: FormData): Promise<Odgovor> {
+  return akcija("postavke.spremi", async (k): Promise<Odgovor> => {
+    const dat = fd.get("certifikat");
+    const ima = dat instanceof File && dat.size > 0;
+    const polja = await spremiFiskalizaciju(db, k, {
+      nacin: tekst(fd, "fiskalNacin"),
+      certifikat: ima ? { sadrzaj: Buffer.from(await dat.arrayBuffer()), lozinka: String(fd.get("lozinkaCertifikata") ?? "") } : null,
+    });
+    if (Object.keys(polja).length) return { ok: false, greska: "Provjerite označena polja.", polja };
+    revalidatePath("/postavke");
+    return { ok: true, poruka: "Postavke fiskalizacije su spremljene." };
   });
 }

@@ -1,3 +1,4 @@
+import { procitajOib } from "@/domain/oib";
 import bcrypt from "bcryptjs";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { jeEmail, normalizirajEmail, provjeriNovuLozinku } from "@/domain/prijava";
@@ -118,7 +119,14 @@ export async function dodajKorisnika(db: PrismaClient, akter: Akter, ulaz: NoviK
   });
 }
 
-export type IzmjenaKorisnika = { ime?: string; ulogaId?: string; iznimke?: Iznimke; aktivno?: boolean };
+export type IzmjenaKorisnika = {
+  ime?: string;
+  /** OIB operatera za fiskalizaciju; "" = obriši */
+  oib?: string;
+  ulogaId?: string;
+  iznimke?: Iznimke;
+  aktivno?: boolean;
+};
 
 export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId: string, izmjena: IzmjenaKorisnika): Promise<void> {
   await db.$transaction(async (tx) => {
@@ -156,6 +164,10 @@ export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId:
         throw new GreskaKorisniku("Korisnik radi i u drugoj firmi; ime može promijeniti samo on sam.");
       await tx.korisnik.update({ where: { id: korisnikId }, data: { ime: izmjena.ime.trim() } });
     }
+    const noviOib = izmjena.oib === undefined ? undefined : izmjena.oib.trim() === "" ? null : procitajOib(izmjena.oib);
+    if (noviOib && !noviOib.ok) throw new GreskaKorisniku(`OIB operatera: ${noviOib.greska}`);
+    const oib = noviOib === undefined ? undefined : noviOib && noviOib.ok ? noviOib.vrijednost : null;
+    if (oib !== undefined && oib !== cilj.korisnik.oib) await tx.korisnik.update({ where: { id: korisnikId }, data: { oib } });
     await tx.clanstvoFirme.update({
       where: { id: cilj.id },
       data: {
@@ -175,9 +187,10 @@ export async function urediKorisnika(db: PrismaClient, akter: Akter, korisnikId:
       entitet: "Korisnik",
       entitetId: korisnikId,
       opis: `Izmijenjen korisnik ${izmjena.ime?.trim() || cilj.korisnik.ime}`,
-      staro: { ime: cilj.korisnik.ime, uloga: cilj.uloga.naziv, iznimke: opisIznimki(stareIznimke), aktivan: cilj.aktivno },
+      staro: { ime: cilj.korisnik.ime, oib: cilj.korisnik.oib, uloga: cilj.uloga.naziv, iznimke: opisIznimki(stareIznimke), aktivan: cilj.aktivno },
       novo: {
         ...(izmjena.ime !== undefined ? { ime: izmjena.ime.trim() } : {}),
+        ...(oib !== undefined ? { oib } : {}),
         ...(mijenjaPrava ? { uloga: novaUloga.naziv, iznimke: opisIznimki(noveIznimke) } : {}),
         ...(izmjena.aktivno !== undefined ? { aktivan: izmjena.aktivno } : {}),
       },

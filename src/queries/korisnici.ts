@@ -24,7 +24,7 @@ export async function popisClanova(db: DbFirme, firmaId: string) {
 export async function clan(db: DbFirme, firmaId: string, korisnikId: string) {
   const c = await db.clanstvoFirme.findUnique({
     where: { firmaId_korisnikId: { firmaId, korisnikId } },
-    include: { korisnik: { select: { id: true, ime: true, email: true, aktivan: true, zadnjaPrijava: true } }, uloga: true },
+    include: { korisnik: { select: { id: true, ime: true, email: true, aktivan: true, zadnjaPrijava: true, oib: true } }, uloga: true },
   });
   if (!c) return null;
   const pravaUloge = procitajPrava(c.uloga.prava);

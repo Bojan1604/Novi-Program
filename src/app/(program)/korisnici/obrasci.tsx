@@ -54,6 +54,7 @@ export function DodajKorisnika({ uloge }: { uloge: Uloga[] }) {
 export function UrediKorisnika({
   korisnikId,
   ime,
+  oib,
   aktivno,
   ulogaId,
   uloge,
@@ -63,6 +64,7 @@ export function UrediKorisnika({
 }: {
   korisnikId: string;
   ime: string;
+  oib: string | null;
   aktivno: boolean;
   ulogaId: string;
   uloge: Uloga[];
@@ -76,6 +78,13 @@ export function UrediKorisnika({
       <fieldset disabled={!smijeUredivati || uTijeku} className="flex min-w-0 flex-col gap-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Polje oznaka="Ime i prezime" name="ime" defaultValue={ime} required />
+          <Polje
+            oznaka="OIB (operater na računima)"
+            name="oib"
+            defaultValue={oib ?? ""}
+            inputMode="numeric"
+            opis="Za fiskalizaciju; bez njega ide OIB firme"
+          />
           <Odabir oznaka="Uloga" name="ulogaId" defaultValue={ulogaId}>
             {uloge.map((u) => (
               <option key={u.id} value={u.id}>

@@ -27,6 +27,7 @@ export default async function Korisnik({ params }: PageProps<"/korisnici/[id]">)
         <UrediKorisnika
           korisnikId={id}
           ime={c.korisnik.ime}
+          oib={c.korisnik.oib}
           aktivno={c.aktivno}
           ulogaId={c.ulogaId}
           uloge={uloge.map(({ id: uid, naziv }) => ({ id: uid, naziv }))}

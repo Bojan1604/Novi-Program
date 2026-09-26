@@ -4,8 +4,9 @@ import { useActionState, useTransition, useState } from "react";
 import { Gumb } from "@/components/ui/gumb";
 import { Obavijest } from "@/components/ui/obavijest";
 import { Obrazac } from "@/components/ui/obrazac";
-import { klaseUnosa, Kvacica, Polje } from "@/components/ui/polje";
-import { probnaPorukaAkcija, spremiPostavkeAkcija } from "./akcije";
+import { klaseUnosa, Kvacica, Odabir, Polje } from "@/components/ui/polje";
+import { NACINI_FISKALIZACIJE } from "@/domain/fiskalizacija";
+import { probnaPorukaAkcija, spremiFiskalizacijuAkcija, spremiPostavkeAkcija } from "./akcije";
 
 export type Postavke = Record<string, string | number | boolean | null> & { imaLozinku: boolean };
 
@@ -93,6 +94,58 @@ export function ObrazacPostavki({ p, smije }: { p: Postavke; smije: boolean }) {
             }
           >
             Pošalji probnu poruku
+          </Gumb>
+        </div>
+      )}
+    </Obrazac>
+  );
+}
+
+export function ObrazacFiskalizacije({
+  nacin,
+  certifikat,
+  smije,
+}: {
+  nacin: string;
+  certifikat: { naziv: string; vrijediDo: string } | null;
+  smije: boolean;
+}) {
+  const [stanje, posalji, uTijeku] = useActionState(spremiFiskalizacijuAkcija, undefined);
+  const g = (x: string) => (stanje && !stanje.ok ? stanje.polja?.[x] : undefined);
+  return (
+    <Obrazac akcija={posalji} className="flex flex-col gap-4" aria-label="Fiskalizacija">
+      <fieldset disabled={!smije || uTijeku} className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <Odabir oznaka="Način fiskalizacije" name="fiskalNacin" defaultValue={nacin} greska={g("fiskalNacin")}>
+          {Object.entries(NACINI_FISKALIZACIJE).map(([v, n]) => (
+            <option key={v} value={v}>
+              {n}
+            </option>
+          ))}
+        </Odabir>
+        <p className="self-end text-sm text-neutral-600 dark:text-neutral-400" data-testid="certifikat">
+          {certifikat
+            ? `Certifikat: ${certifikat.naziv}, vrijedi do ${new Date(certifikat.vrijediDo).toLocaleDateString("hr-HR")}`
+            : "Certifikat nije učitan."}
+        </p>
+        <Polje
+          oznaka="Novi certifikat (.p12 / .pfx)"
+          name="certifikat"
+          type="file"
+          accept=".p12,.pfx,application/x-pkcs12"
+          greska={g("certifikat")}
+          opis="FINA aplikacijski certifikat za fiskalizaciju"
+        />
+        <Polje oznaka="Lozinka certifikata" name="lozinkaCertifikata" type="password" autoComplete="off" />
+      </fieldset>
+      <p className="text-xs text-neutral-500">
+        Fiskaliziraju se računi plaćeni gotovinom, karticom ili „ostalo“ i računi građanima. Ako CIS ne odgovori, račun je ipak izdan i šalje se
+        ponovno automatski (naknadna dostava). OIB operatera upisuje se kod korisnika.
+      </p>
+      {stanje && (stanje.ok ? <Obavijest vrsta="uspjeh">{stanje.poruka}</Obavijest> : <Obavijest vrsta="greska">{stanje.greska}</Obavijest>)}
+      {smije && (
+        <div>
+          <Gumb type="submit" varijanta="primarni" disabled={uTijeku}>
+            Spremi fiskalizaciju
           </Gumb>
         </div>
       )}

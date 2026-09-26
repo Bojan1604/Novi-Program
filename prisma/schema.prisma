@@ -36,22 +36,28 @@ model Firma {
   iban              String?
   banka             String?
   /// u sustavu PDV-a; obračun po naplaćenoj naknadi
-  uSustavuPdv       Boolean @default(true)
-  pdvPoNaplacenoj   Boolean @default(false)
+  uSustavuPdv       Boolean   @default(true)
+  pdvPoNaplacenoj   Boolean   @default(false)
   /// fiskalizacija: oznaka poslovnog prostora i naplatnog uređaja (broj računa 12/PP1/1)
-  oznakaProstora    String  @default("PP1")
-  oznakaUredaja     String  @default("1")
+  oznakaProstora    String    @default("PP1")
+  oznakaUredaja     String    @default("1")
   /// zadani rok plaćanja (dana) i tekst u podnožju dokumenata
-  rokPlacanjaDana   Int     @default(15)
+  rokPlacanjaDana   Int       @default(15)
   podnozje          String?
   /// e-pošta: SMTP (lozinka šifrirana, src/lib/tajne.ts); bez SMTP-a slanje ide preko programa za poštu (mailto)
   smtpHost          String?
   smtpPort          Int?
-  smtpSigurno       Boolean @default(true)
+  smtpSigurno       Boolean   @default(true)
   smtpKorisnik      String?
   smtpLozinka       String?
   epostaPosiljatelj String?
   epostaKopija      String?
+  /// fiskalizacija (korak 2.10): ISKLJUCENA, DEMO, TEST, PRODUKCIJA; certifikat .p12 i lozinka šifrirani (src/lib/tajne.ts)
+  fiskalNacin       String    @default("DEMO")
+  fiskalCertifikat  String?
+  fiskalLozinka     String?
+  fiskalCertNaziv   String?
+  fiskalCertVrijedi DateTime? @db.Timestamptz(3)
 
   clanstva ClanstvoFirme[]
   sesije   Sesija[]
@@ -91,6 +97,8 @@ model Korisnik {
   ime           String
   email         String    @unique
   lozinkaHash   String
+  /// OIB operatera na fiskaliziranim računima (bez njega se šalje OIB firme)
+  oib           String?   @db.Char(11)
   aktivan       Boolean   @default(true)
   zadnjaPrijava DateTime? @db.Timestamptz(3)
   stvoreno      DateTime  @default(now()) @db.Timestamptz(3)
@@ -751,42 +759,50 @@ model StavkaInventure {
 /// Prodajni dokument: ponuda, predračun, račun (i kasnije storno, odobrenje, predujam).
 /// Nacrt se smije mijenjati; izdani je zaključan i pamti podatke firme i kupca u trenutku izdavanja.
 model ProdajniDokument {
-  id            String    @id @default(uuid(7)) @db.Uuid
-  firmaId       String    @db.Uuid
+  id             String    @id @default(uuid(7)) @db.Uuid
+  firmaId        String    @db.Uuid
   /// PONUDA, PREDRACUN, RACUN…
-  vrsta         String
+  vrsta          String
   /// NACRT, IZDAN, STORNIRAN…
-  status        String    @default("NACRT")
+  status         String    @default("NACRT")
   /// broj tek pri izdavanju (nacrt nema broj)
-  broj          String?
-  godina        Int?
-  redni         Int?
-  datum         DateTime  @db.Date
+  broj           String?
+  godina         Int?
+  redni          Int?
+  datum          DateTime  @db.Date
   /// ponuda: vrijedi do; predračun/račun: dospijeće
-  vrijediDo     DateTime? @db.Date
-  dospijece     DateTime? @db.Date
-  partnerId     String?   @db.Uuid
-  poslovnicaId  String?   @db.Uuid
+  vrijediDo      DateTime? @db.Date
+  dospijece      DateTime? @db.Date
+  partnerId      String?   @db.Uuid
+  poslovnicaId   String?   @db.Uuid
   /// popust na cijeli dokument, stotinke postotka
-  popust        Int       @default(0)
-  napomena      String?
+  popust         Int       @default(0)
+  napomena       String?
   /// T transakcijski, G gotovina, K kartica, O ostalo (fiskalizacija)
-  nacinPlacanja String    @default("T")
-  osnovica      Decimal   @default(0) @db.Decimal(14, 2)
-  pdv           Decimal   @default(0) @db.Decimal(14, 2)
-  ukupno        Decimal   @default(0) @db.Decimal(14, 2)
+  nacinPlacanja  String    @default("T")
+  osnovica       Decimal   @default(0) @db.Decimal(14, 2)
+  pdv            Decimal   @default(0) @db.Decimal(14, 2)
+  ukupno         Decimal   @default(0) @db.Decimal(14, 2)
   /// zbroj neponištenih uplata (održava se u istoj transakciji kao uplata) — za popis otvorenih računa
-  placeno       Decimal   @default(0) @db.Decimal(14, 2)
+  placeno        Decimal   @default(0) @db.Decimal(14, 2)
   /// podaci firme, kupca i tekstovi u trenutku izdavanja (izdani dokument se ne mijenja kad se promijene postavke)
-  snimka        Json?
+  snimka         Json?
   /// dokument iz kojeg je nastao (ponuda → predračun → račun)
-  izvorId       String?   @db.Uuid
-  verzija       Int       @default(0)
-  korisnikId    String?   @db.Uuid
-  korisnik      String    @default("Sustav")
-  izdano        DateTime? @db.Timestamptz(3)
-  stvoreno      DateTime  @default(now()) @db.Timestamptz(3)
-  azurirano     DateTime  @updatedAt @db.Timestamptz(3)
+  izvorId        String?   @db.Uuid
+  verzija        Int       @default(0)
+  korisnikId     String?   @db.Uuid
+  korisnik       String    @default("Sustav")
+  izdano         DateTime? @db.Timestamptz(3)
+  /// fiskalizacija: NIJE_POTREBNO, CEKA (naknadna dostava), FISKALIZIRAN; ZKI se računa pri izdavanju, JIR vraća CIS
+  fiskalStatus   String?
+  zki            String?   @db.Char(32)
+  jir            String?
+  oibOperatera   String?   @db.Char(11)
+  fiskalPokusaja Int       @default(0)
+  fiskalGreska   String?
+  fiskalSljedeci DateTime? @db.Timestamptz(3)
+  stvoreno       DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano      DateTime  @updatedAt @db.Timestamptz(3)
 
   firma      Firma                      @relation(fields: [firmaId], references: [id])
   partner    Partner?                   @relation(fields: [firmaId, partnerId], references: [firmaId, id])
@@ -800,6 +816,7 @@ model ProdajniDokument {
   @@index([firmaId, vrsta, datum(sort: Desc)])
   @@index([firmaId, partnerId])
   @@index([firmaId, izvorId])
+  @@index([fiskalStatus, fiskalSljedeci])
 }
 
 model StavkaProdajnogDokumenta {
