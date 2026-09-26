@@ -17,12 +17,14 @@ export const MODELI_S_FIRMOM = [
   "Poslovnica",
   "Prilog",
   "Primka",
+  "ProdajniDokument",
   "Proizvodjac",
   "SkladisniDokument",
   "StavkaSkladisnogDokumenta",
   "Odobrenje",
   "Inventura",
   "StavkaInventure",
+  "StavkaProdajnogDokumenta",
   "Sesija",
   "Skladiste",
   "StanjeRobe",
@@ -69,6 +71,8 @@ export const RELACIJE_PREMA_FIRMAMA: Record<string, readonly string[]> = {
     "odobrenja",
     "inventure",
     "stavkeInventure",
+    "prodajniDokumenti",
+    "stavkeProdaje",
   ],
 };
 

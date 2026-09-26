@@ -165,3 +165,6 @@ Na Windowsu sve pokreće `pokreni.bat`.
 - **Naljepnice:** geometrija u `src/domain/naljepnice.ts` (test „ispis bez odrezivanja“ za svaki format), PDF u
   `src/lib/naljepnice-pdf.ts` (bwip-js: Code 128 + QR na `/uredaji/sn/<serijski>`), gumb `GumbNaljepnice`.
   Novi format = unos u `FORMATI` (test ga sam provjeri).
+- **Prodajni dokumenti** (`ProdajniDokument`, `src/services/prodaja.ts`): nacrt bez broja → izdavanje (broj, `snimka`
+  podataka firme/kupca, zaključano). Iznosi i PDV uvijek kroz `izracunajDokument` (`src/domain/prodaja.ts`) — isti
+  izračun u pregledniku i na poslužitelju; poslužitelj ne vjeruje iznosima iz preglednika. Pretvorba kopira stavke 1:1.

@@ -41,6 +41,11 @@ const TKO_SMIJE_AKCIJU: Record<KljucAkcije, string[]> = {
   "skladisni.izdaj": ["Administrator", "Voditelj", "Skladištar"],
   "odobrenja.odluci": ["Administrator", "Voditelj"],
   "inventure.uredi": ["Administrator", "Voditelj", "Skladištar"],
+  "prodaja.spremi": ["Administrator", "Voditelj", "Prodavač"],
+  "prodaja.izdaj": ["Administrator", "Voditelj", "Prodavač"],
+  "prodaja.pretvori": ["Administrator", "Voditelj", "Prodavač"],
+  "prodaja.obrisi": ["Administrator", "Voditelj", "Prodavač"],
+  "prodaja.podaci": ["Administrator", "Voditelj", "Prodavač"],
 };
 
 const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
@@ -58,6 +63,7 @@ const TKO_VIDI_STRANICU: Record<PutanjaStranice, string[]> = {
   "/skladisni": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
   "/odobrenja": ["Administrator", "Voditelj", "Skladištar"],
   "/inventure": ["Administrator", "Voditelj", "Prodavač", "Skladištar", "Serviser"],
+  "/ponude": ["Administrator", "Voditelj", "Prodavač", "Knjigovođa"],
 };
 
 describe("svaka uloga × svaka akcija", () => {
@@ -97,6 +103,7 @@ describe("izbornik", () => {
     const putanje = (uloga: string) => izbornikZa(pravaUloge(uloga), IZBORNIK).map((s) => s.putanja);
     expect(putanje("Prodavač")).toEqual([
       "/",
+      "/ponude",
       "/partneri",
       "/cjenici",
       "/uredaji",
@@ -109,6 +116,7 @@ describe("izbornik", () => {
     ]);
     expect(putanje("Administrator")).toEqual([
       "/",
+      "/ponude",
       "/partneri",
       "/cjenici",
       "/uredaji",
@@ -123,7 +131,7 @@ describe("izbornik", () => {
       "/dnevnik",
       "/moj-racun",
     ]);
-    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/partneri");
+    expect(prvaDopustena(pravaUloge("Knjigovođa"), IZBORNIK)).toBe("/ponude");
   });
 
   it("svaka stranica iz popisa je u izborniku", () => {

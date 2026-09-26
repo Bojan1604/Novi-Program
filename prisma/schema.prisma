@@ -26,6 +26,25 @@ model Firma {
   boja     String?  @db.Char(7)
   stvoreno DateTime @default(now()) @db.Timestamptz(3)
 
+  /// podaci za dokumente (izdani dokument ih pamti u trenutku izdavanja)
+  adresa          String?
+  postanskiBroj   String?
+  mjesto          String?
+  email           String?
+  telefon         String?
+  web             String?
+  iban            String?
+  banka           String?
+  /// u sustavu PDV-a; obračun po naplaćenoj naknadi
+  uSustavuPdv     Boolean @default(true)
+  pdvPoNaplacenoj Boolean @default(false)
+  /// fiskalizacija: oznaka poslovnog prostora i naplatnog uređaja (broj računa 12/PP1/1)
+  oznakaProstora  String  @default("PP1")
+  oznakaUredaja   String  @default("1")
+  /// zadani rok plaćanja (dana) i tekst u podnožju dokumenata
+  rokPlacanjaDana Int     @default(15)
+  podnozje        String?
+
   clanstva ClanstvoFirme[]
   sesije   Sesija[]
   uloge    Uloga[]
@@ -47,10 +66,12 @@ model Firma {
   primke             Primka[]
   prilozi            Prilog[]
   skladisniDokumenti SkladisniDokument[]
+  prodajniDokumenti  ProdajniDokument[]
   stavkeDokumenata   StavkaSkladisnogDokumenta[]
   odobrenja          Odobrenje[]
   inventure          Inventura[]
   stavkeInventure    StavkaInventure[]
+  stavkeProdaje      StavkaProdajnogDokumenta[]
 }
 
 /// Korisnik je jedan za sve firme; kojoj firmi smije pristupiti određuje ClanstvoFirme.
@@ -220,11 +241,12 @@ model ModelUredaja {
   stvoreno          DateTime @default(now()) @db.Timestamptz(3)
   azurirano         DateTime @updatedAt @db.Timestamptz(3)
 
-  firma       Firma           @relation(fields: [firmaId], references: [id])
-  proizvodjac Proizvodjac     @relation(fields: [firmaId, proizvodjacId], references: [firmaId, id])
-  kategorija  Kategorija      @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
-  cijene      StavkaCjenika[]
-  uredaji     Uredaj[]
+  firma         Firma                      @relation(fields: [firmaId], references: [id])
+  proizvodjac   Proizvodjac                @relation(fields: [firmaId, proizvodjacId], references: [firmaId, id])
+  kategorija    Kategorija                 @relation(fields: [firmaId, kategorijaId], references: [firmaId, id])
+  cijene        StavkaCjenika[]
+  uredaji       Uredaj[]
+  stavkeProdaje StavkaProdajnogDokumenta[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -283,8 +305,9 @@ model Usluga {
   stvoreno  DateTime @default(now()) @db.Timestamptz(3)
   azurirano DateTime @updatedAt @db.Timestamptz(3)
 
-  firma  Firma           @relation(fields: [firmaId], references: [id])
-  cijene StavkaCjenika[]
+  firma         Firma                      @relation(fields: [firmaId], references: [id])
+  cijene        StavkaCjenika[]
+  stavkeProdaje StavkaProdajnogDokumenta[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -331,6 +354,7 @@ model Partner {
   uredaji            Uredaj[]
   primke             Primka[]
   skladisniDokumenti SkladisniDokument[]
+  prodajniDokumenti  ProdajniDokument[]
 
   @@unique([firmaId, id])
   @@index([firmaId, naziv])
@@ -352,9 +376,10 @@ model Poslovnica {
   stvoreno      DateTime @default(now()) @db.Timestamptz(3)
   azurirano     DateTime @updatedAt @db.Timestamptz(3)
 
-  firma   Firma    @relation(fields: [firmaId], references: [id])
-  partner Partner  @relation(fields: [firmaId, partnerId], references: [firmaId, id])
-  uredaji Uredaj[]
+  firma             Firma              @relation(fields: [firmaId], references: [id])
+  partner           Partner            @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  uredaji           Uredaj[]
+  prodajniDokumenti ProdajniDokument[]
 
   @@unique([firmaId, id])
   @@index([partnerId])
@@ -456,6 +481,7 @@ model Uredaj {
   dogadaji         DogadajUredaja[]
   stavkeDokumenata StavkaSkladisnogDokumenta[]
   stavkeInventure  StavkaInventure[]
+  stavkeProdaje    StavkaProdajnogDokumenta[]
 
   @@unique([firmaId, serijski])
   @@unique([firmaId, id])
@@ -707,5 +733,92 @@ model StavkaInventure {
   uredaj    Uredaj?   @relation(fields: [firmaId, uredajId], references: [firmaId, id])
 
   @@unique([inventuraId, serijski])
+  @@index([firmaId, uredajId])
+}
+
+/// Prodajni dokument: ponuda, predračun, račun (i kasnije storno, odobrenje, predujam).
+/// Nacrt se smije mijenjati; izdani je zaključan i pamti podatke firme i kupca u trenutku izdavanja.
+model ProdajniDokument {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  firmaId      String    @db.Uuid
+  /// PONUDA, PREDRACUN, RACUN…
+  vrsta        String
+  /// NACRT, IZDAN, STORNIRAN…
+  status       String    @default("NACRT")
+  /// broj tek pri izdavanju (nacrt nema broj)
+  broj         String?
+  godina       Int?
+  redni        Int?
+  datum        DateTime  @db.Date
+  /// ponuda: vrijedi do; predračun/račun: dospijeće
+  vrijediDo    DateTime? @db.Date
+  dospijece    DateTime? @db.Date
+  partnerId    String?   @db.Uuid
+  poslovnicaId String?   @db.Uuid
+  /// popust na cijeli dokument, stotinke postotka
+  popust       Int       @default(0)
+  napomena     String?
+  osnovica     Decimal   @default(0) @db.Decimal(14, 2)
+  pdv          Decimal   @default(0) @db.Decimal(14, 2)
+  ukupno       Decimal   @default(0) @db.Decimal(14, 2)
+  /// podaci firme, kupca i tekstovi u trenutku izdavanja (izdani dokument se ne mijenja kad se promijene postavke)
+  snimka       Json?
+  /// dokument iz kojeg je nastao (ponuda → predračun → račun)
+  izvorId      String?   @db.Uuid
+  verzija      Int       @default(0)
+  korisnikId   String?   @db.Uuid
+  korisnik     String    @default("Sustav")
+  izdano       DateTime? @db.Timestamptz(3)
+  stvoreno     DateTime  @default(now()) @db.Timestamptz(3)
+  azurirano    DateTime  @updatedAt @db.Timestamptz(3)
+
+  firma      Firma                      @relation(fields: [firmaId], references: [id])
+  partner    Partner?                   @relation(fields: [firmaId, partnerId], references: [firmaId, id])
+  poslovnica Poslovnica?                @relation(fields: [firmaId, poslovnicaId], references: [firmaId, id])
+  stavke     StavkaProdajnogDokumenta[]
+
+  @@unique([firmaId, id])
+  @@unique([firmaId, vrsta, godina, redni])
+  @@index([firmaId, vrsta, datum(sort: Desc)])
+  @@index([firmaId, partnerId])
+  @@index([firmaId, izvorId])
+}
+
+model StavkaProdajnogDokumenta {
+  id            String  @id @default(uuid(7)) @db.Uuid
+  firmaId       String  @db.Uuid
+  dokumentId    String  @db.Uuid
+  redoslijed    Int
+  /// UREDAJ (točno taj serijski), MODEL, USLUGA, RUCNA
+  vrsta         String
+  /// PRODAJA ili NAJAM
+  namjena       String  @default("PRODAJA")
+  uredajId      String? @db.Uuid
+  modelId       String? @db.Uuid
+  uslugaId      String? @db.Uuid
+  naziv         String
+  opis          String?
+  kpd           String?
+  jedinica      String  @default("kom")
+  /// tisućinke (1 kom = 1000)
+  kolicina      Int
+  cijena        Decimal @db.Decimal(14, 2)
+  /// stotinke postotka
+  popust        Int     @default(0)
+  /// ROBA ili USLUGA (najam je usluga)
+  vrstaIsporuke String
+  /// stopa i kategorija PDV-a (src/domain/pdv.ts)
+  stopa         Int
+  kategorija    String
+  /// iznos bez PDV-a nakon popusta
+  iznos         Decimal @db.Decimal(14, 2)
+
+  firma    Firma            @relation(fields: [firmaId], references: [id])
+  dokument ProdajniDokument @relation(fields: [firmaId, dokumentId], references: [firmaId, id])
+  uredaj   Uredaj?          @relation(fields: [firmaId, uredajId], references: [firmaId, id])
+  model    ModelUredaja?    @relation(fields: [firmaId, modelId], references: [firmaId, id])
+  usluga   Usluga?          @relation(fields: [firmaId, uslugaId], references: [firmaId, id])
+
+  @@index([dokumentId, redoslijed])
   @@index([firmaId, uredajId])
 }
